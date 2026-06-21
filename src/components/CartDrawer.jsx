@@ -1,7 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Gift } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+
+// cart line thumbnail: real product image (white bg melts via multiply), emoji fallback
+function CartThumb({ image, emoji }) {
+  const [ok, setOk] = useState(true);
+  if (image && ok) {
+    return (
+      <img
+        src={image}
+        alt=""
+        loading="lazy"
+        onError={() => setOk(false)}
+        className="h-full w-full object-contain p-1 mix-blend-multiply"
+      />
+    );
+  }
+  return <span>{emoji}</span>;
+}
 
 export default function CartDrawer({ open, onClose, items, total, onRefer }) {
   useEffect(() => {
@@ -62,8 +79,8 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
                     key={it.key}
                     className="mb-3 flex items-center gap-3 rounded-2xl bg-white/55 p-3 ring-1 ring-white/50 backdrop-blur-md"
                   >
-                    <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/60 text-2xl ring-1 ring-white/50">
-                      {it.emoji}
+                    <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-white/60 text-2xl ring-1 ring-white/50">
+                      <CartThumb image={it.image} emoji={it.emoji} />
                     </div>
                     <div className="flex-1">
                       <div className="font-display text-[15px] font-bold text-ink">{it.name}</div>
