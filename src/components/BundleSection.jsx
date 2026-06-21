@@ -1,8 +1,25 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Star } from 'lucide-react';
 import { BUNDLES, fmt } from '../data/catalog.js';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
+
+// one ingredient bubble: shows the real product image, falls back to emoji
+function BundleOrb({ image, emoji }) {
+  const [ok, setOk] = useState(true);
+  if (image && ok) {
+    return (
+      <img
+        src={image}
+        alt=""
+        loading="lazy"
+        onError={() => setOk(false)}
+        className="h-full w-full object-contain p-1 mix-blend-multiply"
+      />
+    );
+  }
+  return <span>{emoji}</span>;
+}
 
 function BundleCard({ b, onAdd, fly }) {
   const plateRef = useRef(null);
@@ -29,8 +46,8 @@ function BundleCard({ b, onAdd, fly }) {
           )}
         </div>
 
-        {/* overlapping ingredient orbs = the curated plate
-            (replace the emoji spans with <img src> of each ingredient PNG) */}
+        {/* overlapping ingredient orbs = the curated plate, now using the real
+            product images from /public/images (emoji fallback if an image is missing) */}
         <div ref={plateRef} className="relative mx-auto mt-4 flex h-36 items-end justify-center">
           {b.emojis.map((e, i) => {
             const mid = (b.emojis.length - 1) / 2;
@@ -38,7 +55,7 @@ function BundleCard({ b, onAdd, fly }) {
             return (
               <div
                 key={i}
-                className="grid h-20 w-20 place-items-center rounded-full bg-cream text-3xl shadow-soft transition-transform duration-300 group-hover:-translate-y-1"
+                className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-cream text-3xl shadow-soft transition-transform duration-300 group-hover:-translate-y-1"
                 style={{
                   marginInline: '-12px',
                   transform: `translateY(${Math.abs(off) * 10}px)`,
@@ -46,7 +63,7 @@ function BundleCard({ b, onAdd, fly }) {
                   filter: 'drop-shadow(0 8px 10px rgba(0,0,0,.18))',
                 }}
               >
-                <span>{e}</span>
+                <BundleOrb image={b.images?.[i]} emoji={e} />
               </div>
             );
           })}
