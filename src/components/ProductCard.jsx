@@ -38,8 +38,10 @@ export default function ProductCard({ p, onAdd, fly }) {
               alt={p.name}
               loading="lazy"
               onError={() => setImgOk(false)}
-              className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-              style={{ filter: 'drop-shadow(0 6px 8px rgba(0,0,0,.18))' }}
+              /* mix-blend-multiply makes a white/light image background melt into
+                 the tile — no need to edit the original images. p-2 keeps the
+                 product from touching the edge; object-contain keeps proportions. */
+              className="h-full w-full object-contain p-2 mix-blend-multiply"
             />
           ) : (
             <span style={{ filter: 'drop-shadow(0 6px 8px rgba(0,0,0,.18))' }}>{p.emoji}</span>
