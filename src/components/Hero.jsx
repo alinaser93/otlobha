@@ -20,19 +20,20 @@ const item = {
 export default function Hero({ onShop }) {
   return (
     <section className="relative -mt-[64px] flex min-h-[100svh] items-center overflow-hidden pt-[64px]">
-      {/* VIDEO LAYER — drop your slow-motion water-on-produce clip here */}
+      {/* VIDEO LAYER */}
       <div className="absolute inset-0">
+        {/* fallback sits BEHIND — shows only if the video is missing or fails */}
+        <div className="hero-fallback droplets absolute inset-0 animate-drift" />
+        {/* your cinematic clip — covers the fallback once it plays */}
         <video
-          className="h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
+          src="/media/hero-droplets.mp4"
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
-          /* src="/media/hero-droplets.mp4" */
+          preload="auto"
         />
-        {/* graceful ambience until the real video is wired in */}
-        <div className="hero-fallback droplets absolute inset-0 animate-drift" />
         {/* readability overlays */}
         <div className="absolute inset-0 bg-gradient-to-l from-brand-950/85 via-brand-950/55 to-brand-950/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-950 via-transparent to-brand-950/40" />
