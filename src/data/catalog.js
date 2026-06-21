@@ -37,6 +37,8 @@ export const BUNDLES = [
     desc: 'كل ما تحتاجه لطبخة دولمة عراقية أصيلة — مكوّنات مختارة بعناية.',
     items: ['باذنجان', 'فلفل', 'طماطم', 'أرز عنبر', 'دبس رمان'],
     emojis: ['🍆', '🫑', '🍅', '🍚', '🫙'],
+    // each ingredient → its product image in /public/images (null = use emoji)
+    images: ['/images/eggplant.webp', '/images/red-pepper.webp', '/images/tomato.webp', '/images/anbar-rice.webp', '/images/molasses.webp'],
     image: '/images/bundle-dolma.webp',
     price: 18500,
     old: 22000,
@@ -49,6 +51,7 @@ export const BUNDLES = [
     desc: 'طاولة شاي العصر العراقية كاملة — حلو، فاكهة، وضيافة.',
     items: ['كليجة', 'تمر', 'تين', 'عنب'],
     emojis: ['🍪', '🟤', '🟣', '🍇'],
+    images: ['/images/kleicha.webp', '/images/dates.webp', '/images/figs.webp', '/images/grapes.webp'],
     image: '/images/bundle-asriya.webp',
     price: 14000,
     old: null,
@@ -61,6 +64,8 @@ export const BUNDLES = [
     desc: 'خضار وأساسيات الطبخ لأسبوع كامل — تتجدد كل يوم بطازجها.',
     items: ['طماطم', 'خيار', 'ثوم', 'بامية', 'بقدونس'],
     emojis: ['🍅', '🥒', '🧄', '🫛', '🌿'],
+    // ثوم (garlic) has no product image yet → null keeps the emoji
+    images: ['/images/tomato.webp', '/images/cucumber.webp', null, '/images/okra.webp', '/images/herbs.webp'],
     image: '/images/bundle-weekly.webp',
     price: 12500,
     old: 15000,
