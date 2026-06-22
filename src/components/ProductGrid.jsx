@@ -9,7 +9,7 @@ export default function ProductGrid({ onAdd, fly }) {
   const list = cat === 'الكل' ? PRODUCTS : PRODUCTS.filter((p) => p.tag === cat);
 
   return (
-    <section id="products" className="bg-cream py-16 sm:py-24">
+    <section id="products" className="bg-cream py-16 dark:bg-night sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <motion.div
           variants={fadeUp}
@@ -19,8 +19,8 @@ export default function ProductGrid({ onAdd, fly }) {
           className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end"
         >
           <div>
-            <span className="font-body text-sm font-bold tracking-widest text-copper">مختار لك اليوم</span>
-            <h2 className="mt-2 font-display text-4xl font-black text-ink sm:text-5xl">الأكثر طلباً</h2>
+            <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">مختار لك اليوم</span>
+            <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">الأكثر طلباً</h2>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -30,8 +30,8 @@ export default function ProductGrid({ onAdd, fly }) {
                 onClick={() => setCat(c)}
                 className={`rounded-full px-4 py-2 font-body text-sm font-bold transition ${
                   cat === c
-                    ? 'bg-brand-800 text-cream shadow-soft'
-                    : 'bg-white text-ink/70 ring-1 ring-brand-900/10 hover:bg-beige'
+                    ? 'bg-brand-800 text-cream shadow-soft dark:bg-brand-600'
+                    : 'bg-white text-ink/70 ring-1 ring-brand-900/10 hover:bg-beige dark:bg-white/10 dark:text-cream/70 dark:ring-white/10 dark:hover:bg-white/20'
                 }`}
               >
                 {c}
