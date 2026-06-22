@@ -12,18 +12,16 @@ export default function ProductCard({ p, onAdd, fly }) {
     <motion.article
       whileHover={{ y: -6 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      className="group relative flex flex-col overflow-hidden rounded-3xl bg-white p-4 shadow-soft ring-1 ring-brand-900/5 hover:shadow-card"
+      className="group relative flex flex-col overflow-hidden rounded-3xl bg-white p-4 shadow-soft ring-1 ring-brand-900/5 hover:shadow-card dark:bg-night-800 dark:ring-white/10"
     >
       {p.badge && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-brand-800 px-2.5 py-1 font-body text-[11px] font-bold text-cream">
+        <span className="absolute right-3 top-3 z-10 rounded-full bg-brand-800 px-2.5 py-1 font-body text-[11px] font-bold text-cream dark:bg-brand-600">
           {p.badge}
         </span>
       )}
 
-      <div className="relative grid place-items-center rounded-2xl bg-gradient-to-b from-beige/60 to-white py-5">
-        {/* Soft circular tile — perfect backdrop for transparent product images.
-            The image shows when its file exists in /public/images; otherwise
-            the emoji shows automatically (so no broken-image icons). */}
+      {/* keep the product tile light in both themes so white-bg images stay visible */}
+      <div className="relative grid place-items-center rounded-2xl bg-gradient-to-b from-beige/60 to-white py-5 dark:from-white/90 dark:to-white">
         <div
           ref={orbRef}
           className="relative grid h-28 w-28 place-items-center rounded-full text-5xl sm:h-32 sm:w-32"
@@ -38,9 +36,6 @@ export default function ProductCard({ p, onAdd, fly }) {
               alt={p.name}
               loading="lazy"
               onError={() => setImgOk(false)}
-              /* mix-blend-multiply makes a white/light image background melt into
-                 the tile — no need to edit the original images. p-2 keeps the
-                 product from touching the edge; object-contain keeps proportions. */
               className="h-full w-full object-contain p-2 mix-blend-multiply"
             />
           ) : (
@@ -63,10 +58,10 @@ export default function ProductCard({ p, onAdd, fly }) {
       </div>
 
       <div className="mt-3 flex flex-1 flex-col">
-        <span className="font-body text-[11px] text-copper">{p.tag}</span>
-        <h3 className="mt-0.5 font-display text-[17px] font-bold leading-tight text-ink">{p.name}</h3>
-        <div className="mt-2 font-display text-xl font-black text-brand-800">
-          {fmt(p.price)} <span className="text-xs font-bold text-ink/45">د.ع / {p.unit}</span>
+        <span className="font-body text-[11px] text-copper dark:text-copper-light">{p.tag}</span>
+        <h3 className="mt-0.5 font-display text-[17px] font-bold leading-tight text-ink dark:text-cream">{p.name}</h3>
+        <div className="mt-2 font-display text-xl font-black text-brand-800 dark:text-brand-400">
+          {fmt(p.price)} <span className="text-xs font-bold text-ink/45 dark:text-cream/45">د.ع / {p.unit}</span>
         </div>
       </div>
     </motion.article>
