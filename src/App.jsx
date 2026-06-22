@@ -14,7 +14,7 @@ import { useFlyToCart, fadeUp, viewportOnce } from './lib/motion.js';
 /* ── slim promo bar ── */
 function TopBar() {
   return (
-    <div className="bg-brand-950 font-body text-[12px] text-cream/85 sm:text-[13px]">
+    <div className="bg-brand-950 font-body text-[12px] text-cream/85 dark:bg-black sm:text-[13px]">
       <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-2 text-center">
         <Truck className="h-4 w-4 shrink-0 text-copper-light" />
         <span>
@@ -34,7 +34,7 @@ const PROMISE = [
 
 function FreshnessPromise() {
   return (
-    <section className="bg-brand-900 py-16 sm:py-20">
+    <section className="bg-brand-900 py-16 dark:bg-night-800 sm:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <div className="grid gap-8 sm:grid-cols-3">
           {PROMISE.map(({ icon: I, t, d }, k) => (
@@ -68,6 +68,16 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
 
+  // ── theme (dark / light) ──
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem('otlobha-theme', dark ? 'dark' : 'light');
+    } catch (e) {}
+  }, [dark]);
+
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   const count = items.reduce((s, i) => s + i.qty, 0);
 
@@ -92,9 +102,16 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-beige">
+    <div className="min-h-screen bg-beige dark:bg-night">
       <TopBar />
-      <Header cartCount={count} bump={bump} cartRef={cartRef} onCart={() => setCartOpen(true)} />
+      <Header
+        cartCount={count}
+        bump={bump}
+        cartRef={cartRef}
+        onCart={() => setCartOpen(true)}
+        dark={dark}
+        onToggleTheme={() => setDark((d) => !d)}
+      />
 
       <main>
         <Hero onShop={() => document.getElementById('bundles')?.scrollIntoView({ behavior: 'smooth' })} />
@@ -136,7 +153,7 @@ export default function App() {
             exit={{ opacity: 0, y: 16 }}
             className="fixed bottom-5 right-5 z-[75]"
           >
-            <div className="flex items-center gap-2 rounded-2xl bg-brand-900 px-4 py-3 text-cream shadow-card">
+            <div className="flex items-center gap-2 rounded-2xl bg-brand-900 px-4 py-3 text-cream shadow-card dark:bg-night-700 dark:ring-1 dark:ring-white/10">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-700">
                 <Check className="h-4 w-4" />
               </span>
