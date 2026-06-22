@@ -4,22 +4,24 @@ import { Leaf, ShoppingCart, Menu, X, MapPin, Sun, Moon } from 'lucide-react';
 
 const LINKS = ['الباقات', 'الخضار', 'الفواكه', 'المؤونة', 'عروض'];
 
-// day / night switch
+// day / night switch — dir="ltr" + flex alignment keeps the knob inside the track on RTL pages
 function ThemeToggle({ dark, onToggle }) {
   return (
     <button
+      dir="ltr"
       onClick={onToggle}
       role="switch"
       aria-checked={dark}
       aria-label="تبديل الوضع الليلي"
-      className="relative inline-flex h-8 w-[58px] shrink-0 items-center rounded-full border border-cream/20 bg-brand-950/40 px-1 backdrop-blur transition-colors"
+      style={{ justifyContent: dark ? 'flex-start' : 'flex-end' }}
+      className="relative inline-flex h-8 w-[60px] shrink-0 items-center rounded-full border border-cream/20 bg-brand-950/40 px-1 backdrop-blur"
     >
       <Sun className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-copper-light" />
       <Moon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-cream/60" />
       <motion.span
-        className="z-10 grid h-6 w-6 place-items-center rounded-full bg-cream shadow"
-        animate={{ x: dark ? 0 : 26 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+        layout
+        transition={{ type: 'spring', stiffness: 500, damping: 34 }}
+        className="relative z-10 grid h-6 w-6 place-items-center rounded-full bg-cream shadow"
       >
         {dark ? <Moon className="h-3.5 w-3.5 text-brand-900" /> : <Sun className="h-3.5 w-3.5 text-copper" />}
       </motion.span>
