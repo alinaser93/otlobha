@@ -7,6 +7,10 @@
   body {
     background: #f5efe2; /* beige */
   }
+  html.dark,
+  html.dark body {
+    background: #080c0a; /* night */
+  }
   body {
     font-family: 'Tajawal', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
