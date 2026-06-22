@@ -39,7 +39,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-ink/20 backdrop-blur-[2px] dark:bg-black/50"
+            className="absolute inset-0 bg-ink/10 backdrop-blur-[1px] dark:bg-black/35"
           />
 
           {/* RTL end = left edge — Apple-style frosted glass panel */}
@@ -48,10 +48,10 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-            className="absolute inset-y-0 left-0 flex w-[88%] max-w-md flex-col border-l border-white/40 bg-cream/55 shadow-card ring-1 ring-inset ring-white/30 backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/60 dark:ring-white/10"
+            className="absolute inset-y-0 left-0 flex w-[88%] max-w-md flex-col border-l border-white/30 bg-cream/25 shadow-card ring-1 ring-inset ring-white/20 backdrop-blur-md backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/30 dark:ring-white/10"
           >
             {/* subtle top sheen for the liquid-glass feel */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/40 to-transparent dark:from-white/10" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/20 to-transparent dark:from-white/[0.06]" />
 
             <div className="relative flex items-center justify-between border-b border-white/30 px-5 py-4 dark:border-white/10">
               <h3 className="font-display text-xl font-extrabold text-ink dark:text-cream">سلة التسوّق</h3>
@@ -78,7 +78,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
                 items.map((it) => (
                   <div
                     key={it.key}
-                    className="mb-3 flex items-center gap-3 rounded-2xl bg-white/55 p-3 ring-1 ring-white/50 backdrop-blur-md dark:bg-white/10 dark:ring-white/10"
+                    className="mb-3 flex items-center gap-3 rounded-2xl bg-white/30 p-3 ring-1 ring-white/40 backdrop-blur-sm dark:bg-white/[0.06] dark:ring-white/10"
                   >
                     <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-white/80 text-2xl ring-1 ring-white/50">
                       <CartThumb image={it.image} emoji={it.emoji} />
@@ -93,7 +93,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
               )}
             </div>
 
-            <div className="relative border-t border-white/40 bg-white/30 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+            <div className="relative border-t border-white/30 bg-white/15 px-5 py-4 backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
               <button
                 onClick={onRefer}
                 className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-800/15 py-2.5 font-body text-sm font-bold text-brand-800 ring-1 ring-white/40 backdrop-blur-md hover:bg-brand-800/25 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-white/10 dark:hover:bg-brand-500/25"
