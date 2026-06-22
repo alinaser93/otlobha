@@ -28,9 +28,9 @@ function BundleCard({ b, onAdd, fly }) {
   return (
     <motion.article
       whileHover={{ y: -6 }}
-      className="group relative flex w-[86vw] max-w-sm shrink-0 snap-center flex-col overflow-hidden rounded-[28px] bg-white shadow-card ring-1 ring-brand-900/5 md:w-auto md:max-w-none"
+      className="group relative flex w-[86vw] max-w-sm shrink-0 snap-center flex-col overflow-hidden rounded-[28px] bg-white shadow-card ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10 md:w-auto md:max-w-none"
     >
-      {/* top: composed plate */}
+      {/* top: composed plate (already a dark emerald/copper gradient) */}
       <div
         className="relative overflow-hidden px-6 pb-5 pt-7"
         style={{ background: `linear-gradient(150deg, ${b.accent} 0%, #06271B 130%)` }}
@@ -46,8 +46,7 @@ function BundleCard({ b, onAdd, fly }) {
           )}
         </div>
 
-        {/* overlapping ingredient orbs = the curated plate, now using the real
-            product images from /public/images (emoji fallback if an image is missing) */}
+        {/* ingredient bubbles use the real product images (kept light so they stay visible) */}
         <div ref={plateRef} className="relative mx-auto mt-4 flex h-36 items-end justify-center">
           {b.emojis.map((e, i) => {
             const mid = (b.emojis.length - 1) / 2;
@@ -72,12 +71,12 @@ function BundleCard({ b, onAdd, fly }) {
 
       {/* body */}
       <div className="flex flex-1 flex-col p-6">
-        <h3 className="font-display text-2xl font-extrabold text-ink">{b.name}</h3>
-        <p className="mt-2 font-body text-sm leading-relaxed text-ink/60">{b.desc}</p>
+        <h3 className="font-display text-2xl font-extrabold text-ink dark:text-cream">{b.name}</h3>
+        <p className="mt-2 font-body text-sm leading-relaxed text-ink/60 dark:text-cream/60">{b.desc}</p>
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           {b.items.map((it) => (
-            <span key={it} className="rounded-full bg-beige px-2.5 py-1 font-body text-xs text-brand-800">
+            <span key={it} className="rounded-full bg-beige px-2.5 py-1 font-body text-xs text-brand-800 dark:bg-white/10 dark:text-brand-300">
               {it}
             </span>
           ))}
@@ -85,9 +84,9 @@ function BundleCard({ b, onAdd, fly }) {
 
         <div className="mt-6 flex items-end justify-between">
           <div>
-            {b.old && <div className="font-body text-sm text-ink/40 line-through">{fmt(b.old)} د.ع</div>}
-            <div className="font-display text-3xl font-black text-brand-800">
-              {fmt(b.price)} <span className="text-base font-bold text-ink/50">د.ع</span>
+            {b.old && <div className="font-body text-sm text-ink/40 line-through dark:text-cream/40">{fmt(b.old)} د.ع</div>}
+            <div className="font-display text-3xl font-black text-brand-800 dark:text-brand-400">
+              {fmt(b.price)} <span className="text-base font-bold text-ink/50 dark:text-cream/50">د.ع</span>
             </div>
           </div>
           <div className="flex items-center gap-0.5 text-gold">
@@ -114,7 +113,7 @@ function BundleCard({ b, onAdd, fly }) {
 
 export default function BundleSection({ onAdd, fly }) {
   return (
-    <section id="bundles" className="relative bg-beige py-16 sm:py-24">
+    <section id="bundles" className="relative bg-beige py-16 dark:bg-night-900 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <motion.div
           variants={fadeUp}
@@ -123,9 +122,9 @@ export default function BundleSection({ onAdd, fly }) {
           viewport={viewportOnce}
           className="mb-10 text-center sm:mb-14"
         >
-          <span className="font-body text-sm font-bold tracking-widest text-copper">وفّر أكثر · اطبخ أطيب</span>
-          <h2 className="mt-2 font-display text-4xl font-black text-ink sm:text-5xl">باقات ذكية</h2>
-          <p className="mx-auto mt-3 max-w-xl font-body text-ink/60">
+          <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">وفّر أكثر · اطبخ أطيب</span>
+          <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">باقات ذكية</h2>
+          <p className="mx-auto mt-3 max-w-xl font-body text-ink/60 dark:text-cream/60">
             مكوّنات وصفة كاملة في سلة واحدة — مختارة بعناية، وبسعر أوفر من شرائها مفردة.
           </p>
         </motion.div>
@@ -145,7 +144,7 @@ export default function BundleSection({ onAdd, fly }) {
             </motion.div>
           ))}
         </div>
-        <p className="mt-3 text-center font-body text-xs text-ink/40 md:hidden">اسحب لرؤية باقات أكثر ←</p>
+        <p className="mt-3 text-center font-body text-xs text-ink/40 dark:text-cream/40 md:hidden">اسحب لرؤية باقات أكثر ←</p>
       </div>
     </section>
   );
