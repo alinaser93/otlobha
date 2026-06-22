@@ -1,11 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
         // Deep emerald — freshness / trust
-        brand:  { 950: '#06271B', 900: '#0A3D2A', 800: '#0F5132', 700: '#15613D', 600: '#1C7A4D', 500: '#2A9466' },
+        brand:  { 950: '#06271B', 900: '#0A3D2A', 800: '#0F5132', 700: '#15613D', 600: '#1C7A4D', 500: '#2A9466', 400: '#46B07F', 300: '#7FCBA6' },
         // Warm off-white / beige — clean canvas so PNG produce pops
         cream:  '#FAF6EC',
         beige:  '#F5EFE2',
@@ -14,6 +15,8 @@ export default {
         copper: { light: '#DD9050', DEFAULT: '#BE6E2A', dark: '#9A5318' },
         gold:   '#C9A14A',
         ink:    '#15241C',
+        // Night surfaces for dark mode
+        night:  { DEFAULT: '#080C0A', 900: '#080C0A', 800: '#121613', 700: '#1A201C', 600: '#232A26' },
       },
       fontFamily: {
         display: ['Cairo', 'system-ui', 'sans-serif'],
