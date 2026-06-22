@@ -38,7 +38,7 @@ export default function ReferralModal({ open, onClose }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-brand-950/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-brand-950/70 backdrop-blur-sm dark:bg-black/75"
           />
 
           <motion.div
@@ -46,7 +46,7 @@ export default function ReferralModal({ open, onClose }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="relative w-full max-w-md overflow-hidden rounded-[30px] bg-cream shadow-card"
+            className="relative w-full max-w-md overflow-hidden rounded-[30px] bg-cream shadow-card dark:bg-night-800 dark:ring-1 dark:ring-white/10"
           >
             {/* emerald cap */}
             <div className="relative overflow-hidden bg-gradient-to-br from-brand-800 to-brand-950 px-7 pb-12 pt-9 text-center">
@@ -63,14 +63,14 @@ export default function ReferralModal({ open, onClose }) {
               <h3 className="mt-5 font-display text-3xl font-black text-cream">شارك… وتربح أنت وعائلتك</h3>
             </div>
 
-            <div className="-mt-6 rounded-t-[30px] bg-cream px-7 pb-8 pt-6 text-center">
-              <p className="font-body text-lg leading-relaxed text-ink/80">
-                شارك الرابط مع عائلتك — يحصلون على خصم <b className="text-copper">10%</b> على أول طلب،
-                وتحصل أنت على <b className="text-copper">5,000 دينار</b> رصيداً في محفظتك!
+            <div className="-mt-6 rounded-t-[30px] bg-cream px-7 pb-8 pt-6 text-center dark:bg-night-800">
+              <p className="font-body text-lg leading-relaxed text-ink/80 dark:text-cream/80">
+                شارك الرابط مع عائلتك — يحصلون على خصم <b className="text-copper dark:text-copper-light">10%</b> على أول طلب،
+                وتحصل أنت على <b className="text-copper dark:text-copper-light">5,000 دينار</b> رصيداً في محفظتك!
               </p>
 
-              <div className="mt-6 flex items-center gap-2 rounded-2xl border border-dashed border-brand-800/30 bg-white p-2 pr-4">
-                <span dir="ltr" className="flex-1 truncate text-right font-body text-sm text-ink/70">
+              <div className="mt-6 flex items-center gap-2 rounded-2xl border border-dashed border-brand-800/30 bg-white p-2 pr-4 dark:border-white/15 dark:bg-white/5">
+                <span dir="ltr" className="flex-1 truncate text-right font-body text-sm text-ink/70 dark:text-cream/70">
                   https://{LINK}
                 </span>
                 <button
@@ -91,8 +91,8 @@ export default function ReferralModal({ open, onClose }) {
                 </button>
               </div>
 
-              <div className="mt-5 flex items-center justify-center gap-2 font-body text-xs text-ink/50">
-                <Wallet className="h-4 w-4 text-brand-700" /> الرصيد يُضاف تلقائياً عند أول طلب لصديقك
+              <div className="mt-5 flex items-center justify-center gap-2 font-body text-xs text-ink/50 dark:text-cream/50">
+                <Wallet className="h-4 w-4 text-brand-700 dark:text-brand-400" /> الرصيد يُضاف تلقائياً عند أول طلب لصديقك
               </div>
             </div>
           </motion.div>
