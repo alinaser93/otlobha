@@ -4,7 +4,7 @@ import { Leaf, ShoppingCart, Menu, X, MapPin, Sun, Moon } from 'lucide-react';
 
 const LINKS = ['الباقات', 'الخضار', 'الفواكه', 'المؤونة', 'عروض'];
 
-// day / night switch — absolute knob + translateX only (immune to RTL), clipped as a safety net
+// day / night switch — pure CSS (no animation lib), overflow-clipped so the knob can never leave the track
 function ThemeToggle({ dark, onToggle }) {
   return (
     <button
@@ -13,18 +13,17 @@ function ThemeToggle({ dark, onToggle }) {
       role="switch"
       aria-checked={dark}
       aria-label="تبديل الوضع الليلي"
-      className="relative inline-flex h-8 w-16 shrink-0 items-center overflow-hidden rounded-full border border-cream/20 bg-brand-950/40 backdrop-blur"
+      className={`relative h-7 w-[52px] shrink-0 overflow-hidden rounded-full border transition-colors duration-200 ${
+        dark ? 'border-white/15 bg-brand-700' : 'border-copper-dark/40 bg-copper/85'
+      }`}
     >
-      <Sun className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-copper-light" />
-      <Moon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cream/60" />
-      <motion.span
-        className="absolute left-1 grid h-6 w-6 place-items-center rounded-full bg-cream shadow"
-        style={{ top: 3 }}
-        animate={{ x: dark ? 0 : 30 }}
-        transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
+      <span
+        className={`absolute left-0 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full bg-cream shadow transition-transform duration-200 ${
+          dark ? 'translate-x-1' : 'translate-x-[26px]'
+        }`}
       >
-        {dark ? <Moon className="h-3.5 w-3.5 text-brand-900" /> : <Sun className="h-3.5 w-3.5 text-copper" />}
-      </motion.span>
+        {dark ? <Moon className="h-3 w-3 text-brand-800" /> : <Sun className="h-3 w-3 text-copper" />}
+      </span>
     </button>
   );
 }
