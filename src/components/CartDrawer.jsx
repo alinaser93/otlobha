@@ -1,7 +1,23 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingCart, Gift } from 'lucide-react';
+import { X, ShoppingCart, Gift, MessageCircle } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { WHATSAPP_NUMBER, SHOP_NAME } from '../config.js';
+
+// build a ready-to-send WhatsApp order message
+function whatsappOrderURL(items, total) {
+  const lines = items.map((it) => `• ${it.name} × ${it.qty} — ${fmt(it.price * it.qty)} د.ع`).join('\n');
+  const msg =
+    `مرحباً ${SHOP_NAME} 👋\n` +
+    `أودّ تأكيد هذا الطلب:\n\n` +
+    `${lines}\n\n` +
+    `الإجمالي: ${fmt(total)} د.ع\n\n` +
+    `——————\n` +
+    `الاسم:\n` +
+    `العنوان (المنطقة + أقرب نقطة دالة):\n` +
+    `رقم بديل:`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+}
 
 // cart line thumbnail: real product image (white bg melts via multiply), emoji fallback.
 // the tile stays light in both themes so the product is always visible.
@@ -106,8 +122,12 @@ export default function CartDrawer({ open, onClose, items, total, onRefer }) {
                   {fmt(total)} <span className="text-sm">د.ع</span>
                 </span>
               </div>
-              <button className="w-full rounded-2xl bg-copper py-4 font-display text-lg font-bold text-cream shadow-seal transition hover:bg-copper-dark active:scale-[.99]">
-                إتمام الطلب
+              <button
+                disabled={items.length === 0}
+                onClick={() => items.length && window.open(whatsappOrderURL(items, total), '_blank')}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-copper py-4 font-display text-lg font-bold text-cream shadow-seal transition hover:bg-copper-dark active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <MessageCircle className="h-5 w-5" /> إتمام الطلب عبر واتساب
               </button>
             </div>
           </motion.aside>
