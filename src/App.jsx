@@ -9,6 +9,7 @@ import ProductGrid from './components/ProductGrid.jsx';
 import Footer from './components/Footer.jsx';
 import ReferralModal from './components/ReferralModal.jsx';
 import CartDrawer from './components/CartDrawer.jsx';
+import CheckoutModal from './components/CheckoutModal.jsx';
 import { useFlyToCart, fadeUp, viewportOnce } from './lib/motion.js';
 
 /* ── slim promo bar ── */
@@ -18,7 +19,7 @@ function TopBar() {
       <div className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-2 text-center">
         <Truck className="h-4 w-4 shrink-0 text-copper-light" />
         <span>
-          توصيل <b className="font-bold text-copper-light">مجاني</b> للطلبات فوق ٢٥٬٠٠٠ دينار — ونصل خلال ساعتين داخل بغداد
+          توصيل <b className="font-bold text-copper-light">مجاني</b> داخل السماوة — ونصل بأسرع وقت إلى باب بيتك
         </span>
       </div>
     </div>
@@ -64,6 +65,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [refOpen, setRefOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
@@ -141,6 +143,17 @@ export default function App() {
           setCartOpen(false);
           setRefOpen(true);
         }}
+        onCheckout={() => {
+          if (items.length === 0) return;
+          setCartOpen(false);
+          setCheckoutOpen(true);
+        }}
+      />
+      <CheckoutModal
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        items={items}
+        total={total}
       />
       <ReferralModal open={refOpen} onClose={() => setRefOpen(false)} />
 
