@@ -1,4 +1,4 @@
-import { Leaf } from 'lucide-react';
+// (no lucide icons used here)
 
 const COLS = [
   { h: 'تسوّق', l: ['الخضار', 'الفواكه', 'المؤونة', 'الحلويات', 'الباقات الذكية'] },
@@ -13,9 +13,11 @@ export default function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-copper text-cream">
-                <Leaf className="h-5 w-5" />
-              </span>
+              <img
+                src="/icons/icon-192.png"
+                alt="اطلبها"
+                className="h-12 w-12 rounded-full object-cover"
+              />
               <span className="font-display text-2xl font-extrabold text-cream">اطلبها</span>
             </div>
             <p className="mt-4 max-w-sm font-body leading-relaxed">
