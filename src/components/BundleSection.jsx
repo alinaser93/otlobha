@@ -129,7 +129,7 @@ export default function BundleSection({ onAdd, fly }) {
           </p>
         </motion.div>
 
-        <div className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto px-5 pb-4 no-scrollbar md:mx-0 md:grid md:grid-cols-3 md:gap-7 md:overflow-visible md:px-0 md:pb-0">
+        <div className="-mx-5 flex snap-x snap-mandatory gap-5 overflow-x-auto overflow-y-hidden px-5 py-4 no-scrollbar md:mx-0 md:grid md:grid-cols-3 md:gap-7 md:overflow-x-visible md:overflow-y-visible md:px-0 md:py-0">
           {BUNDLES.map((b, i) => (
             <motion.div
               key={b.id}
