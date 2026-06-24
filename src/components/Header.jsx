@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
-import { Leaf, ShoppingCart, Menu, X, MapPin, Sun, Moon } from 'lucide-react';
+import { ShoppingCart, Menu, X, MapPin, Sun, Moon } from 'lucide-react';
 
 const LINKS = ['الباقات', 'الخضار', 'الفواكه', 'المؤونة', 'عروض'];
 
@@ -48,9 +48,11 @@ export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggl
         {/* Brand + theme switch — start (right in RTL) */}
         <div className="flex shrink-0 items-center gap-3">
           <a href="#" className="flex items-center gap-2.5">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-copper text-cream shadow-seal">
-              <Leaf className="h-5 w-5" />
-            </span>
+            <img
+              src="/icons/icon-192.png"
+              alt="اطلبها"
+              className="h-11 w-11 rounded-full object-cover shadow-seal"
+            />
             <span className="leading-none">
               <span className="block font-display text-2xl font-extrabold text-cream">اطلبها</span>
               <span className="font-body text-[10px] tracking-[0.35em] text-copper-light">OTLOBHA</span>
@@ -75,7 +77,7 @@ export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggl
         {/* Actions — end (left in RTL) */}
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-1.5 rounded-full bg-cream/10 px-3 py-1.5 text-[12px] text-cream/80 sm:flex">
-            <MapPin className="h-3.5 w-3.5 text-copper-light" /> بغداد · الكرّادة
+            <MapPin className="h-3.5 w-3.5 text-copper-light" /> السماوة
           </div>
 
           <motion.button
