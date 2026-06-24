@@ -7,9 +7,11 @@ import Hero from './components/Hero.jsx';
 import BundleSection from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import Footer from './components/Footer.jsx';
-import ReferralModal from './components/ReferralModal.jsx';
 import CartDrawer from './components/CartDrawer.jsx';
 import CheckoutModal from './components/CheckoutModal.jsx';
+import AuthModal from './components/AuthModal.jsx';
+import AccountDrawer from './components/AccountDrawer.jsx';
+import { useAuth } from './lib/auth.jsx';
 import { useFlyToCart, fadeUp, viewportOnce } from './lib/motion.js';
 
 /* ── slim promo bar ── */
@@ -66,9 +68,25 @@ export default function App() {
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [refOpen, setRefOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
+  const { account } = useAuth();
+
+  // open account if signed in, otherwise prompt sign-in
+  const openAccount = useCallback(() => {
+    if (account) setAccountOpen(true);
+    else setAuthOpen(true);
+  }, [account]);
+
+  // capture a referral code from the share link (?ref=CODE) for signup
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref) localStorage.setItem('otlobha-ref', ref.toUpperCase());
+    } catch (e) {}
+  }, []);
 
   // ── theme (dark / light) ──
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -97,11 +115,7 @@ export default function App() {
     setTimeout(() => setToast(null), 1800);
   }, []);
 
-  // auto-open the referral once after a short browse
-  useEffect(() => {
-    const t = setTimeout(() => setRefOpen(true), 16000);
-    return () => clearTimeout(t);
-  }, []);
+  // (removed the intrusive auto-popup; rewards now live in the account panel)
 
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
@@ -111,6 +125,7 @@ export default function App() {
         bump={bump}
         cartRef={cartRef}
         onCart={() => setCartOpen(true)}
+        onAccount={openAccount}
         dark={dark}
         onToggleTheme={() => setDark((d) => !d)}
       />
@@ -124,14 +139,14 @@ export default function App() {
 
       <Footer />
 
-      {/* floating referral trigger — RTL end / bottom-left */}
+      {/* floating rewards trigger — RTL end / bottom-left */}
       <motion.button
         whileTap={{ scale: 0.95 }}
-        onClick={() => setRefOpen(true)}
+        onClick={openAccount}
         className="fixed bottom-5 left-5 z-[60] flex items-center gap-2 rounded-full bg-copper px-4 py-3 font-display text-sm font-bold text-cream shadow-seal hover:bg-copper-dark"
       >
         <Gift className="h-5 w-5" />
-        <span className="hidden sm:inline">اربح 5,000 د.ع</span>
+        <span className="hidden sm:inline">{account ? 'محفظتي' : 'اربح 5,000 د.ع'}</span>
       </motion.button>
 
       <CartDrawer
@@ -141,7 +156,7 @@ export default function App() {
         total={total}
         onRefer={() => {
           setCartOpen(false);
-          setRefOpen(true);
+          openAccount();
         }}
         onCheckout={() => {
           if (items.length === 0) return;
@@ -154,8 +169,10 @@ export default function App() {
         onClose={() => setCheckoutOpen(false)}
         items={items}
         total={total}
+        profile={account}
       />
-      <ReferralModal open={refOpen} onClose={() => setRefOpen(false)} />
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      <AccountDrawer open={accountOpen} onClose={() => setAccountOpen(false)} />
 
       {/* add-to-cart toast */}
       <AnimatePresence>
