@@ -75,7 +75,7 @@ export default function AuthModal({ open, onClose }) {
       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">
         الرمز السري (4 أرقام)
       </span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
         <Lock className="h-5 w-5 text-ink/40 dark:text-cream/40" />
         <input
           type="password"
@@ -94,7 +94,7 @@ export default function AuthModal({ open, onClose }) {
   const phoneField = (
     <label className="block">
       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">رقم الهاتف</span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
         <Phone className="h-5 w-5 text-ink/40 dark:text-cream/40" />
         <input
           type="tel"
@@ -116,7 +116,7 @@ export default function AuthModal({ open, onClose }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-ink/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-ink/25 p-4 backdrop-blur-[2px] dark:bg-black/40"
         >
           <motion.div
             initial={{ scale: 0.94, opacity: 0, y: 20 }}
@@ -124,11 +124,13 @@ export default function AuthModal({ open, onClose }) {
             exit={{ scale: 0.94, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 24, stiffness: 280 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md overflow-hidden rounded-3xl bg-cream shadow-card dark:bg-night-800"
+            className="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-white/30 bg-cream/20 shadow-card ring-1 ring-inset ring-white/20 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/40 dark:ring-white/10"
             dir="rtl"
           >
             {/* header */}
-            <div className="relative bg-brand-900 px-6 pb-6 pt-6 text-center dark:bg-night-700">
+            <div className="relative bg-brand-900/70 px-6 pb-6 pt-6 text-center backdrop-blur-md dark:bg-night-900/55">
+              {/* subtle inner highlight line for glass depth */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/15" />
               <button
                 onClick={onClose}
                 className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-cream/15 text-cream hover:bg-cream/25"
@@ -191,7 +193,7 @@ export default function AuthModal({ open, onClose }) {
                   {mode === 'signup' && (
                     <label className="block">
                       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">الاسم الكامل</span>
-                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
                         <User className="h-5 w-5 text-ink/40 dark:text-cream/40" />
                         <input
                           value={f.name}
@@ -211,7 +213,7 @@ export default function AuthModal({ open, onClose }) {
                       <select
                         value={f.area}
                         onChange={(e) => set('area', e.target.value)}
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-night-700 dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-white/10 dark:text-cream"
                       >
                         <option value="">المنطقة داخل {CITY} *</option>
                         {AREAS.map((a) => (
@@ -224,7 +226,7 @@ export default function AuthModal({ open, onClose }) {
                         value={f.address}
                         onChange={(e) => set('address', e.target.value)}
                         placeholder="العنوان (أقرب نقطة دالة)"
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-night-700 dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-white/10 dark:text-cream"
                       />
                       <label className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-copper/40 bg-copper/5 px-4 py-3">
                         <Gift className="h-5 w-5 shrink-0 text-copper" />
