@@ -48,7 +48,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer, onChe
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-            className="absolute inset-y-0 left-0 flex w-[88%] max-w-md flex-col border-l border-white/30 bg-cream/25 shadow-card ring-1 ring-inset ring-white/20 backdrop-blur-md backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/30 dark:ring-white/10"
+            className="absolute inset-y-0 left-0 flex w-[88%] max-w-md flex-col border-l border-white/30 bg-cream/15 shadow-card ring-1 ring-inset ring-white/20 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/20 dark:ring-white/10"
           >
             {/* subtle top sheen for the liquid-glass feel */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/20 to-transparent dark:from-white/[0.06]" />
