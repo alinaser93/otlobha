@@ -50,3 +50,23 @@ export const PAYMENT_METHODS = [
   { id: 'fib',      label: 'FIB',                note: 'تحويل مسبق عبر FIB' },
   { id: 'rafidain', label: 'مصرف الرافدين',      note: 'تحويل مسبق إلى الحساب' },
 ];
+
+// ═══════════════════════════════════════════════════════════════
+// 🔐 حسابات الزبائن (Supabase) — اتبع دليل الإعداد لإنشاء المشروع
+//    ثم انسخ القيمتين من: Supabase ← Project Settings ← API
+// ═══════════════════════════════════════════════════════════════
+export const SUPABASE_URL = 'https://tzruqvplazcwwhpmgdje.supabase.co';
+export const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6cnVxdnBsYXpjd3docG1nZGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODcwMTcsImV4cCI6MjA5Nzg2MzAxN30.rXfhNjLq99OyPTEVMHgSaodoldCb44UQu0e0dP6wrFE';
+
+// تسجيل الدخول الآن: الهاتف + رمز سري (PIN) — مجاني، بلا رسائل.
+// (التوثيق عبر OTP ميزة اختيارية تُضاف لاحقاً.)
+
+// 🎁 نظام النقاط (القيم الفعلية مضبوطة أيضاً في supabase/schema.sql —
+//    إن غيّرتها هنا غيّرها هناك أيضاً ليتطابق العرض مع المنح الفعلي)
+export const POINTS = {
+  welcome: 1000,          // نقاط ترحيبية عند التسجيل
+  referralInviter: 5000,  // للداعي عند انضمام صديق عبر رابطه
+  referralInvitee: 5000,  // للمدعو الجديد
+  dinarPerPoint: 1,       // قيمة النقطة بالدينار (عرض فقط)
+};
