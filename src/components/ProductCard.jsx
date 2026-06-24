@@ -20,13 +20,13 @@ export default function ProductCard({ p, onAdd, fly }) {
         </span>
       )}
 
-      {/* keep the product tile light in both themes so white-bg images stay visible */}
-      <div className="relative grid place-items-center rounded-2xl bg-gradient-to-b from-beige/60 to-white py-5 dark:from-white/90 dark:to-white">
+      {/* dark tile in dark mode; product sits on an opaque light "plate" so white-bg images stay visible */}
+      <div className="relative grid place-items-center rounded-2xl bg-gradient-to-b from-beige/60 to-white py-5 dark:from-night-700 dark:to-night-900">
         <div
           ref={orbRef}
-          className="relative grid h-28 w-28 place-items-center rounded-full text-5xl sm:h-32 sm:w-32"
+          className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-full text-5xl sm:h-32 sm:w-32"
           style={{
-            background: `radial-gradient(70% 70% at 35% 30%, #ffffff 0%, #fff 40%, ${p.tint}14 100%)`,
+            background: `radial-gradient(70% 70% at 35% 30%, #ffffff 0%, #ffffff 62%, #ece5d8 100%)`,
             boxShadow: `inset 0 -10px 24px -14px ${p.tint}55, 0 14px 30px -18px ${p.tint}66`,
           }}
         >
