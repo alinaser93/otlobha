@@ -75,8 +75,8 @@ export default function AuthModal({ open, onClose }) {
       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">
         الرمز السري (4 أرقام)
       </span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/10 dark:bg-night">
-        <Lock className="h-5 w-5 text-ink/40" />
+      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+        <Lock className="h-5 w-5 text-ink/40 dark:text-cream/40" />
         <input
           type="password"
           inputMode="numeric"
@@ -85,7 +85,7 @@ export default function AuthModal({ open, onClose }) {
           value={f.pin}
           onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))}
           placeholder="••••"
-          className="w-full bg-transparent py-3.5 text-left font-display text-2xl tracking-[0.4em] text-ink outline-none placeholder:text-ink/30 dark:text-cream"
+          className="w-full bg-transparent py-3.5 text-left font-display text-2xl tracking-[0.4em] text-ink outline-none placeholder:text-ink/30 dark:placeholder:text-cream/40 dark:text-cream"
         />
       </div>
     </label>
@@ -94,15 +94,15 @@ export default function AuthModal({ open, onClose }) {
   const phoneField = (
     <label className="block">
       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">رقم الهاتف</span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/10 dark:bg-night">
-        <Phone className="h-5 w-5 text-ink/40" />
+      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+        <Phone className="h-5 w-5 text-ink/40 dark:text-cream/40" />
         <input
           type="tel"
           dir="ltr"
           value={f.phone}
           onChange={(e) => set('phone', e.target.value)}
           placeholder="07XX XXX XXXX"
-          className="w-full bg-transparent py-3.5 text-left font-body text-ink outline-none placeholder:text-ink/30 dark:text-cream"
+          className="w-full bg-transparent py-3.5 text-left font-body text-ink outline-none placeholder:text-ink/30 dark:placeholder:text-cream/40 dark:text-cream"
         />
       </div>
     </label>
@@ -191,13 +191,13 @@ export default function AuthModal({ open, onClose }) {
                   {mode === 'signup' && (
                     <label className="block">
                       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">الاسم الكامل</span>
-                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/10 dark:bg-night">
-                        <User className="h-5 w-5 text-ink/40" />
+                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white px-3 focus-within:border-copper dark:border-white/15 dark:bg-night-700">
+                        <User className="h-5 w-5 text-ink/40 dark:text-cream/40" />
                         <input
                           value={f.name}
                           onChange={(e) => set('name', e.target.value)}
                           placeholder="اسمك الكريم"
-                          className="w-full bg-transparent py-3.5 font-body text-ink outline-none placeholder:text-ink/30 dark:text-cream"
+                          className="w-full bg-transparent py-3.5 font-body text-ink outline-none placeholder:text-ink/30 dark:placeholder:text-cream/40 dark:text-cream"
                         />
                       </div>
                     </label>
@@ -211,7 +211,7 @@ export default function AuthModal({ open, onClose }) {
                       <select
                         value={f.area}
                         onChange={(e) => set('area', e.target.value)}
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-night-700 dark:text-cream"
                       >
                         <option value="">المنطقة داخل {CITY} *</option>
                         {AREAS.map((a) => (
@@ -224,7 +224,7 @@ export default function AuthModal({ open, onClose }) {
                         value={f.address}
                         onChange={(e) => set('address', e.target.value)}
                         placeholder="العنوان (أقرب نقطة دالة)"
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-night-700 dark:text-cream"
                       />
                       <label className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-copper/40 bg-copper/5 px-4 py-3">
                         <Gift className="h-5 w-5 shrink-0 text-copper" />
@@ -233,7 +233,7 @@ export default function AuthModal({ open, onClose }) {
                           onChange={(e) => set('ref', e.target.value.toUpperCase())}
                           dir="ltr"
                           placeholder="كود دعوة (اختياري)"
-                          className="w-full bg-transparent text-left font-body text-ink outline-none placeholder:text-ink/40 dark:text-cream"
+                          className="w-full bg-transparent text-left font-body text-ink outline-none placeholder:text-ink/40 dark:placeholder:text-cream/40 dark:text-cream"
                         />
                       </label>
                     </>
