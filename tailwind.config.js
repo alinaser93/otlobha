@@ -7,10 +7,10 @@ export default {
       colors: {
         // Deep emerald — freshness / trust
         brand:  { 950: '#06271B', 900: '#0A3D2A', 800: '#0F5132', 700: '#15613D', 600: '#1C7A4D', 500: '#2A9466', 400: '#46B07F', 300: '#7FCBA6' },
-        // Warm off-white / beige — clean canvas so PNG produce pops
-        cream:  '#FAF6EC',
-        beige:  '#F5EFE2',
-        sand:   '#ECE3D0',
+        // Soft mint canvas — light, fresh green (cream stays light enough to also work as text on dark)
+        cream:  '#E9F6EF',
+        beige:  '#CFEBDB',
+        sand:   '#BCE2D0',
         // Warm copper — calls to action
         copper: { light: '#DD9050', DEFAULT: '#BE6E2A', dark: '#9A5318' },
         gold:   '#C9A14A',
