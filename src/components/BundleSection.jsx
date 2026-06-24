@@ -30,7 +30,7 @@ function BundleCard({ b, onAdd, fly }) {
       whileHover={{ y: -6, scale: 1.04 }}
       whileTap={{ scale: 1.03 }}
       transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-      className="group relative flex w-[74vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[28px] bg-white shadow-card ring-1 ring-brand-900/5 hover:z-20 focus-within:z-20 active:z-20 dark:bg-night-800 dark:ring-white/10 md:w-auto md:max-w-none"
+      className="group relative flex w-[74vw] max-w-[300px] shrink-0 snap-center flex-col overflow-hidden rounded-[28px] bg-cream shadow-card ring-1 ring-brand-900/5 hover:z-20 focus-within:z-20 active:z-20 dark:bg-night-800 dark:ring-white/10 md:w-auto md:max-w-none"
     >
       {/* top: composed plate (already a dark emerald/copper gradient) */}
       <div
@@ -131,7 +131,7 @@ export default function BundleSection({ onAdd, fly }) {
           </p>
         </motion.div>
 
-        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-5 py-4 no-scrollbar md:mx-0 md:grid md:grid-cols-3 md:gap-5 md:overflow-x-visible md:overflow-y-visible md:px-0 md:py-0">
+        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-5 py-4 no-scrollbar md:mx-auto md:max-w-5xl md:grid md:grid-cols-3 md:gap-4 md:overflow-x-visible md:overflow-y-visible md:px-0 md:py-0">
           {BUNDLES.map((b, i) => (
             <motion.div
               key={b.id}
