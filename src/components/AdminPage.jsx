@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
   Lock, LogOut, RefreshCw, Loader2, Package, Clock, MapPin, Phone,
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
+  Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -14,6 +15,13 @@ import {
   adminListDrivers, adminAddDriver, adminRemoveDriver, adminAssignDriver,
   adminGetMe, adminUpdateProfile,
 } from '../lib/admin.js';
+import {
+  adminListProducts, adminAddProduct, adminUpdateProduct, adminRemoveProduct,
+  adminSetProductActive, adminReorderProducts,
+  adminListCategories, adminAddCategory, adminUpdateCategory, adminRemoveCategory,
+  adminReorderCategories,
+} from '../lib/products.js';
+import { uploadProductImage } from '../lib/storage.js';
 
 const STATUS = {
   new: { label: 'جديد', dot: 'bg-amber-400', chip: 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300', glow: 'bg-amber-400/40' },
@@ -103,6 +111,8 @@ function Dashboard({ admin, onOut }) {
   const [showAdmins, setShowAdmins] = useState(false);
   const [showDrivers, setShowDrivers] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showProducts, setShowProducts] = useState(false);
+  const [showCats, setShowCats] = useState(false);
   const [me, setMe] = useState(null);
 
   // load my profile once
@@ -272,6 +282,38 @@ function Dashboard({ admin, onOut }) {
             {shown.map((o) => <OrderCard key={o.id} o={o} onStatus={setStatus} drivers={drivers} onAssign={assignDriver} />)}
           </div>
         )}
+
+        {/* products manager */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowProducts((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><Package className="h-4 w-4 text-copper" /> إدارة المنتجات</span>
+            <ChevronDown className={`h-5 w-5 transition ${showProducts ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showProducts && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <ProductsManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* categories manager */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowCats((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><Layers className="h-4 w-4 text-copper" /> إدارة الأقسام</span>
+            <ChevronDown className={`h-5 w-5 transition ${showCats ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showCats && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <CategoriesManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* my profile */}
         <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
@@ -631,5 +673,408 @@ function DriversManager({ admin, onChange }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/* ════════════════════════ Products & Categories ════════════════════════ */
+
+const inp =
+  'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm text-ink outline-none transition focus:border-copper/50 dark:border-white/10 dark:bg-night-900 dark:text-cream';
+
+function Lbl({ label, full, children }) {
+  return (
+    <label className={`block ${full ? 'col-span-2' : ''}`}>
+      <span className="mb-1 block text-[12px] font-bold text-ink/55 dark:text-cream/55">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" dir="rtl"
+    >
+      <div onClick={onClose} className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <motion.div
+        initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        className="relative z-10 max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-cream p-5 shadow-card dark:bg-night-800 sm:rounded-3xl"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-black text-ink dark:text-cream">{title}</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4">{children}</div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function Thumb({ p }) {
+  const [ok, setOk] = useState(true);
+  return (
+    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-xl ring-1 ring-ink/5 dark:ring-white/10">
+      {p.image && ok
+        ? <img src={p.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" onError={() => setOk(false)} />
+        : <span>{p.emoji}</span>}
+    </div>
+  );
+}
+
+/* ───────────────────────── Products manager ───────────────────────── */
+function ProductsManager({ admin }) {
+  const [list, setList] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | 'new' | product
+  const [confirm, setConfirm] = useState(null);
+  const listRef = useRef([]);
+
+  async function load() {
+    setLoading(true);
+    const [p, c] = await Promise.all([adminListProducts(admin.id), adminListCategories(admin.id)]);
+    const items = Array.isArray(p?.products) ? p.products : [];
+    setList(items); listRef.current = items;
+    setCats(Array.isArray(c?.categories) ? c.categories : []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  function onReorder(next) { setList(next); listRef.current = next; }
+  async function persistOrder() { await adminReorderProducts(admin.id, listRef.current.map((x) => x.id)); }
+
+  async function toggle(p) {
+    const next = !p.active;
+    const apply = (arr) => arr.map((x) => (x.id === p.id ? { ...x, active: next } : x));
+    setList(apply); listRef.current = apply(listRef.current);
+    const r = await adminSetProductActive(admin.id, p.id, next);
+    if (!r?.ok) load();
+  }
+
+  async function remove(id) {
+    setConfirm(null);
+    const r = await adminRemoveProduct(admin.id, id);
+    if (r?.ok) {
+      listRef.current = listRef.current.filter((x) => x.id !== id);
+      setList((l) => l.filter((x) => x.id !== id));
+    }
+  }
+
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} منتج · اسحب للترتيب</span>
+        <button onClick={() => setEditing('new')}
+          className="flex items-center gap-1.5 rounded-xl bg-copper px-3 py-2 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">
+          <Plus className="h-4 w-4" /> منتج جديد
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50">
+          <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
+        </div>
+      ) : list.length === 0 ? (
+        <div className="py-10 text-center text-sm text-ink/40 dark:text-cream/40">لا توجد منتجات. اضغط «منتج جديد».</div>
+      ) : (
+        <Reorder.Group axis="y" values={list} onReorder={onReorder} className="space-y-2">
+          {list.map((p) => (
+            <ProductRow key={p.id} p={p} onToggle={toggle} onEdit={setEditing}
+              onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
+          ))}
+        </Reorder.Group>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <ProductForm admin={admin} cats={cats} product={editing === 'new' ? null : editing}
+            onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProductRow({ p, onToggle, onEdit, onDelete, confirm, setConfirm, onPersist }) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item value={p} dragListener={false} dragControls={controls} onDragEnd={onPersist}
+      className={`flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2 ${p.active ? '' : 'opacity-60'}`}>
+      <span onPointerDown={(e) => controls.start(e)}
+        className="cursor-grab touch-none px-0.5 text-ink/30 dark:text-cream/30 active:cursor-grabbing">
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <Thumb p={p} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-sm font-bold text-ink dark:text-cream">{p.name}</div>
+        <div className="flex flex-wrap items-center gap-x-1.5 text-[11px]">
+          <span className="rounded bg-ink/5 px-1.5 py-0.5 text-ink/60 dark:bg-white/10 dark:text-cream/60">{p.category}</span>
+          <span className="font-bold text-green-600 dark:text-green-300">{fmt(p.price)}</span>
+          <span className="text-ink/40 dark:text-cream/40">د.ع / {p.unit}</span>
+        </div>
+      </div>
+      <button onClick={() => onToggle(p)} title={p.active ? 'إخفاء من المتجر' : 'إظهار في المتجر'}
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${p.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/40 dark:bg-white/10 dark:text-cream/40'}`}>
+        {p.active ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      </button>
+      <button onClick={() => onEdit(p)}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+        <Pencil className="h-4 w-4" />
+      </button>
+      {confirm === p.id ? (
+        <button onClick={() => onDelete(p.id)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
+      ) : (
+        <button onClick={() => setConfirm(p.id)}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+    </Reorder.Item>
+  );
+}
+
+function ProductForm({ admin, cats, product, onClose, onSaved }) {
+  const [f, setF] = useState({
+    name: product?.name || '',
+    category: product?.category || (cats[0]?.name || ''),
+    price: product?.price ?? '',
+    unit: product?.unit || 'كيلو',
+    emoji: product?.emoji || '🛒',
+    tint: product?.tint || '#9A5318',
+    badge: product?.badge || '',
+  });
+  const [image, setImage] = useState(product?.image || '');
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true); setErr('');
+    const res = await uploadProductImage(file, product?.id || 'new');
+    setUploading(false);
+    if (res?.error) { setErr(res.error); return; }
+    setImage(res.url);
+  }
+
+  async function save() {
+    if (!f.name.trim()) { setErr('اكتب اسم المنتج'); return; }
+    if (!f.category) { setErr('اختر القسم'); return; }
+    setBusy(true); setErr('');
+    const fields = {
+      name: f.name.trim(),
+      category: f.category,
+      price: Math.max(0, parseInt(f.price, 10) || 0),
+      unit: f.unit.trim() || 'وحدة',
+      emoji: f.emoji.trim() || '🛒',
+      tint: f.tint || '#9A5318',
+      badge: f.badge.trim(),
+      image, // '' clears, url sets
+    };
+    const r = product
+      ? await adminUpdateProduct(admin.id, product.id, fields)
+      : await adminAddProduct(admin.id, fields);
+    setBusy(false);
+    if (r?.ok) onSaved();
+    else setErr('تعذّر الحفظ، حاول مرّة ثانية.');
+  }
+
+  return (
+    <Modal title={product ? 'تعديل منتج' : 'منتج جديد'} onClose={onClose}>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-3xl ring-1 ring-ink/10 dark:ring-white/10">
+          {uploading
+            ? <Loader2 className="h-6 w-6 animate-spin text-copper" />
+            : image
+              ? <img src={image} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" />
+              : <span>{f.emoji || '🛒'}</span>}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-copper/90 py-0.5 text-[9px] font-bold text-white">
+            <ImageIcon className="h-2.5 w-2.5" /> صورة
+          </span>
+        </button>
+        <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+          اضغط المربّع لرفع صورة المنتج من جهازك. الأفضل صورة على خلفية بيضاء.
+          {image && (
+            <button type="button" onClick={() => setImage('')} className="mt-1 block font-bold text-red-600 dark:text-red-300">
+              إزالة الصورة (يرجع للإيموجي)
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Lbl label="اسم المنتج" full>
+          <input className={inp} value={f.name} onChange={set('name')} placeholder="مثلاً: تفاح أحمر" />
+        </Lbl>
+        <Lbl label="القسم">
+          <select className={inp} value={f.category} onChange={set('category')}>
+            {cats.length === 0 && <option value="">— أضِف قسماً أولاً —</option>}
+            {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </Lbl>
+        <Lbl label="السعر (د.ع)">
+          <input type="number" inputMode="numeric" className={inp} value={f.price} onChange={set('price')} placeholder="0" dir="ltr" />
+        </Lbl>
+        <Lbl label="الوحدة">
+          <input className={inp} value={f.unit} onChange={set('unit')} placeholder="كيلو / علبة" />
+        </Lbl>
+        <Lbl label="إيموجي احتياطي">
+          <input className={inp} value={f.emoji} onChange={set('emoji')} placeholder="🍎" />
+        </Lbl>
+        <Lbl label="شارة (اختياري)">
+          <input className={inp} value={f.badge} onChange={set('badge')} placeholder="فاخر / الأكثر طلباً" />
+        </Lbl>
+        <Lbl label="لون الإطار">
+          <input type="color" value={f.tint} onChange={set('tint')}
+            className="h-10 w-full cursor-pointer rounded-xl border border-ink/10 bg-beige dark:border-white/10 dark:bg-night-900" />
+        </Lbl>
+      </div>
+
+      {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy || uploading}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
+        </button>
+        <button onClick={onClose}
+          className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ───────────────────────── Categories manager ───────────────────────── */
+function CategoriesManager({ admin }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ name: '', emoji: '' });
+  const [editing, setEditing] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [msg, setMsg] = useState('');
+  const listRef = useRef([]);
+
+  async function load() {
+    setLoading(true);
+    const c = await adminListCategories(admin.id);
+    const items = Array.isArray(c?.categories) ? c.categories : [];
+    setList(items); listRef.current = items;
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  function onReorder(next) { setList(next); listRef.current = next; }
+  async function persistOrder() { await adminReorderCategories(admin.id, listRef.current.map((x) => x.id)); }
+
+  async function add() {
+    setMsg('');
+    if (!form.name.trim()) { setMsg('اكتب اسم القسم'); return; }
+    const r = await adminAddCategory(admin.id, { name: form.name.trim(), emoji: form.emoji.trim() });
+    if (r?.ok) { setForm({ name: '', emoji: '' }); load(); }
+    else setMsg(r?.error === 'exists' ? 'هذا القسم موجود مسبقاً' : 'تعذّرت الإضافة');
+  }
+
+  async function saveEdit() {
+    if (!editing?.name.trim()) { setMsg('اكتب اسم القسم'); return; }
+    setMsg('');
+    const r = await adminUpdateCategory(admin.id, editing.id, { name: editing.name.trim(), emoji: (editing.emoji || '').trim() });
+    if (r?.ok) { setEditing(null); load(); }
+    else setMsg(r?.error === 'exists' ? 'الاسم مستخدم لقسم آخر' : 'تعذّر الحفظ');
+  }
+
+  async function remove(c) {
+    setConfirm(null); setMsg('');
+    const r = await adminRemoveCategory(admin.id, c.id);
+    if (r?.ok) load();
+    else if (r?.error === 'in_use') setMsg(`فيه ${r.count} منتج في «${c.name}» — غيّر قسمها أو احذفها أولاً`);
+    else setMsg('تعذّر الحذف');
+  }
+
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} قسم · اسحب للترتيب · يظهر بالمتجر بنفس الترتيب</span>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-ink/50 dark:text-cream/50">
+          <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
+        </div>
+      ) : (
+        <Reorder.Group axis="y" values={list} onReorder={onReorder} className="space-y-2">
+          {list.map((c) => (
+            <CategoryRow key={c.id} c={c} editing={editing} setEditing={setEditing}
+              onSaveEdit={saveEdit} onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
+          ))}
+        </Reorder.Group>
+      )}
+      {msg && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">{msg}</p>}
+
+      <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800 p-3">
+        <div className="mb-2 flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة قسم</div>
+        <div className="flex gap-2">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="اسم القسم (مثلاً: مشروبات)" className={inp + ' flex-1'} />
+          <input value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value })}
+            placeholder="🏷️" className="w-16 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900" />
+          <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">إضافة</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryRow({ c, editing, setEditing, onSaveEdit, onDelete, confirm, setConfirm, onPersist }) {
+  const controls = useDragControls();
+  const isEditing = editing?.id === c.id;
+  return (
+    <Reorder.Item value={c} dragListener={false} dragControls={controls} onDragEnd={onPersist}
+      className="flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2">
+      <span onPointerDown={(e) => controls.start(e)}
+        className="cursor-grab touch-none px-0.5 text-ink/30 dark:text-cream/30 active:cursor-grabbing">
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-xl ring-1 ring-ink/5 dark:bg-night-800 dark:ring-white/10">
+        {(isEditing ? editing.emoji : c.emoji) || '🏷️'}
+      </span>
+      {isEditing ? (
+        <>
+          <input className={inp + ' flex-1'} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+          <input className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
+            value={editing.emoji} onChange={(e) => setEditing({ ...editing, emoji: e.target.value })} placeholder="🏷️" />
+          <button onClick={onSaveEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-green-500/15 text-green-600 dark:text-green-300"><Check className="h-4 w-4" /></button>
+          <button onClick={() => setEditing(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 dark:bg-white/10"><X className="h-4 w-4" /></button>
+        </>
+      ) : (
+        <>
+          <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{c.name}</span>
+          <button onClick={() => setEditing({ id: c.id, name: c.name, emoji: c.emoji || '' })}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-4 w-4" /></button>
+          {confirm === c.id ? (
+            <button onClick={() => onDelete(c)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
+          ) : (
+            <button onClick={() => setConfirm(c.id)}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
+          )}
+        </>
+      )}
+    </Reorder.Item>
   );
 }
