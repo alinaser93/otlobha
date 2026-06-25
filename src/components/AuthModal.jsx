@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Check, AlertCircle, Phone, Lock, User, Gift } from 'lucide-react';
 import { useAuth } from '../lib/auth.jsx';
+import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import { AREAS, CITY, POINTS, SHOP_NAME } from '../config.js';
 
 const REF_KEY = 'otlobha-ref';
@@ -12,6 +13,7 @@ export default function AuthModal({ open, onClose }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
+  const [shake, setShake] = useState(false);
   const [f, setF] = useState({ phone: '', pin: '', name: '', area: '', address: '', ref: '' });
 
   useEffect(() => {
@@ -39,29 +41,35 @@ export default function AuthModal({ open, onClose }) {
     if (err) setErr('');
   };
 
+  function fail(m) {
+    setShake(true);
+    setTimeout(() => setShake(false), 550);
+    return setErr(m);
+  }
+
   async function submit() {
     setErr('');
     const phoneDigits = f.phone.replace(/\D/g, '');
-    if (phoneDigits.length < 10) return setErr('أدخل رقم هاتف صحيح');
-    if (f.pin.length !== 4) return setErr('الرمز السري 4 أرقام');
+    if (phoneDigits.length < 10) return fail('أدخل رقم هاتف صحيح');
+    if (f.pin.length !== 4) return fail('الرمز السري 4 أرقام');
 
     setBusy(true);
     let res;
     if (mode === 'signup') {
       if (!f.name.trim()) {
         setBusy(false);
-        return setErr('الرجاء كتابة الاسم');
+        return fail('الرجاء كتابة الاسم');
       }
       if (!f.area) {
         setBusy(false);
-        return setErr('اختر المنطقة');
+        return fail('اختر المنطقة');
       }
       res = await signup(f);
     } else {
       res = await login({ phone: f.phone, pin: f.pin });
     }
     setBusy(false);
-    if (res.error) return setErr(res.error);
+    if (res.error) return fail(res.error);
 
     try {
       localStorage.removeItem(REF_KEY);
@@ -71,24 +79,19 @@ export default function AuthModal({ open, onClose }) {
   }
 
   const pinField = (
-    <label className="block">
-      <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">
+    <div>
+      <span className="mb-2 block text-center font-body text-sm font-bold text-ink dark:text-cream">
         الرمز السري (4 أرقام)
       </span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
-        <Lock className="h-5 w-5 text-ink/40 dark:text-cream/40" />
-        <input
-          type="password"
-          inputMode="numeric"
-          dir="ltr"
-          maxLength={4}
-          value={f.pin}
-          onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))}
-          placeholder="••••"
-          className="w-full bg-transparent py-3.5 text-left font-display text-2xl tracking-[0.4em] text-ink outline-none placeholder:text-ink/30 dark:placeholder:text-cream/40 dark:text-cream"
-        />
-      </div>
-    </label>
+      <CodeInput
+        length={4}
+        mask
+        value={f.pin}
+        onChange={(v) => set('pin', v)}
+        onComplete={() => { if (mode === 'login') submit(); }}
+        error={shake}
+      />
+    </div>
   );
 
   const phoneField = (
@@ -265,11 +268,8 @@ export default function AuthModal({ open, onClose }) {
             )}
 
             {done && (
-              <div className="px-6 py-10 text-center">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-700/20">
-                  <Check className="h-9 w-9" />
-                </div>
-                <p className="mt-4 font-body text-ink/70 dark:text-cream/70">تم تسجيل دخولك بنجاح</p>
+              <div className="px-6 py-8">
+                <SuccessCheck label="تم بنجاح 🎉" sub="يبقى حسابك مفتوحاً على جهازك" />
               </div>
             )}
           </motion.div>

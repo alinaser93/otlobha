@@ -5,6 +5,7 @@ import {
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
@@ -37,14 +38,25 @@ function Login({ onIn }) {
   const [pass, setPass] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [shake, setShake] = useState(false);
+  const [done, setDone] = useState(false);
+  const [plain, setPlain] = useState(false);
 
-  async function submit() {
-    if (!pass.trim()) return;
+  async function submit(code) {
+    const p = (code ?? pass).trim();
+    if (!p) return;
     setBusy(true); setErr('');
-    const res = await driverLogin(pass.trim());
-    setBusy(false);
-    if (res?.ok) onIn(res.driver);
-    else setErr('كلمة المرور غير صحيحة');
+    const res = await driverLogin(p);
+    if (res?.ok) {
+      setDone(true);
+      setTimeout(() => onIn(res.driver), 1050);
+    } else {
+      setBusy(false);
+      setErr('كلمة المرور غير صحيحة');
+      setShake(true);
+      setTimeout(() => setShake(false), 550);
+      setPass('');
+    }
   }
 
   return (
@@ -60,14 +72,29 @@ function Login({ onIn }) {
             <p className="mt-1 text-sm text-ink/50 dark:text-cream/50">اطلبها — للمندوبين</p>
           </div>
         </div>
-        <input type="password" value={pass} onChange={(e) => setPass(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="كلمة المرور" autoFocus
-          className="w-full rounded-2xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 px-4 py-3 text-center text-lg tracking-widest text-ink dark:text-cream outline-none placeholder:text-ink/35 dark:placeholder:text-cream/30 focus:border-copper" />
-        {err && <p className="mt-2 text-center text-sm text-red-400">{err}</p>}
-        <button onClick={submit} disabled={busy}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />} دخول
-        </button>
+
+        {done ? (
+          <SuccessCheck label="أهلاً بك 👋" sub="جارٍ فتح البوابة…" />
+        ) : (
+          <>
+            {plain ? (
+              <input type="password" value={pass} onChange={(e) => setPass(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="كلمة المرور" autoFocus
+                className="w-full rounded-2xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 px-4 py-3 text-center text-lg tracking-widest text-ink dark:text-cream outline-none placeholder:text-ink/35 dark:placeholder:text-cream/30 focus:border-copper" />
+            ) : (
+              <CodeInput length={6} mask value={pass} onChange={setPass} onComplete={(v) => submit(v)} error={shake} autoFocus autoComplete="off" disabled={busy} />
+            )}
+            {err && <p className="mt-3 text-center text-sm text-red-400">{err}</p>}
+            <button onClick={() => submit()} disabled={busy}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />} دخول
+            </button>
+            <button type="button" onClick={() => { setPlain((v) => !v); setPass(''); setErr(''); }}
+              className="mt-3 block w-full text-center text-xs text-ink/40 transition hover:text-copper dark:text-cream/40">
+              {plain ? 'استخدم مربّعات الرمز' : 'كلمة مرور عادية؟'}
+            </button>
+          </>
+        )}
         <a href="/" className="mt-4 block text-center text-xs text-ink/40 dark:text-cream/40 hover:text-cream/70">→ العودة للمتجر</a>
       </motion.div>
     </div>
