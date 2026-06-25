@@ -4,7 +4,7 @@ import {
   Lock, LogOut, RefreshCw, Loader2, Package, Clock, MapPin, Phone,
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
-  Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save,
+  Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -20,6 +20,8 @@ import {
   adminSetProductActive, adminReorderProducts,
   adminListCategories, adminAddCategory, adminUpdateCategory, adminRemoveCategory,
   adminReorderCategories,
+  adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
+  adminSetBundleActive, adminReorderBundles,
 } from '../lib/products.js';
 import { uploadProductImage } from '../lib/storage.js';
 
@@ -113,6 +115,7 @@ function Dashboard({ admin, onOut }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [showCats, setShowCats] = useState(false);
+  const [showBundles, setShowBundles] = useState(false);
   const [me, setMe] = useState(null);
 
   // load my profile once
@@ -310,6 +313,22 @@ function Dashboard({ admin, onOut }) {
             {showCats && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                 <CategoriesManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* bundles manager */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowBundles((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><Boxes className="h-4 w-4 text-copper" /> إدارة الباقات</span>
+            <ChevronDown className={`h-5 w-5 transition ${showBundles ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showBundles && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <BundlesManager admin={admin} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1076,5 +1095,299 @@ function CategoryRow({ c, editing, setEditing, onSaveEdit, onDelete, confirm, se
         </>
       )}
     </Reorder.Item>
+  );
+}
+
+/* ════════════════════════════ Bundles ════════════════════════════ */
+
+function BundlesManager({ admin }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | 'new' | bundle
+  const [confirm, setConfirm] = useState(null);
+  const listRef = useRef([]);
+
+  async function load() {
+    setLoading(true);
+    const b = await adminListBundles(admin.id);
+    const items = Array.isArray(b?.bundles) ? b.bundles : [];
+    setList(items); listRef.current = items;
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  function onReorder(next) { setList(next); listRef.current = next; }
+  async function persistOrder() { await adminReorderBundles(admin.id, listRef.current.map((x) => x.id)); }
+
+  async function toggle(b) {
+    const next = !b.active;
+    const apply = (arr) => arr.map((x) => (x.id === b.id ? { ...x, active: next } : x));
+    setList(apply); listRef.current = apply(listRef.current);
+    const r = await adminSetBundleActive(admin.id, b.id, next);
+    if (!r?.ok) load();
+  }
+
+  async function remove(id) {
+    setConfirm(null);
+    const r = await adminRemoveBundle(admin.id, id);
+    if (r?.ok) {
+      listRef.current = listRef.current.filter((x) => x.id !== id);
+      setList((l) => l.filter((x) => x.id !== id));
+    }
+  }
+
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} باقة · اسحب للترتيب</span>
+        <button onClick={() => setEditing('new')}
+          className="flex items-center gap-1.5 rounded-xl bg-copper px-3 py-2 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">
+          <Plus className="h-4 w-4" /> باقة جديدة
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50">
+          <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
+        </div>
+      ) : list.length === 0 ? (
+        <div className="py-10 text-center text-sm text-ink/40 dark:text-cream/40">لا توجد باقات. اضغط «باقة جديدة».</div>
+      ) : (
+        <Reorder.Group axis="y" values={list} onReorder={onReorder} className="space-y-2">
+          {list.map((b) => (
+            <BundleRow key={b.id} b={b} onToggle={toggle} onEdit={setEditing}
+              onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
+          ))}
+        </Reorder.Group>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <BundleForm admin={admin} bundle={editing === 'new' ? null : editing}
+            onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function BundleRow({ b, onToggle, onEdit, onDelete, confirm, setConfirm, onPersist }) {
+  const controls = useDragControls();
+  const count = Array.isArray(b.ingredients) ? b.ingredients.length : 0;
+  return (
+    <Reorder.Item value={b} dragListener={false} dragControls={controls} onDragEnd={onPersist}
+      className={`flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2 ${b.active ? '' : 'opacity-60'}`}>
+      <span onPointerDown={(e) => controls.start(e)}
+        className="cursor-grab touch-none px-0.5 text-ink/30 dark:text-cream/30 active:cursor-grabbing">
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <span className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-black/5"
+        style={{ background: `linear-gradient(150deg, ${b.accent || '#0F5132'} 0%, #06271B 130%)` }} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-sm font-bold text-ink dark:text-cream">{b.name}</div>
+        <div className="flex flex-wrap items-center gap-x-1.5 text-[11px]">
+          <span className="font-bold text-green-600 dark:text-green-300">{fmt(b.price)}</span>
+          <span className="text-ink/40 dark:text-cream/40">د.ع</span>
+          {b.old_price ? <span className="text-ink/35 line-through dark:text-cream/35">{fmt(b.old_price)}</span> : null}
+          <span className="text-ink/40 dark:text-cream/40">· {count} مكوّن</span>
+        </div>
+      </div>
+      <button onClick={() => onToggle(b)} title={b.active ? 'إخفاء من المتجر' : 'إظهار في المتجر'}
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${b.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/40 dark:bg-white/10 dark:text-cream/40'}`}>
+        {b.active ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      </button>
+      <button onClick={() => onEdit(b)}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+        <Pencil className="h-4 w-4" />
+      </button>
+      {confirm === b.id ? (
+        <button onClick={() => onDelete(b.id)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
+      ) : (
+        <button onClick={() => setConfirm(b.id)}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+    </Reorder.Item>
+  );
+}
+
+function IngredientRow({ ing, onChange, onRemove }) {
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    const res = await uploadProductImage(file, 'bundle-ing');
+    setUploading(false);
+    if (!res?.error) onChange({ ...ing, image: res.url });
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+      <button type="button" onClick={() => fileRef.current?.click()} title="صورة المكوّن"
+        className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
+        {uploading
+          ? <Loader2 className="h-4 w-4 animate-spin text-copper" />
+          : ing.image
+            ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
+            : <span>{ing.emoji || '🛒'}</span>}
+      </button>
+      <input className={inp + ' flex-1'} value={ing.name} onChange={(e) => onChange({ ...ing, name: e.target.value })} placeholder="اسم المكوّن" />
+      <input className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
+        value={ing.emoji} onChange={(e) => onChange({ ...ing, emoji: e.target.value })} placeholder="🍆" />
+      <button type="button" onClick={onRemove}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function BundleForm({ admin, bundle, onClose, onSaved }) {
+  const [f, setF] = useState({
+    name: bundle?.name || '',
+    kicker: bundle?.kicker || '',
+    description: bundle?.description || '',
+    price: bundle?.price ?? '',
+    old_price: bundle?.old_price ?? '',
+    accent: bundle?.accent || '#0F5132',
+  });
+  const [image, setImage] = useState(bundle?.image || '');
+  const [ingredients, setIngredients] = useState(
+    Array.isArray(bundle?.ingredients) && bundle.ingredients.length
+      ? bundle.ingredients.map((x) => ({ name: x?.name || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
+      : []
+  );
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+  const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  async function onHeroFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true); setErr('');
+    const res = await uploadProductImage(file, bundle?.id || 'bundle');
+    setUploading(false);
+    if (res?.error) { setErr(res.error); return; }
+    setImage(res.url);
+  }
+
+  function addIngredient() { setIngredients((l) => [...l, { name: '', emoji: '🛒', image: '' }]); }
+  function updateIngredient(i, next) { setIngredients((l) => l.map((x, idx) => (idx === i ? next : x))); }
+  function removeIngredient(i) { setIngredients((l) => l.filter((_, idx) => idx !== i)); }
+
+  async function save() {
+    if (!f.name.trim()) { setErr('اكتب اسم الباقة'); return; }
+    const cleanIngredients = ingredients
+      .map((x) => ({ name: (x.name || '').trim(), emoji: (x.emoji || '').trim() || '🛒', image: (x.image || '').trim() || null }))
+      .filter((x) => x.name);
+    setBusy(true); setErr('');
+    const fields = {
+      name: f.name.trim(),
+      kicker: f.kicker.trim(),
+      description: f.description.trim(),
+      price: Math.max(0, parseInt(f.price, 10) || 0),
+      old_price: f.old_price === '' || f.old_price == null ? null : Math.max(0, parseInt(f.old_price, 10) || 0),
+      accent: f.accent || '#0F5132',
+      image,
+      ingredients: cleanIngredients,
+    };
+    const r = bundle
+      ? await adminUpdateBundle(admin.id, bundle.id, fields)
+      : await adminAddBundle(admin.id, fields);
+    setBusy(false);
+    if (r?.ok) onSaved();
+    else setErr('تعذّر الحفظ، حاول مرّة ثانية.');
+  }
+
+  return (
+    <Modal title={bundle ? 'تعديل باقة' : 'باقة جديدة'} onClose={onClose}>
+      {/* hero image (optional) + accent */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onHeroFile} />
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl text-3xl ring-1 ring-ink/10 dark:ring-white/10"
+          style={{ background: `linear-gradient(150deg, ${f.accent || '#0F5132'} 0%, #06271B 130%)` }}>
+          {uploading
+            ? <Loader2 className="h-6 w-6 animate-spin text-cream" />
+            : image
+              ? <img src={image} alt="" className="h-full w-full object-contain p-1" />
+              : <Boxes className="h-7 w-7 text-cream/90" />}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-black/40 py-0.5 text-[9px] font-bold text-white">
+            <ImageIcon className="h-2.5 w-2.5" /> صورة
+          </span>
+        </button>
+        <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+          صورة الباقة اختيارية (الكروت تعرض دوائر المكوّنات). اللون يتحكّم بخلفية الكرت.
+          {image && (
+            <button type="button" onClick={() => setImage('')} className="mt-1 block font-bold text-red-600 dark:text-red-300">إزالة الصورة</button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Lbl label="اسم الباقة" full>
+          <input className={inp} value={f.name} onChange={set('name')} placeholder="مثلاً: لمة الدولمة" />
+        </Lbl>
+        <Lbl label="سطر صغير (kicker)" full>
+          <input className={inp} value={f.kicker} onChange={set('kicker')} placeholder="تكفي ٦ أشخاص / لمّة العصر" />
+        </Lbl>
+        <Lbl label="الوصف" full>
+          <textarea className={inp} rows={2} value={f.description} onChange={set('description')} placeholder="وصف قصير للباقة" />
+        </Lbl>
+        <Lbl label="السعر (د.ع)">
+          <input type="number" inputMode="numeric" className={inp} value={f.price} onChange={set('price')} placeholder="0" dir="ltr" />
+        </Lbl>
+        <Lbl label="السعر قبل الخصم (اختياري)">
+          <input type="number" inputMode="numeric" className={inp} value={f.old_price} onChange={set('old_price')} placeholder="بدون خصم" dir="ltr" />
+        </Lbl>
+        <Lbl label="لون الباقة">
+          <input type="color" value={f.accent} onChange={set('accent')}
+            className="h-10 w-full cursor-pointer rounded-xl border border-ink/10 bg-beige dark:border-white/10 dark:bg-night-900" />
+        </Lbl>
+      </div>
+
+      {/* ingredients editor */}
+      <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-beige/60 dark:bg-night-900/60 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[12px] font-bold text-ink/60 dark:text-cream/60">المكوّنات ({ingredients.length})</span>
+          <button type="button" onClick={addIngredient}
+            className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark dark:text-copper-light hover:bg-copper/25">
+            <Plus className="h-3.5 w-3.5" /> أضف مكوّن
+          </button>
+        </div>
+        {ingredients.length === 0 ? (
+          <p className="py-2 text-center text-[12px] text-ink/40 dark:text-cream/40">أضِف مكوّنات الباقة (تظهر كدوائر على الكرت).</p>
+        ) : (
+          <div className="space-y-2">
+            {ingredients.map((ing, i) => (
+              <IngredientRow key={i} ing={ing} onChange={(next) => updateIngredient(i, next)} onRemove={() => removeIngredient(i)} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy || uploading}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
+        </button>
+        <button onClick={onClose}
+          className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+      </div>
+    </Modal>
   );
 }

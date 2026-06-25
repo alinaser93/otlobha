@@ -70,6 +70,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);
+  const [bundles, setBundles] = useState(BUNDLES);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -114,6 +115,7 @@ export default function App() {
       if (!alive || !res) return;
       if (Array.isArray(res.products) && res.products.length) setProducts(res.products);
       if (Array.isArray(res.categories) && res.categories.length) setCategories(res.categories);
+      if (Array.isArray(res.bundles) && res.bundles.length) setBundles(res.bundles);
     });
     return () => {
       alive = false;
@@ -153,7 +155,7 @@ export default function App() {
   // the live catalog so they carry the right id/image), then open the cart.
   const reorder = useCallback((orderItems) => {
     if (!Array.isArray(orderItems) || orderItems.length === 0) return;
-    const catalog = [...products, ...BUNDLES];
+    const catalog = [...products, ...bundles];
     setItems((prev) => {
       const next = [...prev];
       for (const oi of orderItems) {
@@ -179,7 +181,7 @@ export default function App() {
     });
     setAccountOpen(false);
     setCartOpen(true);
-  }, [products]);
+  }, [products, bundles]);
 
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
@@ -196,7 +198,7 @@ export default function App() {
 
       <main>
         <Hero onShop={() => document.getElementById('bundles')?.scrollIntoView({ behavior: 'smooth' })} />
-        <BundleSection onAdd={addItem} fly={fly} />
+        <BundleSection bundles={bundles} onAdd={addItem} fly={fly} />
         <ProductGrid products={products} categories={categories} onAdd={addItem} fly={fly} />
         <FreshnessPromise />
       </main>

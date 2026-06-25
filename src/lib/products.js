@@ -76,6 +76,48 @@ export const adminRemoveCategory = (adminId, id) =>
 export const adminReorderCategories = (adminId, ids) =>
   rpc('admin_reorder_categories', { p_admin_id: adminId, p_ids: ids });
 
+/* ───────────────────────── bundles (admin) ───────────────────────── */
+export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
+
+export const adminAddBundle = (adminId, f = {}) =>
+  rpc('admin_add_bundle', {
+    p_admin_id: adminId,
+    p_name: f.name,
+    p_kicker: f.kicker || null,
+    p_description: f.description || null,
+    p_price: f.price ?? 0,
+    p_old_price: f.old_price ?? null,
+    p_accent: f.accent || '#0F5132',
+    p_image: f.image || null,
+    p_ingredients: f.ingredients || [],
+  });
+
+// the bundle form always submits every field, so null simply clears optionals
+export const adminUpdateBundle = (adminId, id, f = {}) =>
+  rpc('admin_update_bundle', {
+    p_admin_id: adminId,
+    p_id: id,
+    p_name: f.name ?? null,
+    p_kicker: f.kicker ?? null,
+    p_description: f.description ?? null,
+    p_price: f.price ?? null,
+    p_old_price: f.old_price ?? null,
+    p_accent: f.accent ?? null,
+    p_image: f.image ?? null,
+    p_ingredients: f.ingredients ?? null,
+    p_sort: f.sort ?? null,
+    p_active: f.active ?? null,
+  });
+
+export const adminRemoveBundle = (adminId, id) =>
+  rpc('admin_remove_bundle', { p_admin_id: adminId, p_id: id });
+
+export const adminSetBundleActive = (adminId, id, active) =>
+  rpc('admin_set_bundle_active', { p_admin_id: adminId, p_id: id, p_active: active });
+
+export const adminReorderBundles = (adminId, ids) =>
+  rpc('admin_reorder_bundles', { p_admin_id: adminId, p_ids: ids });
+
 /* ───────────────────────── store (public read) ─────────────────────────
    Reads active products + categories for the storefront. Returns null when
    Supabase is off or the fetch fails, so the caller can fall back to the
@@ -84,9 +126,10 @@ export const adminReorderCategories = (adminId, ids) =>
 export async function fetchStoreCatalog() {
   if (!supabaseEnabled || !supabase) return null;
   try {
-    const [pr, cr] = await Promise.all([
+    const [pr, cr, br] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('categories').select('*').eq('active', true).order('sort', { ascending: true }),
+      supabase.from('bundles').select('*').eq('active', true).order('sort', { ascending: true }),
     ]);
     if (pr.error || cr.error) return null;
 
@@ -102,7 +145,26 @@ export async function fetchStoreCatalog() {
       badge: r.badge || undefined,
     }));
     const categories = ['الكل', ...(cr.data || []).map((c) => c.name)];
-    return { products, categories };
+
+    // bundles map back to the exact shape BundleCard/cart expect (parallel arrays)
+    const bundles = (br.error ? [] : (br.data || [])).map((r) => {
+      const ing = Array.isArray(r.ingredients) ? r.ingredients : [];
+      return {
+        id: r.id,
+        name: r.name,
+        kicker: r.kicker || '',
+        desc: r.description || '',
+        items: ing.map((x) => x?.name || ''),
+        emojis: ing.map((x) => x?.emoji || '🛒'),
+        images: ing.map((x) => x?.image || null),
+        image: r.image || null,
+        price: r.price,
+        old: r.old_price ?? null,
+        accent: r.accent || '#0F5132',
+      };
+    });
+
+    return { products, categories, bundles };
   } catch {
     return null;
   }
