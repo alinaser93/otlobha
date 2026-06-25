@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 // ── Reusable scroll-reveal variants (used with whileInView) ──
 export const fadeUp = {
@@ -45,4 +45,27 @@ export function useFlyToCart() {
   }, []);
 
   return { cartRef, fly };
+}
+
+// ── Make the phone/browser Back button close an open overlay (drawer/modal)
+//    instead of navigating away from the whole site. ──
+export function useBackClose(open, onClose) {
+  const cb = useRef(onClose);
+  cb.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    // add a history entry so "Back" pops this instead of leaving the page
+    window.history.pushState({ otlobhaOverlay: true }, '');
+    const onPop = () => {
+      if (cb.current) cb.current();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      // if it was closed from the UI (not the Back button), remove our entry
+      if (window.history.state && window.history.state.otlobhaOverlay) {
+        window.history.back();
+      }
+    };
+  }, [open]);
 }
