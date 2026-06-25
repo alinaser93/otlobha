@@ -5,7 +5,6 @@ import AdminPage from './components/AdminPage.jsx';
 import { AuthProvider } from './lib/auth.jsx';
 import './index.css';
 
-// secret admin route: /admin  (also supports ?admin or #admin as fallbacks)
 function isAdminRoute() {
   try {
     const path = window.location.pathname.replace(/\/+$/, '');
