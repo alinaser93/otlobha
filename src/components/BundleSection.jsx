@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Plus, Star } from 'lucide-react';
 import { BUNDLES, fmt } from '../data/catalog.js';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
+
 // one ingredient bubble: shows the real product image, falls back to emoji
 function BundleOrb({ image, emoji }) {
   const [ok, setOk] = useState(true);
@@ -112,7 +113,7 @@ function BundleCard({ b, onAdd, fly }) {
   );
 }
 
-export default function BundleSection({ bundles = BUNDLES, onAdd, fly }) {
+export default function BundleSection({ onAdd, fly }) {
   return (
     <section id="bundles" className="relative bg-beige py-16 dark:bg-night-900 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -131,7 +132,7 @@ export default function BundleSection({ bundles = BUNDLES, onAdd, fly }) {
         </motion.div>
 
         <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-hidden px-5 py-4 no-scrollbar md:mx-auto md:max-w-5xl md:grid md:grid-cols-3 md:gap-4 md:overflow-x-visible md:overflow-y-visible md:px-0 md:py-0">
-          {bundles.map((b, i) => (
+          {BUNDLES.map((b, i) => (
             <motion.div
               key={b.id}
               variants={fadeUp}

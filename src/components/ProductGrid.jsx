@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { PRODUCTS, CATEGORIES } from '../data/catalog.js';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
 import ProductCard from './ProductCard.jsx';
 
-// products + categories now come from the live catalog (App fetches them from
-// the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly }) {
+export default function ProductGrid({ onAdd, fly }) {
   const [cat, setCat] = useState('الكل');
-  const list = cat === 'الكل' ? products : products.filter((p) => p.tag === cat);
+  const list = cat === 'الكل' ? PRODUCTS : PRODUCTS.filter((p) => p.tag === cat);
 
   return (
     <section id="products" className="bg-cream py-16 dark:bg-night sm:py-24">
@@ -25,7 +24,7 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {categories.map((c) => (
+            {CATEGORIES.map((c) => (
               <button
                 key={c}
                 onClick={() => setCat(c)}
@@ -41,27 +40,21 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           </div>
         </motion.div>
 
-        {list.length === 0 ? (
-          <div className="mt-12 rounded-3xl border border-dashed border-ink/15 py-16 text-center font-body text-ink/40 dark:border-white/15 dark:text-cream/40">
-            لا توجد منتجات في هذا القسم حالياً.
-          </div>
-        ) : (
-          <motion.div layout className="mt-9 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
-            {list.map((p, i) => (
-              <motion.div
-                key={p.id}
-                layout
-                variants={fadeUp}
-                custom={i % 4}
-                initial="hidden"
-                whileInView="show"
-                viewport={viewportOnce}
-              >
-                <ProductCard p={p} onAdd={onAdd} fly={fly} />
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
+        <motion.div layout className="mt-9 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+          {list.map((p, i) => (
+            <motion.div
+              key={p.id}
+              layout
+              variants={fadeUp}
+              custom={i % 4}
+              initial="hidden"
+              whileInView="show"
+              viewport={viewportOnce}
+            >
+              <ProductCard p={p} onAdd={onAdd} fly={fly} />
+            </motion.div>
+          ))}
+        </motion.div>
       </div>
     </section>
   );
