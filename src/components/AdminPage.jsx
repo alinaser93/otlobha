@@ -5,6 +5,7 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
+  Search, KeyRound, Ban,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -15,6 +16,9 @@ import {
   adminListAdmins, adminAdd, adminRemove,
   adminListDrivers, adminAddDriver, adminRemoveDriver, adminAssignDriver,
   adminGetMe, adminUpdateProfile,
+  adminListAccounts, adminUpdateAccount, adminResetAccountPin, adminSetAccountPoints, adminRemoveAccount,
+  adminListDriversExt, adminListAdminsExt, adminResetDriverPass, adminResetAdminPass,
+  adminSetDriverActive, adminSetAdminActive,
 } from '../lib/admin.js';
 import {
   adminListProducts, adminAddProduct, adminUpdateProduct, adminRemoveProduct,
@@ -146,6 +150,7 @@ function Dashboard({ admin, onOut }) {
   const [showProducts, setShowProducts] = useState(false);
   const [showCats, setShowCats] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
 
   // load my profile once
@@ -315,6 +320,22 @@ function Dashboard({ admin, onOut }) {
             {shown.map((o) => <OrderCard key={o.id} o={o} onStatus={setStatus} drivers={drivers} onAssign={assignDriver} />)}
           </div>
         )}
+
+        {/* users manager */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowUsers((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> المستخدمون</span>
+            <ChevronDown className={`h-5 w-5 transition ${showUsers ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showUsers && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <UsersManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* products manager */}
         <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
@@ -1419,5 +1440,338 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
           className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
       </div>
     </Modal>
+  );
+}
+
+/* ════════════════════════════ Users ════════════════════════════ */
+
+function randomDigits(n) {
+  let s = '';
+  for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10);
+  return s;
+}
+
+function UsersManager({ admin }) {
+  const [tab, setTab] = useState('customers');
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-ink/5 p-1 dark:bg-white/5">
+        {[['customers', 'الزبائن'], ['drivers', 'المندوبون'], ['admins', 'المشرفون']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`rounded-lg py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-seal' : 'text-ink/60 dark:text-cream/60'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {tab === 'customers' && <AccountsList admin={admin} />}
+      {tab === 'drivers' && <StaffList admin={admin} kind="driver" />}
+      {tab === 'admins' && <StaffList admin={admin} kind="admin" />}
+    </div>
+  );
+}
+
+const fmtJoin = (iso) => {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString('ar', { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return ''; }
+};
+
+/* ───────── customers ───────── */
+function AccountsList({ admin }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [resetting, setResetting] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const first = useRef(true);
+
+  async function load(s) {
+    setLoading(true);
+    const r = await adminListAccounts(admin.id, s ?? search, 500);
+    setList(Array.isArray(r?.accounts) ? r.accounts : []);
+    setLoading(false);
+  }
+  useEffect(() => { load(''); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const t = setTimeout(() => load(search), 350);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [search]);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  async function remove(id) {
+    setConfirm(null);
+    const r = await adminRemoveAccount(admin.id, id);
+    if (r?.ok) setList((l) => l.filter((x) => x.id !== id));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 rounded-xl border border-ink/10 bg-beige px-3 dark:border-white/10 dark:bg-night-900">
+        <Search className="h-4 w-4 shrink-0 text-ink/40 dark:text-cream/40" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم أو الهاتف أو البريد"
+          className="w-full bg-transparent py-2.5 text-sm text-ink outline-none placeholder:text-ink/35 dark:text-cream dark:placeholder:text-cream/30" />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>
+      ) : list.length === 0 ? (
+        <div className="py-10 text-center text-sm text-ink/40 dark:text-cream/40">{search ? 'لا نتائج للبحث' : 'لا يوجد زبائن بعد'}</div>
+      ) : (
+        <>
+          <div className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} زبون</div>
+          <div className="space-y-2">
+            {list.map((a) => (
+              <AccountCard key={a.id} a={a} onEdit={() => setEditing(a)} onReset={() => setResetting(a)}
+                onDelete={() => remove(a.id)} confirm={confirm} setConfirm={setConfirm} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <AccountEditModal admin={admin} account={editing} onClose={() => setEditing(null)}
+            onSaved={() => { setEditing(null); load(search); }} />
+        )}
+        {resetting && (
+          <ResetPinModal title={`رمز مؤقّت لـ ${resetting.name || resetting.phone}`} minLen={4} suggest={4}
+            onClose={() => setResetting(null)}
+            onSubmit={(code) => adminResetAccountPin(admin.id, resetting.id, code)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AccountCard({ a, onEdit, onReset, onDelete, confirm, setConfirm }) {
+  return (
+    <div className="rounded-xl border border-ink/10 bg-beige p-3 dark:border-white/10 dark:bg-night-900">
+      <div className="flex items-start gap-3">
+        <Avatar name={a.name} url={a.avatar_url} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-display text-sm font-bold text-ink dark:text-cream">{a.name || 'بدون اسم'}</div>
+          <div className="text-[12px] text-ink/60 dark:text-cream/60" dir="ltr">{a.phone}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+            {a.email && <span className="rounded bg-ink/5 px-1.5 py-0.5 text-ink/60 dark:bg-white/10 dark:text-cream/60" dir="ltr">{a.email}</span>}
+            {a.area && <span className="rounded bg-ink/5 px-1.5 py-0.5 text-ink/60 dark:bg-white/10 dark:text-cream/60">{a.area}</span>}
+            <span className="rounded bg-copper/15 px-1.5 py-0.5 font-bold text-copper-dark dark:text-copper-light">{fmt(a.points || 0)} نقطة</span>
+            {a.created_at && <span className="text-ink/40 dark:text-cream/40">انضمّ {fmtJoin(a.created_at)}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        <button onClick={onEdit} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-[12px] font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+          <Pencil className="h-3.5 w-3.5" /> تعديل
+        </button>
+        <button onClick={onReset} className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark hover:bg-copper/25 dark:text-copper-light">
+          <KeyRound className="h-3.5 w-3.5" /> رمز مؤقّت
+        </button>
+        {confirm === a.id ? (
+          <button onClick={onDelete} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-[12px] font-bold text-white">تأكيد الحذف؟</button>
+        ) : (
+          <button onClick={() => setConfirm(a.id)} className="flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-500/20 dark:text-red-300">
+            <Trash2 className="h-3.5 w-3.5" /> حذف
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountEditModal({ admin, account, onClose, onSaved }) {
+  const [f, setF] = useState({
+    name: account.name || '', phone: account.phone || '', phone2: account.phone2 || '',
+    email: account.email || '', area: account.area || '', address: account.address || '',
+    birthdate: account.birthdate || '', gender: account.gender || '', notes: account.notes || '',
+    points: account.points ?? 0,
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+  async function save() {
+    if (!f.phone.trim()) { setErr('رقم الهاتف مطلوب'); return; }
+    setBusy(true); setErr('');
+    const r = await adminUpdateAccount(admin.id, account.id, {
+      name: f.name.trim(), phone: f.phone.trim(), phone2: f.phone2.trim(), email: f.email.trim(),
+      area: f.area.trim(), address: f.address.trim(), birthdate: f.birthdate || null,
+      gender: f.gender || '', notes: f.notes.trim(),
+    });
+    if (!r?.ok) {
+      setBusy(false);
+      setErr(r?.error === 'phone_taken' ? 'رقم الهاتف مستخدم لحساب آخر' : 'تعذّر الحفظ');
+      return;
+    }
+    const newPts = Math.max(0, parseInt(f.points, 10) || 0);
+    if (newPts !== (account.points ?? 0)) await adminSetAccountPoints(admin.id, account.id, newPts);
+    setBusy(false);
+    onSaved();
+  }
+
+  return (
+    <Modal title="تعديل بيانات الزبون" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <Lbl label="الاسم" full><input className={inp} value={f.name} onChange={set('name')} /></Lbl>
+        <Lbl label="الهاتف"><input className={inp} dir="ltr" value={f.phone} onChange={set('phone')} /></Lbl>
+        <Lbl label="هاتف إضافي"><input className={inp} dir="ltr" value={f.phone2} onChange={set('phone2')} /></Lbl>
+        <Lbl label="البريد" full><input className={inp} dir="ltr" value={f.email} onChange={set('email')} placeholder="example@mail.com" /></Lbl>
+        <Lbl label="المنطقة"><input className={inp} value={f.area} onChange={set('area')} /></Lbl>
+        <Lbl label="النقاط"><input type="number" dir="ltr" className={inp} value={f.points} onChange={set('points')} /></Lbl>
+        <Lbl label="العنوان" full><input className={inp} value={f.address} onChange={set('address')} /></Lbl>
+        <Lbl label="الجنس">
+          <select className={inp} value={f.gender} onChange={set('gender')}>
+            <option value="">—</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option>
+          </select>
+        </Lbl>
+        <Lbl label="تاريخ الميلاد"><input type="date" dir="ltr" className={inp} value={f.birthdate || ''} onChange={set('birthdate')} /></Lbl>
+        <Lbl label="ملاحظات (خاصة بك)" full><textarea rows={2} className={inp} value={f.notes} onChange={set('notes')} /></Lbl>
+      </div>
+      {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
+        </button>
+        <button onClick={onClose} className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* shared: reset a forgotten PIN/password to a temporary code (admin reads it out) */
+function ResetPinModal({ title, minLen = 4, suggest = 4, onClose, onSubmit }) {
+  const [code, setCode] = useState(() => randomDigits(suggest));
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function go() {
+    if (code.trim().length < minLen) { setErr(`الرمز ${minLen} خانات على الأقل`); return; }
+    setBusy(true); setErr('');
+    const r = await onSubmit(code.trim());
+    setBusy(false);
+    if (r?.ok) setDone(true);
+    else setErr('تعذّر تعيين الرمز');
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      {done ? (
+        <div className="space-y-4 text-center">
+          <SuccessCheck label="تم تعيين الرمز" />
+          <div className="rounded-2xl bg-copper/10 p-4">
+            <div className="text-[12px] text-ink/60 dark:text-cream/60">الرمز المؤقّت — أعطِه للمستخدم:</div>
+            <div className="mt-1 font-display text-3xl font-black tracking-[0.3em] text-copper-dark dark:text-copper-light" dir="ltr">{code}</div>
+          </div>
+          <p className="text-[12px] leading-relaxed text-ink/50 dark:text-cream/50">يدخل المستخدم بهذا الرمز، ويُنصح بتغييره من صفحته بعد الدخول.</p>
+          <button onClick={onClose} className="w-full rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark">تم</button>
+        </div>
+      ) : (
+        <>
+          <p className="text-[13px] leading-relaxed text-ink/60 dark:text-cream/60">
+            اكتب رمزاً مؤقّتاً (أو ولّد واحداً) وأعطِه للمستخدم ليسجّل الدخول، ثم يغيّره بنفسه.
+          </p>
+          <div className="flex items-center gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} dir="ltr" inputMode="numeric" maxLength={8}
+              className={inp + ' text-center font-display text-2xl font-black tracking-[0.3em]'} />
+            <button type="button" onClick={() => setCode(randomDigits(suggest))}
+              className="shrink-0 rounded-xl bg-ink/5 px-3 py-2.5 text-sm font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">توليد</button>
+          </div>
+          {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+          <div className="flex gap-2">
+            <button onClick={go} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} تعيين الرمز
+            </button>
+            <button onClick={onClose} className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/* ───────── drivers + admins ───────── */
+function StaffList({ admin, kind }) {
+  const isDriver = kind === 'driver';
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(null);
+  const [msg, setMsg] = useState('');
+
+  async function load() {
+    setLoading(true);
+    const r = isDriver ? await adminListDriversExt(admin.id) : await adminListAdminsExt(admin.id);
+    setList(isDriver ? (Array.isArray(r?.drivers) ? r.drivers : []) : (Array.isArray(r?.admins) ? r.admins : []));
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  async function toggle(u) {
+    setMsg('');
+    const next = !(u.active !== false);
+    const r = isDriver
+      ? await adminSetDriverActive(admin.id, u.id, next)
+      : await adminSetAdminActive(admin.id, u.id, next);
+    if (r?.ok) load();
+    else if (r?.error === 'last_admin') setMsg('لا يمكن إيقاف آخر مشرف فعّال');
+    else setMsg('تعذّرت العملية');
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
+  }
+  if (list.length === 0) {
+    return <div className="py-10 text-center text-sm text-ink/40 dark:text-cream/40">{isDriver ? 'لا يوجد مندوبون' : 'لا يوجد مشرفون'}</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} {isDriver ? 'مندوب' : 'مشرف'}</div>
+      {list.map((u) => {
+        const banned = u.active === false;
+        return (
+          <div key={u.id} className={`rounded-xl border border-ink/10 bg-beige p-3 dark:border-white/10 dark:bg-night-900 ${banned ? 'opacity-70' : ''}`}>
+            <div className="flex items-center gap-3">
+              <Avatar name={u.name} url={u.avatar_url} size={38} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-display text-sm font-bold text-ink dark:text-cream">{u.name || u.username}</span>
+                  {banned && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-300">موقوف</span>}
+                </div>
+                <div className="text-[12px] text-ink/55 dark:text-cream/55" dir="ltr">
+                  @{u.username}{u.phone ? ' · ' + u.phone : ''}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <button onClick={() => setResetting(u)} className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark hover:bg-copper/25 dark:text-copper-light">
+                <KeyRound className="h-3.5 w-3.5" /> رمز مؤقّت
+              </button>
+              <button onClick={() => toggle(u)}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold ${banned ? 'bg-green-500/15 text-green-600 dark:text-green-300' : 'bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70'}`}>
+                {banned ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />} {banned ? 'تفعيل' : 'إيقاف'}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {msg && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">{msg}</p>}
+
+      <AnimatePresence>
+        {resetting && (
+          <ResetPinModal title={`رمز مؤقّت لـ ${resetting.name || resetting.username}`} minLen={4} suggest={6}
+            onClose={() => setResetting(null)}
+            onSubmit={(code) => (isDriver
+              ? adminResetDriverPass(admin.id, resetting.id, code)
+              : adminResetAdminPass(admin.id, resetting.id, code))} />
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
