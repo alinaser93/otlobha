@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { useBackClose } from '../lib/motion.js';
 import {
   WHATSAPP_NUMBER,
   SHOP_NAME,
@@ -15,6 +16,7 @@ import {
 const STORAGE_KEY = 'otlobha-customer';
 
 export default function CheckoutModal({ open, onClose, items, total, profile }) {
+  useBackClose(open, onClose);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -131,7 +133,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   }
 
   const fieldBase =
-    'w-full rounded-2xl border bg-white px-4 py-3 font-body text-ink placeholder:text-ink/35 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 dark:bg-night-800 dark:text-cream dark:placeholder:text-cream/30';
+    'w-full rounded-2xl border bg-cream px-4 py-3 font-body text-ink placeholder:text-ink/35 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 dark:bg-night-800 dark:text-cream dark:placeholder:text-cream/30';
   const ok = 'border-black/10 dark:border-white/10';
   const bad = 'border-red-400 ring-2 ring-red-400/20';
 
@@ -158,7 +160,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
             <div className="relative shrink-0 border-b border-black/5 px-5 py-4 dark:border-white/10">
               <button
                 onClick={onClose}
-                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-black/5 text-ink hover:bg-black/10 dark:bg-white/10 dark:text-cream dark:hover:bg-white/20"
+                className="absolute left-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-black/5 text-ink hover:bg-black/10 dark:bg-white/10 dark:text-cream dark:hover:bg-white/20"
                 aria-label="إغلاق"
               >
                 <X className="h-4 w-4" />
@@ -237,7 +239,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                   className={`mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border py-2.5 font-body text-sm font-bold transition ${
                     geoState === 'done'
                       ? 'border-brand-600/40 bg-brand-600/10 text-brand-800 dark:text-brand-300'
-                      : 'border-black/10 bg-white text-ink hover:bg-black/[0.03] dark:border-white/10 dark:bg-night-800 dark:text-cream dark:hover:bg-white/5'
+                      : 'border-black/10 bg-cream text-ink hover:bg-black/[0.03] dark:border-white/10 dark:bg-night-800 dark:text-cream dark:hover:bg-white/5'
                   }`}
                 >
                   {geoState === 'loading' ? (
@@ -286,7 +288,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                         className={`flex items-start gap-3 rounded-2xl border p-3 text-right transition ${
                           active
                             ? 'border-brand-600 bg-brand-600/10 ring-1 ring-brand-600/30'
-                            : 'border-black/10 bg-white hover:border-brand-600/40 dark:border-white/10 dark:bg-night-800'
+                            : 'border-black/10 bg-cream hover:border-brand-600/40 dark:border-white/10 dark:bg-night-800'
                         }`}
                       >
                         <span
