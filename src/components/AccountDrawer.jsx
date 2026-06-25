@@ -3,21 +3,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Wallet, Gift, Copy, Check, LogOut, User, MapPin, Phone,
   Pencil, Loader2, Users, BadgeCheck, ShieldAlert, Package, RotateCw,
+  KeyRound, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth.jsx';
 import ProfileForm from './ProfileForm.jsx';
+import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import { AREAS, CITY, POINTS } from '../config.js';
 import { fmt } from '../data/catalog.js';
 import { listMyOrders } from '../lib/orders.js';
 
 export default function AccountDrawer({ open, onClose, onReorder }) {
-  const { account, updateProfile, logout } = useAuth();
+  const { account, updateProfile, logout, changePin } = useAuth();
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', area: '', address: '' });
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   // load the customer's past orders whenever the drawer opens
   useEffect(() => {
@@ -173,55 +176,7 @@ export default function AccountDrawer({ open, onClose, onReorder }) {
                     لا توجد طلبات بعد — تسوّق وستظهر طلباتك هنا.
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {orders.map((o) => (
-                      <div
-                        key={o.id}
-                        className="rounded-2xl border border-ink/10 bg-beige/60 p-3 dark:border-white/10 dark:bg-night-700/50"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-display text-sm font-extrabold text-ink dark:text-cream">
-                            طلب #{o.order_no}
-                          </span>
-                          <StatusBadge status={o.status} />
-                        </div>
-                        <div className="mt-0.5 font-body text-[11px] text-ink/45 dark:text-cream/45">
-                          {fmtDate(o.created_at)}
-                        </div>
-
-                        <div className="mt-2 font-body text-xs leading-relaxed text-ink/70 dark:text-cream/70">
-                          {(o.items || []).map((it) => `${it.name} ×${it.qty}`).join('، ')}
-                        </div>
-
-                        <div className="mt-2.5 flex items-center justify-between">
-                          <div>
-                            <span className="font-display text-sm font-extrabold text-brand-700 dark:text-brand-300">
-                              {fmt(o.total || 0)} د.ع
-                            </span>
-                            {o.points_earned > 0 && (
-                              <span className="mr-2 font-body text-[11px] text-copper">
-                                +{o.points_earned} نقطة
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/order/${o.id}`}
-                              className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-1.5 font-body text-xs font-bold text-cream transition hover:bg-brand-700"
-                            >
-                              <MapPin className="h-3.5 w-3.5" /> تتبّع
-                            </a>
-                            <button
-                              onClick={() => onReorder?.(o.items)}
-                              className="flex items-center gap-1.5 rounded-xl bg-copper px-3 py-1.5 font-body text-xs font-bold text-cream transition hover:bg-copper-dark active:scale-95"
-                            >
-                              <RotateCw className="h-3.5 w-3.5" /> أعد الطلب
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <OrdersView orders={orders} onReorder={onReorder} showPast={showPast} setShowPast={setShowPast} />
                 )}
               </div>
 
@@ -269,6 +224,9 @@ export default function AccountDrawer({ open, onClose, onReorder }) {
                   })}
                 />
               </div>
+
+              {/* change PIN — user resets their own login code */}
+              <ChangePinCard changePin={changePin} />
             </div>
 
             {/* logout */}
@@ -328,4 +286,141 @@ function fmtDate(iso) {
   } catch {
     return '';
   }
+}
+
+/* ───────── orders: active shown, past collapsed ───────── */
+function OrderCard({ o, onReorder }) {
+  const isPast = o.status === 'done' || o.status === 'cancelled';
+  return (
+    <div className="rounded-2xl border border-ink/10 bg-beige/60 p-3 dark:border-white/10 dark:bg-night-700/50">
+      <div className="flex items-center justify-between">
+        <span className="font-display text-sm font-extrabold text-ink dark:text-cream">طلب #{o.order_no}</span>
+        <StatusBadge status={o.status} />
+      </div>
+      <div className="mt-0.5 font-body text-[11px] text-ink/45 dark:text-cream/45">{fmtDate(o.created_at)}</div>
+      <div className="mt-2 font-body text-xs leading-relaxed text-ink/70 dark:text-cream/70">
+        {(o.items || []).map((it) => `${it.name} ×${it.qty}`).join('، ')}
+      </div>
+      <div className="mt-2.5 flex items-center justify-between">
+        <div>
+          <span className="font-display text-sm font-extrabold text-brand-700 dark:text-brand-300">{fmt(o.total || 0)} د.ع</span>
+          {o.points_earned > 0 && <span className="mr-2 font-body text-[11px] text-copper">+{o.points_earned} نقطة</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {!isPast && (
+            <a href={`/order/${o.id}`} className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-1.5 font-body text-xs font-bold text-cream transition hover:bg-brand-700">
+              <MapPin className="h-3.5 w-3.5" /> تتبّع
+            </a>
+          )}
+          <button onClick={() => onReorder?.(o.items)} className="flex items-center gap-1.5 rounded-xl bg-copper px-3 py-1.5 font-body text-xs font-bold text-cream transition hover:bg-copper-dark active:scale-95">
+            <RotateCw className="h-3.5 w-3.5" /> أعد الطلب
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrdersView({ orders, onReorder, showPast, setShowPast }) {
+  const active = orders.filter((o) => o.status !== 'done' && o.status !== 'cancelled');
+  const past = orders.filter((o) => o.status === 'done' || o.status === 'cancelled');
+  return (
+    <div className="space-y-3">
+      {active.length > 0 ? (
+        active.map((o) => <OrderCard key={o.id} o={o} onReorder={onReorder} />)
+      ) : (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-4 text-center font-body text-sm text-ink/45 dark:border-white/15 dark:text-cream/45">
+          لا توجد طلبات حالية الآن
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-ink/10 bg-beige/40 dark:border-white/10 dark:bg-night-700/30">
+          <button
+            onClick={() => setShowPast((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-body text-sm font-bold text-ink/70 dark:text-cream/70"
+          >
+            <span className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-ink/40 dark:text-cream/40" />
+              الطلبات السابقة
+              <span className="rounded-full bg-ink/10 px-2 py-0.5 text-[11px] dark:bg-white/10">{past.length}</span>
+            </span>
+            <ChevronDown className={`h-5 w-5 transition ${showPast ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence initial={false}>
+            {showPast && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <div className="space-y-3 px-3 pb-3">
+                  {past.map((o) => <OrderCard key={o.id} o={o} onReorder={onReorder} />)}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────── user changes their own login PIN ───────── */
+function ChangePinCard({ changePin }) {
+  const [open, setOpen] = useState(false);
+  const [oldPin, setOldPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+
+  async function submit() {
+    setErr('');
+    if (oldPin.length !== 4) return setErr('اكتب رمزك الحالي (4 أرقام)');
+    if (newPin.length !== 4) return setErr('الرمز الجديد 4 أرقام');
+    if (oldPin === newPin) return setErr('الرمز الجديد مطابق للحالي');
+    setBusy(true);
+    const r = await changePin(oldPin, newPin);
+    setBusy(false);
+    if (r?.ok) {
+      setDone(true);
+      setOldPin('');
+      setNewPin('');
+      setTimeout(() => { setDone(false); setOpen(false); }, 1900);
+    } else {
+      setErr(r?.error || 'تعذّر تغيير الرمز');
+    }
+  }
+
+  return (
+    <div className="rounded-3xl bg-cream p-5 shadow-soft dark:bg-night-800">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between">
+        <span className="flex items-center gap-2 font-display text-lg font-extrabold text-ink dark:text-cream">
+          <KeyRound className="h-5 w-5 text-copper" /> تغيير الرمز السري
+        </span>
+        <ChevronDown className={`h-5 w-5 text-ink/50 transition dark:text-cream/50 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            {done ? (
+              <div className="pt-5"><SuccessCheck label="تم تغيير الرمز" /></div>
+            ) : (
+              <div className="space-y-4 pt-5">
+                <div>
+                  <span className="mb-2 block text-center font-body text-sm font-bold text-ink/70 dark:text-cream/70">رمزك الحالي</span>
+                  <CodeInput length={4} mask value={oldPin} onChange={(v) => { setOldPin(v); if (err) setErr(''); }} />
+                </div>
+                <div>
+                  <span className="mb-2 block text-center font-body text-sm font-bold text-ink/70 dark:text-cream/70">الرمز الجديد</span>
+                  <CodeInput length={4} mask value={newPin} onChange={(v) => { setNewPin(v); if (err) setErr(''); }} />
+                </div>
+                {err && <p className="text-center font-body text-sm text-red-500">{err}</p>}
+                <button onClick={submit} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-copper py-3 font-display font-bold text-cream transition hover:bg-copper-dark disabled:opacity-60">
+                  {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-5 w-5" />} حفظ الرمز الجديد
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }

@@ -60,3 +60,31 @@ export const adminUpdateProfile = (adminId, f) =>
     p_name: f.name ?? null, p_phone: f.phone ?? null, p_email: f.email ?? null,
     p_birthdate: f.birthdate ?? null, p_gender: f.gender ?? null, p_avatar_url: f.avatar_url ?? null,
   });
+
+// ── user management (Phase G): accounts + drivers + admins ──
+export const adminListAccounts = (adminId, search, limit) =>
+  rpc('admin_list_accounts', { p_admin_id: adminId, p_search: search || null, p_limit: limit || 500 });
+export const adminUpdateAccount = (adminId, id, f = {}) =>
+  rpc('admin_update_account', {
+    p_admin_id: adminId, p_id: id,
+    p_name: f.name ?? null, p_phone: f.phone ?? null, p_phone2: f.phone2 ?? null,
+    p_email: f.email ?? null, p_area: f.area ?? null, p_address: f.address ?? null,
+    p_birthdate: f.birthdate ?? null, p_gender: f.gender ?? null, p_notes: f.notes ?? null,
+  });
+export const adminResetAccountPin = (adminId, id, pin) =>
+  rpc('admin_reset_account_pin', { p_admin_id: adminId, p_id: id, p_new_pin: pin });
+export const adminSetAccountPoints = (adminId, id, points) =>
+  rpc('admin_set_account_points', { p_admin_id: adminId, p_id: id, p_points: points });
+export const adminRemoveAccount = (adminId, id) =>
+  rpc('admin_remove_account', { p_admin_id: adminId, p_id: id });
+
+export const adminListDriversExt = (adminId) => rpc('admin_list_drivers_ext', { p_admin_id: adminId });
+export const adminListAdminsExt = (adminId) => rpc('admin_list_admins_ext', { p_admin_id: adminId });
+export const adminResetDriverPass = (adminId, targetId, pass) =>
+  rpc('admin_reset_driver_pass', { p_admin_id: adminId, p_target_id: targetId, p_new_pass: pass });
+export const adminResetAdminPass = (adminId, targetId, pass) =>
+  rpc('admin_reset_admin_pass', { p_admin_id: adminId, p_target_id: targetId, p_new_pass: pass });
+export const adminSetDriverActive = (adminId, targetId, active) =>
+  rpc('admin_set_driver_active', { p_admin_id: adminId, p_target_id: targetId, p_active: active });
+export const adminSetAdminActive = (adminId, targetId, active) =>
+  rpc('admin_set_admin_active', { p_admin_id: adminId, p_target_id: targetId, p_active: active });

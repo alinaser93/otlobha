@@ -115,6 +115,28 @@ export function AuthProvider({ children }) {
     if (data?.ok) setAccount(data.account);
   }, [account]);
 
+  // change own PIN (verifies the current PIN first)
+  const changePin = useCallback(
+    async (oldPin, newPin) => {
+      if (!supabase || !account?.id) return { error: 'سجّل الدخول أولاً.' };
+      const { data, error } = await supabase.rpc('account_change_pin', {
+        p_id: account.id,
+        p_old_pin: oldPin,
+        p_new_pin: newPin,
+      });
+      if (error) return { error: error.message };
+      if (!data?.ok) {
+        const m =
+          data?.error === 'wrong_pin' ? 'الرمز الحالي غير صحيح'
+          : data?.error === 'pin_len' ? 'الرمز الجديد يجب أن يكون 4 أرقام'
+          : 'تعذّر تغيير الرمز';
+        return { error: m };
+      }
+      return { ok: true };
+    },
+    [account]
+  );
+
   const logout = useCallback(() => {
     setAccount(null);
     try {
@@ -130,6 +152,7 @@ export function AuthProvider({ children }) {
     login,
     updateProfile,
     reload,
+    changePin,
     logout,
   };
 

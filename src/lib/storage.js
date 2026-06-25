@@ -10,8 +10,9 @@ function loadImage(file) {
   });
 }
 
-// resize + compress to keep avatars small and fast (square-ish, max 400px, JPEG)
-async function compressImage(file, max = 400, quality = 0.85) {
+// resize + compress. `bg` fills the canvas first (use '#ffffff' for product
+// shots so transparent/white-background images blend cleanly via mix-blend).
+async function compressImage(file, { max = 400, quality = 0.85, bg = null } = {}) {
   try {
     const img = await loadImage(file);
     const scale = Math.min(1, max / Math.max(img.width, img.height));
@@ -21,6 +22,10 @@ async function compressImage(file, max = 400, quality = 0.85) {
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
+    if (bg) {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+    }
     ctx.drawImage(img, 0, 0, w, h);
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
     URL.revokeObjectURL(img.src);
@@ -41,7 +46,7 @@ export async function uploadAvatar(file, prefix, id) {
   if (!file) return { error: 'لم يتم اختيار صورة.' };
   if (!file.type?.startsWith('image/')) return { error: 'الرجاء اختيار صورة صحيحة.' };
 
-  const blob = await compressImage(file);
+  const blob = await compressImage(file, { max: 400, quality: 0.85 });
   const path = `${prefix}/${id}-${Date.now()}.jpg`;
 
   const { error: upErr } = await supabase.storage
@@ -51,6 +56,32 @@ export async function uploadAvatar(file, prefix, id) {
   if (upErr) return { error: upErr.message || 'تعذّر رفع الصورة.' };
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  const url = data?.publicUrl;
+  if (!url) return { error: 'تعذّر الحصول على رابط الصورة.' };
+  return { url };
+}
+
+/*
+  Upload a product image to the public `products` bucket.
+  id : the product id (or 'new'); only used to build a unique filename.
+  White background + JPEG so it sits cleanly on the card's light plate.
+  returns { url } or { error }
+*/
+export async function uploadProductImage(file, id) {
+  if (!supabase) return { error: 'التخزين غير مُهيّأ.' };
+  if (!file) return { error: 'لم يتم اختيار صورة.' };
+  if (!file.type?.startsWith('image/')) return { error: 'الرجاء اختيار صورة صحيحة.' };
+
+  const blob = await compressImage(file, { max: 800, quality: 0.82, bg: '#ffffff' });
+  const path = `${id || 'p'}-${Date.now()}.jpg`;
+
+  const { error: upErr } = await supabase.storage
+    .from('products')
+    .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+
+  if (upErr) return { error: upErr.message || 'تعذّر رفع الصورة.' };
+
+  const { data } = supabase.storage.from('products').getPublicUrl(path);
   const url = data?.publicUrl;
   if (!url) return { error: 'تعذّر الحصول على رابط الصورة.' };
   return { url };
