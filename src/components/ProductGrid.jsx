@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
 import ProductCard from './ProductCard.jsx';
@@ -6,12 +6,31 @@ import ProductModal from './ProductModal.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly }) {
+export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null }) {
   const [cat, setCat] = useState('الكل');
   const [selected, setSelected] = useState(null);
+  const didDeepLink = useRef(false);
   // categories may be plain strings (fallback) or objects { name, image, emoji }
   const cats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
   const list = cat === 'الكل' ? products : products.filter((p) => p.tag === cat);
+
+  // open a shared product / category once the live catalog has loaded
+  useEffect(() => {
+    if (didDeepLink.current) return;
+    if (openProductId && products.length) {
+      const found = products.find((p) => String(p.id) === String(openProductId));
+      if (found) {
+        setSelected(found);
+        didDeepLink.current = true;
+        setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
+      }
+    } else if (initialCat && cats.some((c) => c.name === initialCat)) {
+      setCat(initialCat);
+      didDeepLink.current = true;
+      setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
+    }
+    // eslint-disable-next-line
+  }, [openProductId, initialCat, products]);
 
   return (
     <section id="products" className="bg-cream py-16 dark:bg-night sm:py-24">

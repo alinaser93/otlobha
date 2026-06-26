@@ -5,7 +5,7 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -477,6 +477,28 @@ function Stat({ icon: Icon, label, value, suffix, accent }) {
 }
 
 /* ───────────────────────── Order card ───────────────────────── */
+// a ready, status-aware WhatsApp message to the customer (free wa.me link)
+function customerWaMessage(o) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const link = `${origin}/order/${o.id}`;
+  const name = o.customer_name ? ` ${o.customer_name}` : '';
+  const no = o.order_no;
+  const total = `${fmt(o.total || 0)} د.ع`;
+  switch (o.status) {
+    case 'preparing':
+      return `مرحباً${name} 👋\nطلبك رقم #${no} قيد التحضير الآن 👨‍🍳\nراح نبلّغك أول ما ينطلق إليك.\nتابع طلبك: ${link}\n— اطلبها 🌿`;
+    case 'delivering':
+      return `مرحباً${name} 🚗💨\nطلبك رقم #${no} بالطريق إليك الآن!\nيرجى تجهيز المبلغ: ${total}\nتابع المندوب لحظة بلحظة: ${link}\n— اطلبها 🌿`;
+    case 'done':
+      return `مرحباً${name} 🎉\nتم توصيل طلبك رقم #${no} بنجاح.\nشكراً لثقتك بـ«اطلبها» 🌿 نتشرّف بخدمتك مجدداً!`;
+    case 'cancelled':
+      return `مرحباً${name}\nبخصوص طلبك رقم #${no} — نأسف، تم إلغاء الطلب.\nلأي استفسار نحن بالخدمة. — اطلبها`;
+    case 'new':
+    default:
+      return `مرحباً${name} 👋\nتم استلام طلبك رقم #${no} بنجاح ✅\nالإجمالي: ${total}\nراح نبلّغك بكل تحديث على الطلب.\nتابع طلبك من هنا: ${link}\n— اطلبها 🌿`;
+  }
+}
+
 function OrderCard({ o, onStatus, drivers = [], onAssign }) {
   const st = STATUS[o.status] || STATUS.new;
   const items = Array.isArray(o.items) ? o.items : [];
@@ -545,9 +567,9 @@ function OrderCard({ o, onStatus, drivers = [], onAssign }) {
       {/* contact actions */}
       <div className="mt-3 flex flex-wrap gap-2">
         {wa && (
-          <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
+          <a href={`https://wa.me/${wa}?text=${encodeURIComponent(customerWaMessage(o))}`} target="_blank" rel="noreferrer"
             className="flex items-center gap-1.5 rounded-xl bg-green-600/90 px-3 py-2 text-sm font-bold text-white hover:bg-green-600">
-            <MessageCircle className="h-4 w-4" /> واتساب
+            <MessageCircle className="h-4 w-4" /> أبلغ الزبون
           </a>
         )}
         {o.customer_phone && (
@@ -887,8 +909,26 @@ function ProductsManager({ admin }) {
   );
 }
 
+function CopyLinkButton({ url, title = 'نسخ رابط المشاركة' }) {
+  const [done, setDone] = useState(false);
+  async function copy(e) {
+    e.stopPropagation();
+    try {
+      if (navigator.share) { await navigator.share({ url }); return; }
+    } catch { return; }
+    try { await navigator.clipboard.writeText(url); setDone(true); setTimeout(() => setDone(false), 1600); } catch {}
+  }
+  return (
+    <button onClick={copy} title={title}
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${done ? 'bg-green-500/15 text-green-600 dark:text-green-300' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70'}`}>
+      {done ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+    </button>
+  );
+}
+
 function ProductRow({ p, onToggle, onEdit, onDelete, confirm, setConfirm, onPersist }) {
   const controls = useDragControls();
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return (
     <Reorder.Item value={p} dragListener={false} dragControls={controls} onDragEnd={onPersist}
       className={`flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2 ${p.active ? '' : 'opacity-60'}`}>
@@ -905,6 +945,7 @@ function ProductRow({ p, onToggle, onEdit, onDelete, confirm, setConfirm, onPers
           <span className="text-ink/40 dark:text-cream/40">د.ع / {p.unit}</span>
         </div>
       </div>
+      <CopyLinkButton url={`${origin}/p/${p.id}`} title="نسخ رابط المنتج (للإعلان/المشاركة)" />
       <button onClick={() => onToggle(p)} title={p.active ? 'إخفاء من المتجر' : 'إظهار في المتجر'}
         className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${p.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/40 dark:bg-white/10 dark:text-cream/40'}`}>
         {p.active ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -936,6 +977,9 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
     badge: product?.badge || '',
     description: product?.description || '',
   });
+  const [track, setTrack] = useState(product?.stock !== null && product?.stock !== undefined);
+  const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
+  const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : '');
   const [image, setImage] = useState(product?.image || '');
   const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -998,6 +1042,8 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
       tint: f.tint || '#9A5318',
       badge: f.badge.trim(),
       description: f.description.trim(),
+      stock: track ? Math.max(0, parseInt(stock, 10) || 0) : -1, // -1 => untracked
+      oldPrice: oldPrice ? Math.max(0, parseInt(oldPrice, 10) || 0) : 0, // 0 => no discount
       image, // '' clears, url sets
     };
     const r = product
@@ -1069,6 +1115,32 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
           <input type="color" value={f.tint} onChange={set('tint')}
             className="h-10 w-full cursor-pointer rounded-xl border border-ink/10 bg-beige dark:border-white/10 dark:bg-night-900" />
         </Lbl>
+      </div>
+
+      {/* stock + discount */}
+      <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-cream/60 dark:bg-night-900/40 p-3 space-y-3">
+        <label className="flex items-center gap-2 text-sm font-bold text-ink dark:text-cream">
+          <input type="checkbox" checked={track} onChange={(e) => setTrack(e.target.checked)}
+            className="h-4 w-4 accent-copper" />
+          تتبّع الكمية المتوفرة
+        </label>
+        {track && (
+          <div className="grid grid-cols-2 gap-3">
+            <Lbl label="الكمية المتوفرة" full>
+              <input type="number" inputMode="numeric" className={inp} value={stock} onChange={(e) => setStock(e.target.value)} placeholder="مثلاً: 12" dir="ltr" />
+            </Lbl>
+            <p className="col-span-2 -mt-1 text-[11px] text-ink/45 dark:text-cream/45">يظهر «بقي N» للزبون عند قلّة الكمية، و «نفد» عند انتهائها (يمنع الطلب).</p>
+          </div>
+        )}
+        <Lbl label="السعر قبل الخصم (اختياري — يفعّل شارة خصم)" full>
+          <input type="number" inputMode="numeric" className={inp} value={oldPrice} onChange={(e) => setOldPrice(e.target.value)}
+            placeholder="اتركه فارغاً لو ما في خصم" dir="ltr" />
+        </Lbl>
+        {oldPrice && parseInt(oldPrice, 10) > (parseInt(f.price, 10) || 0) && (
+          <p className="-mt-1 text-[11px] font-bold text-green-600 dark:text-green-300">
+            خصم {Math.round(((parseInt(oldPrice, 10) - (parseInt(f.price, 10) || 0)) / parseInt(oldPrice, 10)) * 100)}% — يظهر السعر القديم مشطوباً.
+          </p>
+        )}
       </div>
 
       {/* description (shown in the product detail popup) */}
@@ -1197,6 +1269,7 @@ function CategoryRow({ c, onEdit, onDelete, confirm, setConfirm, onPersist }) {
           : <span>{c.emoji || '🏷️'}</span>}
       </span>
       <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{c.name}</span>
+      <CopyLinkButton url={`${typeof window !== 'undefined' ? window.location.origin : ''}/c/${encodeURIComponent(c.name)}`} title="نسخ رابط القسم (للإعلان/المشاركة)" />
       <button onClick={onEdit}
         className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-4 w-4" /></button>
       {confirm === c.id ? (

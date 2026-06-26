@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus, ShoppingCart, Sparkles } from 'lucide-react';
+import { X, Plus, Minus, ShoppingCart, Share2, Check } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 
 /*
@@ -12,6 +12,25 @@ export default function ProductModal({ product, onClose, onAdd }) {
   const open = !!product;
   const [qty, setQty] = useState(1);
   const [imgOk, setImgOk] = useState(true);
+  const out = !!product && product.stock != null && product.stock <= 0;
+  const low = !!product && product.stock != null && product.stock > 0 && product.stock <= 5;
+  const [copied, setCopied] = useState(false);
+
+  const productUrl = () =>
+    (typeof window !== 'undefined' ? window.location.origin : '') + '/p/' + (product?.id ?? '');
+
+  async function share() {
+    const url = productUrl();
+    const data = { title: product.name, text: `${product.name} — ${fmt(product.price)} د.ع · اطلبها`, url };
+    try {
+      if (navigator.share) { await navigator.share(data); return; }
+    } catch { /* user cancelled */ return; }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {}
+  }
 
   useEffect(() => {
     if (open) { setQty(1); setImgOk(true); }
@@ -40,6 +59,7 @@ export default function ProductModal({ product, onClose, onAdd }) {
   }
 
   function add() {
+    if (out) return;
     for (let i = 0; i < qty; i++) onAdd?.(product);
     goBack();
   }
@@ -76,6 +96,15 @@ export default function ProductModal({ product, onClose, onAdd }) {
               <X className="h-5 w-5" />
             </button>
 
+            <button
+              onClick={share}
+              aria-label="مشاركة المنتج"
+              className="absolute left-14 top-4 z-20 flex h-9 items-center gap-1 rounded-full bg-ink/10 px-3 text-ink backdrop-blur hover:bg-ink/20 dark:bg-white/10 dark:text-cream"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-600 dark:text-green-300" /> : <Share2 className="h-4 w-4" />}
+              <span className="text-xs font-bold">{copied ? 'نُسخ' : 'مشاركة'}</span>
+            </button>
+
             {/* hero image */}
             <div className="relative grid place-items-center px-6 pt-4">
               {product.badge && (
@@ -108,10 +137,22 @@ export default function ProductModal({ product, onClose, onAdd }) {
               <span className="font-body text-xs font-bold text-copper dark:text-copper-light">{product.tag}</span>
               <h2 className="mt-1 font-display text-2xl font-black leading-tight text-ink dark:text-cream">{product.name}</h2>
 
-              <div className="mt-3 flex items-baseline gap-1">
+              <div className="mt-3 flex flex-wrap items-baseline gap-2">
                 <span className="font-display text-3xl font-black text-brand-800 dark:text-brand-400">{fmt(product.price)}</span>
+                {product.oldPrice && (
+                  <span className="font-body text-base font-bold text-ink/35 line-through dark:text-cream/35">{fmt(product.oldPrice)}</span>
+                )}
                 <span className="font-body text-sm font-bold text-ink/45 dark:text-cream/45">د.ع / {product.unit}</span>
+                {product.oldPrice && product.discountPct > 0 && (
+                  <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-bold text-green-700 dark:text-green-300">وفّر {product.discountPct}%</span>
+                )}
               </div>
+
+              {out ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-3 py-1 text-sm font-bold text-red-600 dark:text-red-300">نفد المخزون حالياً</div>
+              ) : low ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-3 py-1 text-sm font-bold text-amber-700 dark:text-amber-300">🔥 بقي {product.stock} فقط — اطلب قبل النفاد</div>
+              ) : null}
 
               {/* description (selling copy) */}
               <div className="mt-5">
@@ -126,7 +167,7 @@ export default function ProductModal({ product, onClose, onAdd }) {
 
             {/* sticky action bar */}
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 border-t border-ink/10 bg-cream/95 p-4 backdrop-blur dark:border-white/10 dark:bg-night-800/95">
-              <div className="flex items-center gap-1 rounded-2xl bg-ink/5 p-1 dark:bg-white/10">
+              <div className={`flex items-center gap-1 rounded-2xl bg-ink/5 p-1 dark:bg-white/10 ${out ? 'pointer-events-none opacity-40' : ''}`}>
                 <button onClick={() => setQty((q) => q + 1)} className="grid h-9 w-9 place-items-center rounded-xl bg-copper text-cream hover:bg-copper-dark" aria-label="زيادة">
                   <Plus className="h-4 w-4" />
                 </button>
@@ -137,9 +178,12 @@ export default function ProductModal({ product, onClose, onAdd }) {
               </div>
               <button
                 onClick={add}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-copper py-3.5 font-display text-lg font-bold text-cream shadow-seal transition hover:bg-copper-dark active:scale-[0.98]"
+                disabled={out}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-lg font-bold text-cream shadow-seal transition active:scale-[0.98] ${
+                  out ? 'cursor-not-allowed bg-ink/40' : 'bg-copper hover:bg-copper-dark'
+                }`}
               >
-                <ShoppingCart className="h-5 w-5" /> أضف للسلة · {fmt(product.price * qty)} د.ع
+                <ShoppingCart className="h-5 w-5" /> {out ? 'نفد المخزون' : `أضف للسلة · ${fmt(product.price * qty)} د.ع`}
               </button>
             </div>
           </motion.div>

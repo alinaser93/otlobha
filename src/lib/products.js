@@ -27,6 +27,8 @@ export const adminAddProduct = (adminId, f = {}) =>
     p_tint: f.tint || '#9A5318',
     p_badge: f.badge || null,
     p_description: f.description ?? null,
+    p_stock: f.stock ?? null,
+    p_old_price: f.oldPrice ?? null,
   });
 
 // note: `??` means a provided '' clears (image/badge/description), an absent key = no change
@@ -45,6 +47,8 @@ export const adminUpdateProduct = (adminId, id, f = {}) =>
     p_sort: f.sort ?? null,
     p_active: f.active ?? null,
     p_description: f.description ?? null,
+    p_stock: f.stock ?? null,
+    p_old_price: f.oldPrice ?? null,
   });
 
 export const adminRemoveProduct = (adminId, id) =>
@@ -142,25 +146,49 @@ export async function fetchStoreCatalog() {
     const rows = bs && !bs.error && Array.isArray(bs.data) ? bs.data : [];
     rows.forEach((r) => { if (r && r.name) soldMap[r.name] = Number(r.sold) || 0; });
 
-    const products = (pr.data || []).map((r) => ({
-      id: r.id,
-      name: r.name,
-      tag: r.category,
-      price: r.price,
-      unit: r.unit,
-      emoji: r.emoji,
-      image: r.image || null,
-      tint: r.tint || '#9A5318',
-      badge: r.badge || undefined,
-      description: r.description || '',
-      sold: soldMap[r.name] || 0,
-    }));
+    const NEW_DAYS = 10;
+    const now = Date.now();
+    const products = (pr.data || []).map((r) => {
+      const price = r.price;
+      const oldPrice = r.old_price && r.old_price > price ? r.old_price : null;
+      const stock = r.stock === null || r.stock === undefined ? null : Number(r.stock);
+      const isNew = r.created_at ? now - new Date(r.created_at).getTime() < NEW_DAYS * 86400000 : false;
+      const pct = oldPrice ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0;
+      return {
+        id: r.id,
+        name: r.name,
+        tag: r.category,
+        price,
+        unit: r.unit,
+        emoji: r.emoji,
+        image: r.image || null,
+        tint: r.tint || '#9A5318',
+        description: r.description || '',
+        sold: soldMap[r.name] || 0,
+        oldPrice,
+        stock,
+        discountPct: pct,
+        _manual: r.badge || '',
+        _discount: !!oldPrice,
+        _new: isNew,
+      };
+    });
 
     // order by real sales (stable: ties keep the admin's manual order),
-    // then auto-tag the top sellers that have actual sales and no manual badge
+    // mark the top sellers that actually have sales
     products.sort((a, b) => b.sold - a.sold);
-    products.forEach((p, i) => {
-      if (i < 3 && p.sold > 0 && !p.badge) p.badge = 'الأكثر مبيعاً';
+    products.forEach((p, i) => { p._best = i < 3 && p.sold > 0; });
+
+    // resolve ONE badge per product by priority:
+    // manual > خصم > الأكثر مبيعاً > جديد
+    products.forEach((p) => {
+      p.badge =
+        p._manual ||
+        (p._discount ? `خصم ${p.discountPct}%` : '') ||
+        (p._best ? 'الأكثر مبيعاً' : '') ||
+        (p._new ? 'جديد' : '') ||
+        undefined;
+      delete p._manual; delete p._discount; delete p._new; delete p._best;
     });
     const categories = [
       { name: 'الكل', image: null, emoji: null },

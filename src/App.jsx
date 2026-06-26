@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle } from 'lucide-react';
 
@@ -106,6 +106,21 @@ export default function App() {
     } catch (e) {}
   }, []);
 
+  // share-link target: /p/{id} opens a product · /c/{name} filters a category
+  const deepLink = useMemo(() => {
+    try {
+      const path = window.location.pathname;
+      const sp = new URLSearchParams(window.location.search);
+      let m = path.match(/^\/p\/([^/?#]+)/);
+      if (m) return { type: 'product', id: decodeURIComponent(m[1]) };
+      if (sp.get('p')) return { type: 'product', id: sp.get('p') };
+      m = path.match(/^\/c\/([^/?#]+)/);
+      if (m) return { type: 'category', name: decodeURIComponent(m[1]) };
+      if (sp.get('c')) return { type: 'category', name: sp.get('c') };
+    } catch (e) {}
+    return null;
+  }, []);
+
   // load the live catalog (products + categories) from the database. Falls back
   // to the bundled catalog if Supabase is off or the request fails, so the
   // store always renders instantly and never goes blank.
@@ -199,7 +214,14 @@ export default function App() {
       <main>
         <Hero onShop={() => document.getElementById('bundles')?.scrollIntoView({ behavior: 'smooth' })} />
         <BundleSection bundles={bundles} onAdd={addItem} fly={fly} />
-        <ProductGrid products={products} categories={categories} onAdd={addItem} fly={fly} />
+        <ProductGrid
+          products={products}
+          categories={categories}
+          onAdd={addItem}
+          fly={fly}
+          openProductId={deepLink?.type === 'product' ? deepLink.id : null}
+          initialCat={deepLink?.type === 'category' ? deepLink.name : null}
+        />
         <FreshnessPromise />
       </main>
 

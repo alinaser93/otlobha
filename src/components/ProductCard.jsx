@@ -7,6 +7,8 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
   const orbRef = useRef(null);
   // show the real image; if its file is missing, fall back to the emoji
   const [imgOk, setImgOk] = useState(true);
+  const out = p.stock != null && p.stock <= 0;
+  const low = p.stock != null && p.stock > 0 && p.stock <= 5;
 
   return (
     <motion.article
@@ -26,7 +28,7 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
       <div className="relative grid place-items-center rounded-2xl bg-gradient-to-b from-beige/60 to-white py-5 dark:from-night-700 dark:to-night-900">
         <div
           ref={orbRef}
-          className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-full text-5xl sm:h-32 sm:w-32"
+          className={`relative grid h-28 w-28 place-items-center overflow-hidden rounded-full text-5xl sm:h-32 sm:w-32 ${out ? 'opacity-45 grayscale' : ''}`}
           style={{
             background: `radial-gradient(70% 70% at 35% 30%, #ffffff 0%, #ffffff 62%, #ece5d8 100%)`,
             boxShadow: `inset 0 -10px 24px -14px ${p.tint}55, 0 14px 30px -18px ${p.tint}66`,
@@ -45,16 +47,24 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
           )}
         </div>
 
+        {out && (
+          <span className="absolute right-2 top-2 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white">نفد</span>
+        )}
+
         {/* quick-add: always tappable on mobile, slides up on hover on desktop */}
         <motion.button
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: out ? 1 : 0.9 }}
+          disabled={out}
           onClick={(e) => {
             e.stopPropagation();
+            if (out) return;
             fly(orbRef.current);
             onAdd(p);
           }}
           aria-label={'أضف ' + p.name}
-          className="absolute bottom-2 right-2 grid h-11 w-11 translate-y-3 place-items-center rounded-full bg-copper text-cream opacity-100 shadow-seal transition-all duration-300 hover:bg-copper-dark md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100"
+          className={`absolute bottom-2 right-2 grid h-11 w-11 translate-y-3 place-items-center rounded-full text-cream shadow-seal transition-all duration-300 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100 ${
+            out ? 'cursor-not-allowed bg-ink/30 opacity-100' : 'bg-copper opacity-100 hover:bg-copper-dark'
+          }`}
         >
           <Plus className="h-5 w-5" />
         </motion.button>
@@ -63,9 +73,18 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
       <div className="mt-3 flex flex-1 flex-col">
         <span className="font-body text-[11px] text-copper dark:text-copper-light">{p.tag}</span>
         <h3 className="mt-0.5 font-display text-[17px] font-bold leading-tight text-ink dark:text-cream">{p.name}</h3>
-        <div className="mt-2 font-display text-xl font-black text-brand-800 dark:text-brand-400">
-          {fmt(p.price)} <span className="text-xs font-bold text-ink/45 dark:text-cream/45">د.ع / {p.unit}</span>
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className="font-display text-xl font-black text-brand-800 dark:text-brand-400">{fmt(p.price)}</span>
+          {p.oldPrice && (
+            <span className="font-body text-xs font-bold text-ink/35 line-through dark:text-cream/35">{fmt(p.oldPrice)}</span>
+          )}
+          <span className="text-xs font-bold text-ink/45 dark:text-cream/45">د.ع / {p.unit}</span>
         </div>
+        {low && (
+          <span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+            🔥 بقي {p.stock}
+          </span>
+        )}
       </div>
     </motion.article>
   );
