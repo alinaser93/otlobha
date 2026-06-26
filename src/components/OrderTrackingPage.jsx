@@ -277,10 +277,18 @@ export default function OrderTrackingPage() {
             ))}
           </div>
           <div className="mt-3 space-y-1.5 border-t border-ink/10 pt-3 text-sm dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <span className="text-ink/50 dark:text-cream/50">التوصيل</span>
-              <span className="font-bold text-brand-600 dark:text-brand-300">مجاني ✓</span>
-            </div>
+            {(() => {
+              const sub = order.subtotal != null ? order.subtotal : items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0);
+              const delivery = Math.max(0, (order.total || 0) - sub);
+              return (
+                <div className="flex items-center justify-between">
+                  <span className="text-ink/50 dark:text-cream/50">التوصيل</span>
+                  {delivery > 0
+                    ? <span className="font-bold text-ink dark:text-cream">{fmt(delivery)} د.ع</span>
+                    : <span className="font-bold text-brand-600 dark:text-brand-300">مجاني ✓</span>}
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between font-display text-lg font-black">
               <span>المجموع</span>
               <span>{fmt(order.total || 0)} <span className="text-sm">د.ع</span></span>

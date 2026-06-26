@@ -153,6 +153,20 @@ export const adminSetStoreCommission = (adminId, storeId, pct) =>
 export const adminCommissionReport = (adminId, since = null) =>
   rpc('admin_commission_report', { p_admin_id: adminId, p_since: since });
 
+/* ───────────────────────── app settings (admin control panel) ───────────────────────── */
+export const getSettings = () => rpc('get_settings', {});
+export const adminUpdateSettings = (adminId, s = {}) =>
+  rpc('admin_update_settings', {
+    p_admin_id: adminId,
+    p_delivery_fee: s.delivery_fee ?? null,
+    p_delivery_extra_store: s.delivery_extra_store ?? null,
+    p_delivery_fee_cap: s.delivery_fee_cap ?? null,
+    p_free_delivery_over: s.free_delivery_over ?? null,
+    p_driver_fee_base: s.driver_fee_base ?? null,
+    p_driver_fee_per_extra_store: s.driver_fee_per_extra_store ?? null,
+    p_default_commission_pct: s.default_commission_pct ?? null,
+  });
+
 /* ───────────────────────── finance (admin) ───────────────────────── */
 export const adminFinanceReport = (adminId, since = null) =>
   rpc('admin_finance_report', { p_admin_id: adminId, p_since: since });

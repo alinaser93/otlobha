@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Gift, MessageCircle, Truck, PartyPopper } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { FREE_DELIVERY_OVER, calcDelivery } from '../config.js';
+import { SETTINGS, calcDelivery } from '../config.js';
 
 // cart line thumbnail: real product image (white bg melts via multiply), emoji fallback.
 function CartThumb({ image, emoji }) {
@@ -23,10 +23,11 @@ function CartThumb({ image, emoji }) {
 
 // motivational progress toward free delivery — nudges the customer to add more
 function FreeDeliveryBar({ total, storeCount }) {
-  if (!FREE_DELIVERY_OVER || FREE_DELIVERY_OVER <= 0) return null;
-  const reached = total >= FREE_DELIVERY_OVER;
-  const pct = Math.max(0, Math.min(100, Math.round((total / FREE_DELIVERY_OVER) * 100)));
-  const remaining = Math.max(0, FREE_DELIVERY_OVER - total);
+  const threshold = SETTINGS.free_delivery_over;
+  if (!threshold || threshold <= 0) return null;
+  const reached = total >= threshold;
+  const pct = Math.max(0, Math.min(100, Math.round((total / threshold) * 100)));
+  const remaining = Math.max(0, threshold - total);
   const fee = calcDelivery(total, storeCount);
 
   return (

@@ -5,7 +5,7 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -32,6 +32,7 @@ import {
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
   adminFinanceReport, adminSettleMerchant, adminSettleDriver,
+  getSettings, adminUpdateSettings,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
@@ -158,6 +159,7 @@ function Dashboard({ admin, onOut }) {
   const [showCats, setShowCats] = useState(false);
   const [showStores, setShowStores] = useState(false);
   const [showEarnings, setShowEarnings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
@@ -421,6 +423,22 @@ function Dashboard({ admin, onOut }) {
             {showEarnings && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                 <EarningsManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* settings control panel */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowSettings((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-copper" /> الإعدادات والأرقام</span>
+            <ChevronDown className={`h-5 w-5 transition ${showSettings ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showSettings && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <SettingsManager admin={admin} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1453,6 +1471,85 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
 
 /* ════════════════════════════ Stores ════════════════════════════ */
 const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
+
+function SettingsManager({ admin }) {
+  const [s, setS] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getSettings().then((r) => { setS(r || {}); setLoading(false); });
+  }, []);
+
+  const set = (k) => (e) => { setS((prev) => ({ ...prev, [k]: e.target.value })); setSaved(false); };
+
+  async function save() {
+    setSaving(true); setSaved(false);
+    const payload = {};
+    for (const k of ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct']) {
+      payload[k] = Math.max(0, parseFloat(s[k]) || 0);
+    }
+    const r = await adminUpdateSettings(admin.id, payload);
+    setSaving(false);
+    if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
+  }
+
+  if (loading) return <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
+
+  const fieldInp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm font-bold text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
+  const Field = ({ label, k, hint, suffix = 'د.ع' }) => (
+    <div>
+      <label className="mb-1 block text-[12px] font-bold text-ink/60 dark:text-cream/60">{label}</label>
+      <div className="relative">
+        <input type="number" dir="ltr" inputMode="numeric" value={s[k] ?? ''} onChange={set(k)} className={fieldInp + ' pl-12'} />
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-ink/40 dark:text-cream/40">{suffix}</span>
+      </div>
+      {hint && <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 p-4">
+      {/* delivery */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Truck className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">رسوم التوصيل (يدفعها الزبون)</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="الأجور الأساسية" k="delivery_fee" hint="لطلب من متجر واحد" />
+          <Field label="زيادة لكل متجر إضافي" k="delivery_extra_store" hint="يُضاف لكل متجر بعد الأول" />
+          <Field label="الحد الأقصى للتوصيل" k="delivery_fee_cap" hint="مهما تعدّدت المتاجر" />
+          <Field label="توصيل مجاني فوق" k="free_delivery_over" hint="0 = تعطيل المجاني" />
+        </div>
+      </div>
+
+      {/* driver */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Bike className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">أجور المندوب (يستحقّها المندوب)</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="أجرة التوصيلة" k="driver_fee_base" hint="لكل توصيلة (متجر واحد)" />
+          <Field label="زيادة لكل متجر إضافي" k="driver_fee_per_extra_store" hint="يُضاف لأجرة المندوب" />
+        </div>
+      </div>
+
+      {/* commission */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">العمولة</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="العمولة الافتراضية" k="default_commission_pct" hint="للمتاجر الجديدة (تقدر تغيّرها لكل متجر)" suffix="%" />
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display font-bold text-cream shadow-soft transition disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-copper hover:bg-copper-dark'}`}>
+        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : saved ? <Check className="h-5 w-5" /> : <Save className="h-5 w-5" />}
+        {saved ? 'تم الحفظ ✓' : 'حفظ الإعدادات'}
+      </button>
+      <p className="text-center text-[11px] leading-relaxed text-ink/45 dark:text-cream/45">
+        💡 تُطبَّق فوراً على كل التطبيق. أجور المندوب تُحتسب على الطلبات الجديدة المُسلّمة.
+      </p>
+    </div>
+  );
+}
 
 function EarningsManager({ admin }) {
   const [range, setRange] = useState('all');

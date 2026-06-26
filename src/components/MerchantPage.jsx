@@ -1451,10 +1451,10 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
         </div>
 
         {/* tabs */}
-        <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
+        <div className="mx-auto flex max-w-4xl gap-1.5 overflow-x-auto px-4 pb-2 no-scrollbar">
           {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['wallet', 'محفظتي', Wallet], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+              className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
               {k === 'orders' && newOrdersCount > 0 && (
                 <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">{newOrdersCount}</span>

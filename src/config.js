@@ -9,23 +9,41 @@ export const SHOP_NAME = 'اطلبها';
 // المدينة التي تخدمها
 export const CITY = 'السماوة';
 
-// 🚚 التوصيل
-// النظام: أجور أساسية + زيادة لكل متجر إضافي (بسقف)، ويصبح مجانياً فوق مبلغ معيّن.
-// عدّل الأرقام هنا حسب حاجتك (بالدينار):
-export const DELIVERY_FEE = 2000;          // الأجور الأساسية (متجر واحد)
-export const DELIVERY_EXTRA_STORE = 500;   // يُضاف لكل متجر إضافي بعد الأول
-export const DELIVERY_FEE_CAP = 3000;      // الحد الأقصى للأجور مهما تعدّدت المتاجر
-export const FREE_DELIVERY_OVER = 80000;   // توصيل مجاني فوق هذا المبلغ (0 = معطّل)
+// 🚚 التوصيل وأجور المندوب
+// هذه القيم افتراضية فقط — تُحمّل القيم الحقيقية من لوحة التحكّم (قاعدة البيانات) عند الإقلاع،
+// ويقدر الأدمن يعدّلها من «الإعدادات» بدون كود.
+export const SETTINGS = {
+  delivery_fee: 2000,               // الأجور الأساسية (متجر واحد)
+  delivery_extra_store: 500,        // يُضاف لكل متجر إضافي بعد الأول
+  delivery_fee_cap: 3000,           // الحد الأقصى للأجور
+  free_delivery_over: 80000,        // توصيل مجاني فوق هذا المبلغ (0 = معطّل)
+  driver_fee_base: 1500,            // أجرة المندوب لكل توصيل
+  driver_fee_per_extra_store: 500,  // يُضاف لأجرة المندوب لكل متجر إضافي
+  default_commission_pct: 15,       // العمولة الافتراضية للمتاجر الجديدة
+};
 
-// 🛵 أجور المندوب (يُحسب لكل توصيل): أساس + زيادة لكل متجر إضافي بعد الأول
-export const DRIVER_FEE_BASE = 1500;            // لكل توصيل (متجر واحد)
-export const DRIVER_FEE_PER_EXTRA_STORE = 500;  // يُضاف لكل متجر إضافي في نفس الطلب
+// يدمج إعدادات قادمة من الخادم في الكائن الحيّ (يُستدعى عند الإقلاع وبعد أي تعديل)
+export function applySettings(s) {
+  if (!s) return;
+  for (const k of Object.keys(SETTINGS)) {
+    if (s[k] != null && !Number.isNaN(Number(s[k]))) SETTINGS[k] = Number(s[k]);
+  }
+}
 
-// يحسب أجور التوصيل حسب إجمالي السلّة وعدد المتاجر المختلفة فيها
+// ثوابت للتوافق الخلفي (قيمها الابتدائية فقط)
+export const DELIVERY_FEE = SETTINGS.delivery_fee;
+export const DELIVERY_EXTRA_STORE = SETTINGS.delivery_extra_store;
+export const DELIVERY_FEE_CAP = SETTINGS.delivery_fee_cap;
+export const FREE_DELIVERY_OVER = SETTINGS.free_delivery_over;
+export const DRIVER_FEE_BASE = SETTINGS.driver_fee_base;
+export const DRIVER_FEE_PER_EXTRA_STORE = SETTINGS.driver_fee_per_extra_store;
+
+// يحسب أجور التوصيل حسب إجمالي السلّة وعدد المتاجر (يقرأ القيم الحيّة)
 export function calcDelivery(total, storeCount = 1) {
-  if (FREE_DELIVERY_OVER > 0 && total >= FREE_DELIVERY_OVER) return 0;
-  const extra = Math.max(0, (storeCount || 1) - 1) * DELIVERY_EXTRA_STORE;
-  return Math.min(DELIVERY_FEE + extra, DELIVERY_FEE_CAP);
+  const s = SETTINGS;
+  if (s.free_delivery_over > 0 && total >= s.free_delivery_over) return 0;
+  const extra = Math.max(0, (storeCount || 1) - 1) * s.delivery_extra_store;
+  return Math.min(s.delivery_fee + extra, s.delivery_fee_cap);
 }
 
 // 📍 مناطق/أحياء السماوة وأقضيتها — أضِف أو احذف بحرية

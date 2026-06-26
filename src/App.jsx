@@ -15,8 +15,8 @@ import AccountDrawer from './components/AccountDrawer.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
-import { fetchStoreCatalog, storeMyFollows, storeToggleFollow } from './lib/products.js';
-import { WHATSAPP_NUMBER } from './config.js';
+import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
+import { WHATSAPP_NUMBER, applySettings } from './config.js';
 
 /* ── slim promo bar ── */
 function TopBar() {
@@ -131,8 +131,10 @@ export default function App() {
   // load the live catalog (products + categories) from the database. Falls back
   // to the bundled catalog if Supabase is off or the request fails, so the
   // store always renders instantly and never goes blank.
+  const [, setSettingsTick] = useState(0);
   useEffect(() => {
     let alive = true;
+    getSettings().then((s) => { if (alive && s) { applySettings(s); setSettingsTick((t) => t + 1); } });
     fetchStoreCatalog().then((res) => {
       if (!alive || !res) return;
       if (Array.isArray(res.products) && res.products.length) setProducts(res.products);
