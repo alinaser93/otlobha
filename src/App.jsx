@@ -245,11 +245,14 @@ export default function App() {
     setCartOpen(true);
   }, [products, bundles]);
 
-  // homepage shows admin (global) bundles; a store page shows that store's bundles
-  const shownBundles = useMemo(
-    () => bundles.filter((b) => (activeStore ? b.storeId === activeStore : !b.storeId)),
-    [bundles, activeStore]
-  );
+  // homepage shows the 5 best-selling bundles across Otlobha; a store page shows that store's bundles
+  const shownBundles = useMemo(() => {
+    if (activeStore) return bundles.filter((b) => b.storeId === activeStore);
+    return [...bundles].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 5);
+  }, [bundles, activeStore]);
+  const bundleHeading = activeStore
+    ? { kicker: 'باقات المتجر', title: 'باقات مختارة', subtitle: 'وفّر أكثر مع باقات هذا المتجر — مكوّنات كاملة بسعر مميّز.' }
+    : { kicker: 'الأكثر طلباً · وفّر أكثر', title: 'أفضل ٥ باقات في اطلبها', subtitle: 'الباقات الأكثر مبيعاً — مكوّنات وصفة كاملة بسعر أوفر من شرائها مفردة.' };
 
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
@@ -276,7 +279,7 @@ export default function App() {
             if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
           }}
         />
-        <BundleSection bundles={shownBundles} onAdd={addItem} fly={fly} />
+        <BundleSection bundles={shownBundles} onAdd={addItem} fly={fly} title={bundleHeading.title} subtitle={bundleHeading.subtitle} kicker={bundleHeading.kicker} />
         <ProductGrid
           products={products}
           categories={categories}

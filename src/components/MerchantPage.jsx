@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { BundleDetailModal } from './BundleSection.jsx';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
-  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers,
+  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -14,6 +15,7 @@ import {
   merchantListOrders, merchantSetItemQty,
   merchantListBundles, merchantAddBundle, merchantUpdateBundle,
   merchantRemoveBundle, merchantSetBundleActive,
+  merchantReorderBundles, merchantSetBundleSeason,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -798,6 +800,8 @@ function BundlesManager({ token, products }) {
   const [aiInitial, setAiInitial] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState('');
+  const [previewBundle, setPreviewBundle] = useState(null);
+  const [savingOrder, setSavingOrder] = useState(false);
 
   const productByName = useMemo(() => new Map(products.map((p) => [p.name, p])), [products]);
 
@@ -847,6 +851,36 @@ function BundlesManager({ token, products }) {
     if (r?.ok) setBundles((prev) => prev.map((x) => (x.id === b.id ? { ...x, active: !x.active } : x)));
   }
 
+  // duplicate a bundle (creates an editable copy)
+  async function duplicate(b) {
+    const payload = {
+      name: (b.name || 'باقة') + ' (نسخة)', kicker: b.kicker || null, description: b.description || null,
+      price: b.price ?? 0, old_price: b.old_price ?? null, accent: b.accent || '#0F5132',
+      image: b.image || null, ingredients: Array.isArray(b.ingredients) ? b.ingredients : [],
+    };
+    const r = await merchantAddBundle(token, payload);
+    if (r?.ok) { if (b.season) await merchantSetBundleSeason(token, r.bundle.id, b.season); load(); }
+  }
+
+  // persist a new drag order
+  async function onReorder(newOrder) {
+    setBundles(newOrder);
+    setSavingOrder(true);
+    await merchantReorderBundles(token, newOrder.map((b) => b.id));
+    setSavingOrder(false);
+  }
+
+  // map a raw DB bundle to the customer card shape (for preview)
+  function toCustomerBundle(b) {
+    const ing = Array.isArray(b.ingredients) ? b.ingredients : [];
+    return {
+      id: b.id, name: b.name, kicker: b.kicker || '', desc: b.description || '',
+      items: ing.map((x) => (x?.qty ? `${x.name} × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : (x?.name || ''))),
+      emojis: ing.map((x) => x?.emoji || '🛒'), images: ing.map((x) => x?.image || null),
+      image: b.image || null, price: b.price, old: b.old_price ?? null, accent: b.accent || '#0F5132', season: b.season || null,
+    };
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل الباقات…</div>;
   }
@@ -883,53 +917,80 @@ function BundlesManager({ token, products }) {
           <p className="mt-1 text-xs text-ink/40 dark:text-cream/40">أنشئ باقة يدوياً أو دع الذكاء يقترح واحدة من منتجاتك.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {bundles.map((b) => {
-            const ing = Array.isArray(b.ingredients) ? b.ingredients : [];
-            return (
-              <div key={b.id} className={`rounded-2xl bg-cream p-4 shadow-soft ring-1 dark:bg-night-800 ${b.active ? 'ring-brand-900/5 dark:ring-white/10' : 'opacity-60 ring-ink/10'}`}>
-                <div className="flex items-start gap-3">
-                  <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl text-2xl" style={{ background: b.accent || '#0F5132' }}>
-                    {b.image ? <img src={b.image} alt="" className="h-full w-full object-cover" /> : '🧺'}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-display font-black text-ink dark:text-cream">{b.name}</h3>
-                    {b.kicker && <p className="text-[11px] font-bold text-copper dark:text-copper-light">{b.kicker}</p>}
-                    <p className="mt-0.5 text-xs text-ink/50 dark:text-cream/50">{ing.length} مكوّن</p>
-                  </div>
-                  <div className="text-left">
-                    <div className="font-display font-black text-copper dark:text-copper-light">{fmt(b.price)} <span className="text-xs">د.ع</span></div>
-                    {b.old_price > 0 && <div className="text-xs text-ink/40 line-through dark:text-cream/40">{fmt(b.old_price)}</div>}
-                  </div>
-                </div>
-                {/* ingredients preview */}
-                {ing.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {ing.slice(0, 6).map((x, i) => (
-                      <span key={i} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/60 dark:bg-white/10 dark:text-cream/60">
-                        {x.name}{x.qty ? ` × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : ''}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3 flex gap-2">
-                  <button onClick={() => toggleActive(b)} className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${b.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/50 dark:bg-white/10 dark:text-cream/50'}`}>
-                    {b.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {b.active ? 'ظاهرة' : 'مخفية'}
-                  </button>
-                  <button onClick={() => openEdit(b)} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-3.5 w-3.5" /> تعديل</button>
-                  <button onClick={() => remove(b)} className="flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-3.5 w-3.5" /> حذف</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {bundles.length > 1 && (
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-ink/40 dark:text-cream/40">
+              <GripVertical className="h-3.5 w-3.5" /> اسحب من المقبض لإعادة ترتيب الباقات {savingOrder && <span className="text-copper">· جارٍ الحفظ…</span>}
+            </p>
+          )}
+          <Reorder.Group axis="y" values={bundles} onReorder={onReorder} className="space-y-3">
+            {bundles.map((b) => (
+              <MerchantBundleRow key={b.id} b={b}
+                onToggle={() => toggleActive(b)} onEdit={() => openEdit(b)} onRemove={() => remove(b)}
+                onDuplicate={() => duplicate(b)} onPreview={() => setPreviewBundle(toCustomerBundle(b))} />
+            ))}
+          </Reorder.Group>
+        </>
       )}
 
       {formOpen && (
         <BundleForm token={token} products={products} bundle={editBundle} initial={aiInitial}
           onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); load(); }} />
       )}
+      {previewBundle && <BundleDetailModal b={previewBundle} onAdd={null} onClose={() => setPreviewBundle(null)} />}
     </>
+  );
+}
+
+// a single draggable bundle row in the merchant manager
+function MerchantBundleRow({ b, onToggle, onEdit, onRemove, onDuplicate, onPreview }) {
+  const controls = useDragControls();
+  const ing = Array.isArray(b.ingredients) ? b.ingredients : [];
+  return (
+    <Reorder.Item value={b} dragListener={false} dragControls={controls}
+      className={`rounded-2xl bg-cream p-4 shadow-soft ring-1 dark:bg-night-800 ${b.active ? 'ring-brand-900/5 dark:ring-white/10' : 'opacity-60 ring-ink/10'}`}>
+      <div className="flex items-start gap-2">
+        <button onPointerDown={(e) => controls.start(e)} className="mt-1 cursor-grab touch-none rounded-lg p-1 text-ink/30 hover:bg-ink/5 hover:text-ink/60 active:cursor-grabbing dark:text-cream/30 dark:hover:bg-white/10" title="اسحب للترتيب">
+          <GripVertical className="h-5 w-5" />
+        </button>
+        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl text-2xl" style={{ background: b.accent || '#0F5132' }}>
+          {b.image ? <img src={b.image} alt="" className="h-full w-full object-cover" /> : '🧺'}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h3 className="font-display font-black text-ink dark:text-cream">{b.name}</h3>
+            {b.season && <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[10px] font-bold text-copper-dark dark:text-copper-light">{b.season}</span>}
+          </div>
+          {b.kicker && <p className="text-[11px] font-bold text-copper dark:text-copper-light">{b.kicker}</p>}
+          <p className="mt-0.5 text-xs text-ink/50 dark:text-cream/50">{ing.length} مكوّن</p>
+        </div>
+        <div className="text-left">
+          <div className="font-display font-black text-copper dark:text-copper-light">{fmt(b.price)} <span className="text-xs">د.ع</span></div>
+          {b.old_price > 0 && <div className="text-xs text-ink/40 line-through dark:text-cream/40">{fmt(b.old_price)}</div>}
+        </div>
+      </div>
+
+      {ing.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {ing.slice(0, 6).map((x, i) => (
+            <span key={i} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/60 dark:bg-white/10 dark:text-cream/60">
+              {x.name}{x.qty ? ` × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : ''}
+            </span>
+          ))}
+          {ing.length > 6 && <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-bold text-copper dark:bg-white/10 dark:text-copper-light">+{ing.length - 6}</span>}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={onToggle} className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${b.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/50 dark:bg-white/10 dark:text-cream/50'}`}>
+          {b.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {b.active ? 'ظاهرة' : 'مخفية'}
+        </button>
+        <button onClick={onPreview} className="flex items-center gap-1 rounded-lg bg-brand-800/10 px-2.5 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-800/20 dark:bg-white/10 dark:text-brand-300"><Eye className="h-3.5 w-3.5" /> معاينة</button>
+        <button onClick={onEdit} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-3.5 w-3.5" /> تعديل</button>
+        <button onClick={onDuplicate} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Copy className="h-3.5 w-3.5" /> نسخ</button>
+        <button onClick={onRemove} className="flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-3.5 w-3.5" /> حذف</button>
+      </div>
+    </Reorder.Item>
   );
 }
 
@@ -943,6 +1004,7 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
   const [description, setDescription] = useState(base.description || base.desc || '');
   const [image, setImage] = useState(base.image || '');
   const [accent, setAccent] = useState(base.accent || '#0F5132');
+  const [season, setSeason] = useState(base.season || '');
   const [ingredients, setIngredients] = useState(
     Array.isArray(base.ingredients) && base.ingredients.length
       ? base.ingredients.map((x) => ({ name: x.name || '', qty: x.qty || 1, unit: x.unit || '', emoji: x.emoji || '🛒', image: x.image || '' }))
@@ -1020,6 +1082,10 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
       accent, image: image || null, ingredients: clean,
     };
     const r = bundle ? await merchantUpdateBundle(token, bundle.id, payload) : await merchantAddBundle(token, payload);
+    if (r?.ok) {
+      const id = bundle ? bundle.id : r.bundle?.id;
+      if (id) await merchantSetBundleSeason(token, id, season || '');
+    }
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr(r?.error === 'name_required' ? 'اكتب اسم الباقة' : 'تعذّر الحفظ، حاول ثانية');
@@ -1060,6 +1126,17 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
           </button>
         </div>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inp} placeholder="وصف قصير يشهّي الزبون…" />
+
+        {/* seasonal tag */}
+        <label className="mb-1 mt-3 block text-[11px] font-bold text-ink/50 dark:text-cream/50">وسم موسمي (يبرز الباقة للزبون)</label>
+        <div className="flex flex-wrap gap-1.5">
+          {['', 'رمضان', 'عيد', 'الصيف', 'الشتاء', 'العودة للمدارس', 'عاشوراء'].map((s) => (
+            <button key={s || 'none'} type="button" onClick={() => setSeason(s)}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${season === s ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+              {s === '' ? 'بدون' : s}
+            </button>
+          ))}
+        </div>
 
         {/* ingredients */}
         <div className="mb-2 mt-4 flex items-center justify-between">

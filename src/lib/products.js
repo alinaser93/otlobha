@@ -195,6 +195,9 @@ export const adminSetBundleActive = (adminId, id, active) =>
 export const adminReorderBundles = (adminId, ids) =>
   rpc('admin_reorder_bundles', { p_admin_id: adminId, p_ids: ids });
 
+export const adminSetBundleSeason = (adminId, id, season) =>
+  rpc('admin_set_bundle_season', { p_admin_id: adminId, p_id: id, p_season: season });
+
 /* ───────────────────────── store (public read) ─────────────────────────
    Reads active products + categories for the storefront. Returns null when
    Supabase is off or the fetch fails, so the caller can fall back to the
@@ -287,6 +290,8 @@ export async function fetchStoreCatalog() {
         old: r.old_price ?? null,
         accent: r.accent || '#0F5132',
         storeId: r.store_id || null,
+        season: r.season || null,
+        sold: soldMap[r.name] || 0,
       };
     });
 

@@ -27,7 +27,7 @@ import {
   adminListCategories, adminAddCategory, adminUpdateCategory, adminRemoveCategory,
   adminReorderCategories,
   adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
-  adminSetBundleActive, adminReorderBundles,
+  adminSetBundleActive, adminReorderBundles, adminSetBundleSeason,
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
@@ -2071,6 +2071,7 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     accent: bundle?.accent || '#0F5132',
   });
   const [image, setImage] = useState(bundle?.image || '');
+  const [season, setSeason] = useState(bundle?.season || '');
   const [ingredients, setIngredients] = useState(
     Array.isArray(bundle?.ingredients) && bundle.ingredients.length
       ? bundle.ingredients.map((x) => ({ name: x?.name || '', qty: x?.qty ?? 1, unit: x?.unit || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
@@ -2137,6 +2138,10 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     const r = bundle
       ? await adminUpdateBundle(admin.id, bundle.id, fields)
       : await adminAddBundle(admin.id, fields);
+    if (r?.ok) {
+      const id = bundle ? bundle.id : r.bundle?.id;
+      if (id) await adminSetBundleSeason(admin.id, id, season || '');
+    }
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr('تعذّر الحفظ، حاول مرّة ثانية.');
@@ -2176,6 +2181,16 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
         </Lbl>
         <Lbl label="الوصف" full>
           <textarea className={inp} rows={2} value={f.description} onChange={set('description')} placeholder="وصف قصير للباقة" />
+        </Lbl>
+        <Lbl label="وسم موسمي (يبرز الباقة)" full>
+          <div className="flex flex-wrap gap-1.5">
+            {['', 'رمضان', 'عيد', 'الصيف', 'الشتاء', 'العودة للمدارس', 'عاشوراء'].map((s) => (
+              <button key={s || 'none'} type="button" onClick={() => setSeason(s)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${season === s ? 'bg-copper text-cream shadow-seal' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+                {s === '' ? 'بدون' : s}
+              </button>
+            ))}
+          </div>
         </Lbl>
         <Lbl label="السعر (د.ع)">
           <input type="number" inputMode="numeric" className={inp} value={f.price} onChange={set('price')} placeholder="0" dir="ltr" />

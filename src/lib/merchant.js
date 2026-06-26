@@ -85,6 +85,8 @@ export const merchantUpdateBundle = (token, id, f = {}) =>
 export const merchantRemoveBundle = (token, id) => rpc('merchant_remove_bundle', { p_token: token, p_id: id });
 export const merchantSetBundleActive = (token, id, active) =>
   rpc('merchant_set_bundle_active', { p_token: token, p_id: id, p_active: active });
+export const merchantReorderBundles = (token, ids) => rpc('merchant_reorder_bundles', { p_token: token, p_ids: ids });
+export const merchantSetBundleSeason = (token, id, season) => rpc('merchant_set_bundle_season', { p_token: token, p_id: id, p_season: season });
 
 export const merchantAddProduct = (token, f = {}) =>
   rpc('merchant_add_product', {
