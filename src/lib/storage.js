@@ -12,7 +12,7 @@ function loadImage(file) {
 
 // resize + compress. `bg` fills the canvas first (use '#ffffff' for product
 // shots so transparent/white-background images blend cleanly via mix-blend).
-async function compressImage(file, { max = 400, quality = 0.85, bg = null } = {}) {
+export async function compressImage(file, { max = 400, quality = 0.85, bg = null } = {}) {
   try {
     const img = await loadImage(file);
     const scale = Math.min(1, max / Math.max(img.width, img.height));

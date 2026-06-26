@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
 import ProductCard from './ProductCard.jsx';
+import ProductModal from './ProductModal.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
 export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly }) {
   const [cat, setCat] = useState('الكل');
+  const [selected, setSelected] = useState(null);
   const list = cat === 'الكل' ? products : products.filter((p) => p.tag === cat);
 
   return (
@@ -57,12 +59,14 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
                 whileInView="show"
                 viewport={viewportOnce}
               >
-                <ProductCard p={p} onAdd={onAdd} fly={fly} />
+                <ProductCard p={p} onAdd={onAdd} fly={fly} onOpen={setSelected} />
               </motion.div>
             ))}
           </motion.div>
         )}
       </div>
+
+      <ProductModal product={selected} onClose={() => setSelected(null)} onAdd={onAdd} />
     </section>
   );
 }

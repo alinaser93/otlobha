@@ -26,9 +26,10 @@ export const adminAddProduct = (adminId, f = {}) =>
     p_image: f.image || null,
     p_tint: f.tint || '#9A5318',
     p_badge: f.badge || null,
+    p_description: f.description ?? null,
   });
 
-// note: `??` means a provided '' clears (image/badge), an absent key = no change
+// note: `??` means a provided '' clears (image/badge/description), an absent key = no change
 export const adminUpdateProduct = (adminId, id, f = {}) =>
   rpc('admin_update_product', {
     p_admin_id: adminId,
@@ -43,6 +44,7 @@ export const adminUpdateProduct = (adminId, id, f = {}) =>
     p_badge: f.badge ?? null,
     p_sort: f.sort ?? null,
     p_active: f.active ?? null,
+    p_description: f.description ?? null,
   });
 
 export const adminRemoveProduct = (adminId, id) =>
@@ -143,6 +145,7 @@ export async function fetchStoreCatalog() {
       image: r.image || null,
       tint: r.tint || '#9A5318',
       badge: r.badge || undefined,
+      description: r.description || '',
     }));
     const categories = ['الكل', ...(cr.data || []).map((c) => c.name)];
 

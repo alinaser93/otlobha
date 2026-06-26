@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 
-export default function ProductCard({ p, onAdd, fly }) {
+export default function ProductCard({ p, onAdd, fly, onOpen }) {
   const orbRef = useRef(null);
   // show the real image; if its file is missing, fall back to the emoji
   const [imgOk, setImgOk] = useState(true);
@@ -12,7 +12,9 @@ export default function ProductCard({ p, onAdd, fly }) {
     <motion.article
       whileHover={{ y: -6 }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      className="group relative flex flex-col overflow-hidden rounded-3xl bg-cream p-4 shadow-soft ring-1 ring-brand-900/5 hover:shadow-card dark:bg-night-800 dark:ring-white/10"
+      onClick={() => onOpen?.(p)}
+      role="button"
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl bg-cream p-4 shadow-soft ring-1 ring-brand-900/5 hover:shadow-card dark:bg-night-800 dark:ring-white/10"
     >
       {p.badge && (
         <span className="absolute right-3 top-3 z-10 rounded-full bg-brand-800 px-2.5 py-1 font-body text-[11px] font-bold text-cream dark:bg-brand-600">
@@ -46,7 +48,8 @@ export default function ProductCard({ p, onAdd, fly }) {
         {/* quick-add: always tappable on mobile, slides up on hover on desktop */}
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             fly(orbRef.current);
             onAdd(p);
           }}
