@@ -29,19 +29,21 @@ export function NewOrderBanner({ count, onAck }) {
 }
 
 // زرّ جرس صغير لكتم/تفعيل الصوت (يوضع بالهيدر)
-export function AlertBell({ muted, onToggle, hasNew }) {
+export function AlertBell({ muted, onToggle, hasNew, primed }) {
+  const invite = !muted && (!primed || hasNew); // ينبض لجذب الانتباه للتفعيل أو لطلب جديد
   return (
     <button
       onClick={onToggle}
       aria-label={muted ? 'تفعيل صوت التنبيه' : 'كتم صوت التنبيه'}
-      title={muted ? 'الصوت متوقّف — اضغط للتفعيل' : 'الصوت مفعّل'}
+      title={muted ? 'الصوت متوقّف — اضغط للتفعيل' : !primed ? 'اضغط لتفعيل الصوت وسماع تجربة' : 'الصوت مفعّل'}
       className={`relative grid h-9 w-9 place-items-center rounded-xl transition ${
         muted
           ? 'bg-ink/5 text-ink/40 dark:bg-white/5 dark:text-cream/40'
           : 'bg-copper/15 text-copper dark:bg-copper/20 dark:text-copper-light'
       }`}
     >
-      {muted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+      {invite && <span className="absolute inset-0 animate-ping rounded-xl bg-copper/30" />}
+      {muted ? <BellOff className="relative h-4 w-4" /> : <Bell className="relative h-4 w-4" />}
       {hasNew && !muted && (
         <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-cream dark:ring-night-800" />
       )}

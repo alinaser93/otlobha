@@ -254,7 +254,7 @@ function Dashboard({ admin, onOut }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} />
+            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} primed={alert.primed} />
             <button onClick={() => setDark((d) => !d)} aria-label="تبديل الوضع"
               className="grid h-9 w-9 place-items-center rounded-xl bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/80 dark:hover:bg-white/10">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

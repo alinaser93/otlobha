@@ -13,7 +13,7 @@ function getCtx() {
 }
 
 // رنّة لطيفة من ثلاث نغمات صاعدة
-function chime() {
+export function chime() {
   const ctx = getCtx();
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -24,61 +24,66 @@ function chime() {
     osc.type = 'sine';
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(t);
     osc.stop(t + 0.46);
   });
-  try { navigator.vibrate?.([140, 70, 140]); } catch { /* no vibrate */ }
+  try { navigator.vibrate && navigator.vibrate([140, 70, 140]); } catch (e) { /* no vibrate */ }
 }
 
 const MUTE_KEY = 'otlobha-alert-mute';
 
 // count: عدد الطلبات الجديدة الحالية. يرنّ عند تجاوزها لآخر عدد «اطُّلع عليه».
-export function useOrderChime(count, { repeatMs = 5000 } = {}) {
+export function useOrderChime(count, opts) {
+  const repeatMs = (opts && opts.repeatMs) || 5000;
   const [muted, setMuted] = useState(() => {
-    try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+    try { return localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { return false; }
   });
   const [acked, setAcked] = useState(0);
+  const [primed, setPrimed] = useState(false); // حالة (وليست ref) حتى يعيد المؤثّر التقييم بعد التفعيل
   const timer = useRef(null);
-  const primed = useRef(false);
 
   const newCount = Math.max(0, (count || 0) - acked);
   const hasNew = newCount > 0;
 
-  // تهيئة الصوت بعد أوّل تفاعل من المستخدم (شرط المتصفّحات)
-  const prime = useCallback(() => { primed.current = true; getCtx(); }, []);
+  const prime = useCallback(() => { getCtx(); setPrimed(true); }, []);
   const acknowledge = useCallback(() => { setAcked(count || 0); }, [count]);
   const toggleMute = useCallback(() => {
     setMuted((m) => {
       const n = !m;
-      try { localStorage.setItem(MUTE_KEY, n ? '1' : '0'); } catch { /* ignore */ }
+      try { localStorage.setItem(MUTE_KEY, n ? '1' : '0'); } catch (e) { /* ignore */ }
+      if (!n) { getCtx(); chime(); } // صوت تأكيد عند التفعيل
       return n;
     });
+    setPrimed(true);
   }, []);
 
-  // أوّل لمسة/ضغطة بأي مكان تُهيّئ الصوت
+  // أوّل لمسة/ضغطة بأي مكان تُهيّئ الصوت (بصمت — بدون رنّة)
   useEffect(() => {
-    const once = () => prime();
+    if (primed) return undefined;
+    const once = () => { getCtx(); setPrimed(true); };
     window.addEventListener('pointerdown', once, { once: true });
     window.addEventListener('keydown', once, { once: true });
+    window.addEventListener('touchstart', once, { once: true });
     return () => {
       window.removeEventListener('pointerdown', once);
       window.removeEventListener('keydown', once);
+      window.removeEventListener('touchstart', once);
     };
-  }, [prime]);
+  }, [primed]);
 
-  // الرنين المتكرّر ما دام فيه جديد
+  // الرنين المتكرّر ما دام فيه جديد (يعتمد على primed كحالة)
   useEffect(() => {
     clearInterval(timer.current);
-    if (!muted && hasNew && primed.current) {
+    if (!muted && hasNew && primed) {
       chime();
       timer.current = setInterval(chime, repeatMs);
     }
     return () => clearInterval(timer.current);
-  }, [muted, hasNew, repeatMs]);
+  }, [muted, hasNew, primed, repeatMs]);
 
-  return { hasNew, newCount, muted, toggleMute, acknowledge, prime };
+  return { hasNew, newCount, muted, toggleMute, acknowledge, prime, primed };
 }

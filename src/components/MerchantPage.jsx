@@ -1449,7 +1449,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></span>
             مباشر
           </span>
-          <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} />
+          <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} primed={alert.primed} />
           <button onClick={toggleTheme} className="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
           <button onClick={onLogout} className="flex items-center gap-1.5 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-bold text-ink/70 hover:bg-red-500/10 hover:text-red-600 dark:bg-white/10 dark:text-cream/70" title="خروج"><LogOut className="h-4 w-4" /></button>
         </div>
