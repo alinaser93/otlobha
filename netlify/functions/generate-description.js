@@ -20,7 +20,7 @@ exports.handler = async function (event) {
   const price = body.price;
   const style = String(body.style || '').trim();
   const current = String(body.current || '').trim();
-  if (!name) return json(400, { ok: false, error: 'no_name' });
+  if (!name && task !== 'bundle') return json(400, { ok: false, error: 'no_name' });
 
   const BADGES = ['جديد', 'الأكثر مبيعاً', 'عرض خاص', 'محدود'];
 
