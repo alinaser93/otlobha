@@ -129,12 +129,18 @@ export const adminReorderBundles = (adminId, ids) =>
 export async function fetchStoreCatalog() {
   if (!supabaseEnabled || !supabase) return null;
   try {
-    const [pr, cr, br] = await Promise.all([
+    const [pr, cr, br, bs] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('categories').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('bundles').select('*').eq('active', true).order('sort', { ascending: true }),
+      supabase.rpc('store_best_sellers', { p_limit: 200 }),
     ]);
     if (pr.error || cr.error) return null;
+
+    // sales ranking by product name (orders store items as { name, qty, price })
+    const soldMap = {};
+    const rows = bs && !bs.error && Array.isArray(bs.data) ? bs.data : [];
+    rows.forEach((r) => { if (r && r.name) soldMap[r.name] = Number(r.sold) || 0; });
 
     const products = (pr.data || []).map((r) => ({
       id: r.id,
@@ -147,7 +153,15 @@ export async function fetchStoreCatalog() {
       tint: r.tint || '#9A5318',
       badge: r.badge || undefined,
       description: r.description || '',
+      sold: soldMap[r.name] || 0,
     }));
+
+    // order by real sales (stable: ties keep the admin's manual order),
+    // then auto-tag the top sellers that have actual sales and no manual badge
+    products.sort((a, b) => b.sold - a.sold);
+    products.forEach((p, i) => {
+      if (i < 3 && p.sold > 0 && !p.badge) p.badge = 'الأكثر مبيعاً';
+    });
     const categories = [
       { name: 'الكل', image: null, emoji: null },
       ...(cr.data || []).map((c) => ({ name: c.name, image: c.image || null, emoji: c.emoji || null })),
