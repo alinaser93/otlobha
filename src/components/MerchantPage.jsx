@@ -23,6 +23,8 @@ import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/s
 import { cleanProductImage } from '../lib/bgremove.js';
 import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage, generateBundle } from '../lib/ai.js';
 import CategoryPicker from './CategoryPicker.jsx';
+import { useOrderChime } from '../lib/alerts.js';
+import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
 const STORE_TYPES = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
 
@@ -1377,6 +1379,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
     /* eslint-disable-next-line */
   }, []);
   const newOrdersCount = useMemo(() => orders.filter((o) => o.status === 'new').length, [orders]);
+  const alert = useOrderChime(newOrdersCount);
 
   const activeCount = useMemo(() => products.filter((p) => p.active).length, [products]);
   const outCount = useMemo(() => products.filter((p) => p.stock != null && p.stock <= 0).length, [products]);
@@ -1446,6 +1449,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></span>
             مباشر
           </span>
+          <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} />
           <button onClick={toggleTheme} className="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
           <button onClick={onLogout} className="flex items-center gap-1.5 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-bold text-ink/70 hover:bg-red-500/10 hover:text-red-600 dark:bg-white/10 dark:text-cream/70" title="خروج"><LogOut className="h-4 w-4" /></button>
         </div>
@@ -1465,6 +1469,11 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 pt-5">
+        {alert.newCount > 0 && (
+          <div className="mb-4">
+            <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setTab('orders'); }} />
+          </div>
+        )}
         {tab === 'products' ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

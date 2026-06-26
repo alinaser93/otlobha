@@ -13,6 +13,8 @@ import {
   driverGetMe, driverUpdateProfile, driverWallet,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
+import { useOrderChime } from '../lib/alerts.js';
+import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
 // delivery workflow steps (in order)
 const STEPS = [
@@ -151,6 +153,8 @@ function Board({ driver, onOut }) {
 
   const active = useMemo(() => orders.filter((o) => o.delivery_status !== 'delivered'), [orders]);
   const done = useMemo(() => orders.filter((o) => o.delivery_status === 'delivered'), [orders]);
+  const assignedCount = useMemo(() => orders.filter((o) => o.delivery_status === 'assigned').length, [orders]);
+  const alert = useOrderChime(assignedCount);
   const shown = tab === 'active' ? active : done;
 
   async function advance(orderId, current) {
@@ -174,6 +178,7 @@ function Board({ driver, onOut }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} />
             <button onClick={() => setDark((d) => !d)} aria-label="تبديل الوضع"
               className="grid h-9 w-9 place-items-center rounded-xl bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/80 dark:hover:bg-white/10">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -193,6 +198,9 @@ function Board({ driver, onOut }) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-5">
+        {alert.newCount > 0 && (
+          <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setTab('active'); }} />
+        )}
         {/* daily summary */}
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">

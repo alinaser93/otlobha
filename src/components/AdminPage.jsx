@@ -5,8 +5,10 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2,
 } from 'lucide-react';
+import { useOrderChime } from '../lib/alerts.js';
+import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
@@ -213,6 +215,7 @@ function Dashboard({ admin, onOut }) {
     for (const o of orders) c[o.status] = (c[o.status] || 0) + 1;
     return c;
   }, [orders]);
+  const alert = useOrderChime(counts.new || 0);
 
   const shown = useMemo(
     () => (filter === 'all' ? orders : orders.filter((o) => o.status === filter)),
@@ -251,6 +254,7 @@ function Dashboard({ admin, onOut }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} />
             <button onClick={() => setDark((d) => !d)} aria-label="تبديل الوضع"
               className="grid h-9 w-9 place-items-center rounded-xl bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/80 dark:hover:bg-white/10">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -281,6 +285,9 @@ function Dashboard({ admin, onOut }) {
         </div>
 
         {section === 'orders' && (<>
+        {alert.newCount > 0 && (
+          <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setFilter('new'); }} />
+        )}
         {/* stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat icon={Clock} label="طلبات اليوم" value={stats?.today_orders ?? '—'} accent="text-amber-700 dark:text-amber-300" />
