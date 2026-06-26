@@ -48,6 +48,8 @@ export const merchantListOrders = (token) => rpc('merchant_list_orders', { p_tok
 export const merchantMarkItemUnavailable = (token, orderId, itemName) =>
   rpc('merchant_mark_item_unavailable', { p_token: token, p_order_id: orderId, p_item_name: itemName });
 
+export const merchantMarkReady = (token, orderId) => rpc('merchant_mark_ready', { p_token: token, p_order_id: orderId });
+export const merchantUnmarkReady = (token, orderId) => rpc('merchant_unmark_ready', { p_token: token, p_order_id: orderId });
 export const merchantSetItemQty = (token, orderId, itemName, newQty) =>
   rpc('merchant_set_item_qty', { p_token: token, p_order_id: orderId, p_item_name: itemName, p_new_qty: newQty });
 

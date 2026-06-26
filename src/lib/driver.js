@@ -35,6 +35,7 @@ export const driverLogin = (pass) => rpc('driver_login', { p_pass: pass });
 export const driverListOrders = (driverId) => rpc('driver_list_orders', { p_driver_id: driverId });
 export const driverUpdateDelivery = (driverId, orderId, status) =>
   rpc('driver_update_delivery', { p_driver_id: driverId, p_order_id: orderId, p_status: status });
+export const driverOrdersReady = (driverId) => rpc('driver_orders_ready', { p_driver_id: driverId });
 export const driverUpdateLocation = (driverId, orderId, lat, lng) =>
   rpc('driver_update_location', { p_driver_id: driverId, p_order_id: orderId, p_lat: lat, p_lng: lng });
 

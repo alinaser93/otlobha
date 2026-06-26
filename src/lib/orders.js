@@ -28,6 +28,15 @@ export async function createOrder(payload) {
 }
 
 // Public order tracking by its secure id (token) — no login needed.
+export async function orderReadyByToken(id) {
+  if (!supabaseEnabled || !supabase || !id) return null;
+  try {
+    const { data, error } = await supabase.rpc('order_ready_by_token', { p_id: id });
+    if (error) return null;
+    return data || null;
+  } catch { return null; }
+}
+
 export async function getOrderByToken(id) {
   if (!supabaseEnabled || !supabase || !id) return { ok: false };
   try {

@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Lock, LogOut, RefreshCw, Loader2, Phone, MessageCircle,
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
-  Wallet, Banknote, TrendingUp, Store as StoreIcon,
+  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
-  driverGetMe, driverUpdateProfile, driverWallet,
+  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import { useOrderChime } from '../lib/alerts.js';
@@ -116,6 +116,7 @@ function Login({ onIn }) {
 /* ───────────── Board ───────────── */
 function Board({ driver, onOut }) {
   const [orders, setOrders] = useState([]);
+  const [readyMap, setReadyMap] = useState({}); // orderId -> {ready_count, store_count}
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active'); // active | done
   const [showProfile, setShowProfile] = useState(false);
@@ -137,15 +138,25 @@ function Board({ driver, onOut }) {
     setLoading(true);
     const res = await driverListOrders(driver.id);
     setOrders(Array.isArray(res?.orders) ? res.orders : []);
+    fetchReady();
     setLoading(false);
+  }
+  async function fetchReady() {
+    const r = await driverOrdersReady(driver.id);
+    if (Array.isArray(r)) {
+      const m = {};
+      for (const x of r) m[x.order_id] = { ready_count: x.ready_count, store_count: x.store_count };
+      setReadyMap(m);
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  // silent live sync every 8s
+  // silent live sync every 5s (orders + readiness)
   useEffect(() => {
     const t = setInterval(async () => {
       const res = await driverListOrders(driver.id);
       if (Array.isArray(res?.orders)) setOrders(res.orders);
+      fetchReady();
     }, 5000);
     return () => clearInterval(t);
     /* eslint-disable-next-line */
@@ -155,6 +166,15 @@ function Board({ driver, onOut }) {
   const done = useMemo(() => orders.filter((o) => o.delivery_status === 'delivered'), [orders]);
   const assignedCount = useMemo(() => orders.filter((o) => o.delivery_status === 'assigned').length, [orders]);
   const alert = useOrderChime(assignedCount);
+  // count of orders fully ready but not yet picked up — rings when one becomes ready
+  const readyToPickup = useMemo(
+    () => active.filter((o) => {
+      const r = readyMap[o.id];
+      return r && r.store_count > 0 && r.ready_count >= r.store_count && o.delivery_status === 'assigned';
+    }).length,
+    [active, readyMap]
+  );
+  const readyAlert = useOrderChime(readyToPickup);
   const shown = tab === 'active' ? active : done;
 
   async function advance(orderId, current) {
@@ -201,6 +221,22 @@ function Board({ driver, onOut }) {
         {alert.newCount > 0 && (
           <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setTab('active'); }} />
         )}
+        {readyAlert.newCount > 0 && (
+          <button onClick={() => { readyAlert.acknowledge(); setTab('active'); }}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-l from-green-600 to-emerald-500 px-4 py-3 text-white shadow-seal ring-1 ring-white/20">
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/30" />
+                <PackageCheck className="relative h-5 w-5" />
+              </span>
+              <span className="text-right">
+                <span className="block font-display text-base font-black leading-tight">طلب جاهز للاستلام!</span>
+                <span className="block font-body text-[11px] text-white/80">المتجر جهّز الطلب — توجّه لاستلامه</span>
+              </span>
+            </span>
+            <Check className="h-5 w-5" />
+          </button>
+        )}
         {/* daily summary */}
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
@@ -234,7 +270,7 @@ function Board({ driver, onOut }) {
         ) : shown.length === 0 ? (
           <div className="py-16 text-center text-ink/40 dark:text-cream/40">{tab === 'active' ? 'لا توجد طلبات نشطة الآن.' : 'لا توجد طلبات مُسلّمة بعد.'}</div>
         ) : (
-          <div className="space-y-3">{shown.map((o) => <DeliveryCard key={o.id} o={o} onAdvance={advance} driverId={driver.id} />)}</div>
+          <div className="space-y-3">{shown.map((o) => <DeliveryCard key={o.id} o={o} ready={readyMap[o.id]} onAdvance={advance} driverId={driver.id} />)}</div>
         )}
 
         {/* my profile */}
@@ -345,7 +381,7 @@ function DriverWallet({ driverId }) {
   );
 }
 
-function DeliveryCard({ o, onAdvance, driverId }) {
+function DeliveryCard({ o, ready, onAdvance, driverId }) {
   const items = Array.isArray(o.items) ? o.items : [];
   const cur = o.delivery_status || 'assigned';
   const wa = digits(o.customer_phone);
@@ -433,6 +469,19 @@ function DeliveryCard({ o, onAdvance, driverId }) {
         </div>
         <div className="font-display text-lg font-black text-green-600 dark:text-green-300">{fmt(o.total || 0)} <span className="text-xs">د.ع</span></div>
       </div>
+
+      {/* readiness from the store(s) */}
+      {ready && ready.store_count > 0 && cur === 'assigned' && (
+        ready.ready_count >= ready.store_count ? (
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-green-500/12 px-3 py-2 font-display text-sm font-black text-green-700 ring-1 ring-green-500/20 dark:text-green-300">
+            <PackageCheck className="h-4 w-4" /> جاهز للاستلام — توجّه للمتجر
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-amber-500/12 px-3 py-2 font-display text-sm font-bold text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-300">
+            <Clock3 className="h-4 w-4" /> قيد التجهيز {ready.store_count > 1 ? `(${ready.ready_count}/${ready.store_count} متجر جاهز)` : '— انتظر إشعار الجاهزية'}
+          </div>
+        )
+      )}
 
       {/* progress steps */}
       <div className="mt-3 flex items-center gap-1">

@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardCheck, Package, Truck, MapPin, CheckCircle2, Loader2,
-  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper,
+  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, SHOP_NAME } from '../config.js';
-import { getOrderByToken } from '../lib/orders.js';
+import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
 import LiveRouteMap from './LiveRouteMap.jsx';
 
 const STEPS = [
@@ -43,6 +43,7 @@ const digits = (p) => (p || '').replace(/[^\d]/g, '');
 export default function OrderTrackingPage() {
   const id = getOrderId();
   const [order, setOrder] = useState(null);
+  const [ready, setReady] = useState(null); // {ready_count, store_count}
   const [state, setState] = useState('loading'); // loading | ok | notfound | error
   const [celebrate, setCelebrate] = useState(null); // label of newly-reached step
   const prevStep = useRef(null);
@@ -50,6 +51,7 @@ export default function OrderTrackingPage() {
   const fetchOrder = useCallback(async (silent) => {
     if (!id) { setState('notfound'); return; }
     const res = await getOrderByToken(id);
+    orderReadyByToken(id).then((r) => { if (r) setReady(r); });
     if (res?.ok && res.order) {
       setOrder(res.order);
       setState('ok');
@@ -161,6 +163,11 @@ export default function OrderTrackingPage() {
           /* status timeline */
           <div className="rounded-3xl bg-cream p-5 shadow-card dark:bg-night-800">
             <div className="mb-4 font-display text-lg font-extrabold">حالة الطلب</div>
+            {ready && ready.store_count > 0 && ready.ready_count >= ready.store_count && step >= 0 && step <= 1 && (
+              <div className="mb-4 flex items-center gap-2 rounded-2xl bg-green-500/12 px-4 py-3 font-display text-sm font-black text-green-700 ring-1 ring-green-500/20 dark:text-green-300">
+                <PackageCheck className="h-5 w-5 shrink-0" /> تم تجهيز طلبك ✅ — بانتظار المندوب لاستلامه
+              </div>
+            )}
             <div className="space-y-0">
               {STEPS.map((s, i) => {
                 const done = i < step;

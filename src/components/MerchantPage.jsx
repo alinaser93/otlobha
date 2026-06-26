@@ -5,14 +5,14 @@ import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
   ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
-  Star, Users, Check, Lock, User, AlertTriangle, Tag,
+  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck,
 } from 'lucide-react';
 import {
   getMerchantSession, setMerchantSession, clearMerchantSession,
   merchantLogin, merchantMe, merchantLogout,
   merchantListProducts, merchantAddProduct, merchantUpdateProduct,
   merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore,
-  merchantListOrders, merchantSetItemQty,
+  merchantListOrders, merchantSetItemQty, merchantMarkReady, merchantUnmarkReady,
   merchantListBundles, merchantAddBundle, merchantUpdateBundle,
   merchantRemoveBundle, merchantSetBundleActive,
   merchantReorderBundles, merchantSetBundleSeason,
@@ -626,6 +626,7 @@ const onlyDigits = (s) => (s || '').replace(/[^\d]/g, '');
 
 function OrdersList({ token, orders, onReload }) {
   const [busyItem, setBusyItem] = useState(null);
+  const [busyReady, setBusyReady] = useState(null);
   const [filter, setFilter] = useState('all');
   const maxQty = useRef({}); // capture original ordered qty per item to cap "+"
 
@@ -644,6 +645,14 @@ function OrdersList({ token, orders, onReload }) {
     setBusyItem(`${orderId}:${name}`);
     const r = await merchantSetItemQty(token, orderId, name, newQty);
     setBusyItem(null);
+    if (r?.ok) { await onReload?.(); }
+    else alert('تعذّر التحديث. حاول ثانية.');
+  }
+
+  async function markReady(orderId, currentlyReady) {
+    setBusyReady(orderId);
+    const r = currentlyReady ? await merchantUnmarkReady(token, orderId) : await merchantMarkReady(token, orderId);
+    setBusyReady(null);
     if (r?.ok) { await onReload?.(); }
     else alert('تعذّر التحديث. حاول ثانية.');
   }
@@ -770,6 +779,25 @@ function OrdersList({ token, orders, onReload }) {
                     <span className="text-ink/55 dark:text-cream/55">{removed.map((r) => `${r.qty}× ${r.name}`).join('، ')}</span>
                   </div>
                 )}
+
+                {/* ready-for-pickup action */}
+                {canEdit && items.length > 0 && (
+                  o.ready ? (
+                    <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-green-500/10 px-3 py-2.5 ring-1 ring-green-500/20">
+                      <span className="flex items-center gap-1.5 font-display text-sm font-black text-green-700 dark:text-green-300"><Check className="h-4 w-4" /> جاهز للاستلام — أُبلغ المندوب</span>
+                      <button onClick={() => markReady(o.id, true)} disabled={busyReady === o.id}
+                        className="rounded-lg bg-ink/5 px-2.5 py-1 text-[11px] font-bold text-ink/60 hover:bg-ink/10 disabled:opacity-50 dark:bg-white/10 dark:text-cream/60">
+                        {busyReady === o.id ? '…' : 'تراجع'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => markReady(o.id, false)} disabled={busyReady === o.id}
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display text-base font-bold text-cream shadow-soft transition hover:bg-copper-dark active:scale-[.99] disabled:opacity-50">
+                      {busyReady === o.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <PackageCheck className="h-5 w-5" />}
+                      جهّزت الطلب — جاهز للاستلام
+                    </button>
+                  )
+                )}
               </div>
             );
           })}
@@ -777,7 +805,7 @@ function OrdersList({ token, orders, onReload }) {
       )}
 
       <p className="mt-4 px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
-        💡 عدّل الكمية بـ − / + إن توفّر جزء فقط، أو أنقصها للصفر لإزالة المنتج — ويُخصم الفرق من حساب الزبون تلقائياً. التواصل مع الزبون يتم عبر المندوب.
+        💡 عدّل الكمية بـ − / + إن توفّر جزء فقط، أو أنقصها للصفر لإزالة المنتج — ويُخصم الفرق تلقائياً. بعد ما تجهّز الطلب وتعبّيه، اضغط «جاهز للاستلام» ليصل إشعار للمندوب فيروح يستلمه. التواصل مع الزبون عبر المندوب.
       </p>
     </>
   );
