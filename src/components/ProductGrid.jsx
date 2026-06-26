@@ -16,8 +16,18 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
   const [reviewsKey, setReviewsKey] = useState(0);
   const didDeepLink = useRef(false);
   // categories may be plain strings (fallback) or objects { name, image, emoji }
-  const cats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
+  const globalCats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
   const byStore = storeFilter ? products.filter((p) => p.storeId === storeFilter) : products;
+  // when browsing a store, build the category chips from that store's own products
+  // (so any category the merchant added shows up), ordered by the global list first
+  const cats = (() => {
+    if (!storeFilter) return globalCats;
+    const present = Array.from(new Set(byStore.map((p) => (p.tag || '').trim()).filter(Boolean)));
+    const order = new Map(globalCats.map((c, i) => [c.name, i]));
+    present.sort((a, b) => (order.has(a) ? order.get(a) : 999) - (order.has(b) ? order.get(b) : 999));
+    const meta = new Map(globalCats.map((c) => [c.name, c]));
+    return [{ name: 'الكل', image: null, emoji: null }, ...present.map((n) => meta.get(n) || { name: n, image: null, emoji: null })];
+  })();
   const list = cat === 'الكل' ? byStore : byStore.filter((p) => p.tag === cat);
 
   // reset live rating override when switching stores

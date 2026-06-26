@@ -15,6 +15,9 @@ import {
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { cleanProductImage } from '../lib/bgremove.js';
 import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage } from '../lib/ai.js';
+import CategoryPicker from './CategoryPicker.jsx';
+
+const STORE_TYPES = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('en-US');
 const inp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
@@ -159,12 +162,10 @@ function SmartReviewModal({ token, cats, items, onClose, onDone }) {
                     className="h-9 rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-800 dark:text-cream" />
                   <input value={r.unit} onChange={(e) => upd(i, { unit: e.target.value })} placeholder="الوحدة"
                     className="h-9 rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-800 dark:text-cream" />
-                  <input value={r.category} onChange={(e) => upd(i, { category: e.target.value })} list="m-cats-rev" placeholder="القسم"
-                    className="h-9 rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-800 dark:text-cream" />
+                  <CategoryPicker value={r.category} onChange={(v) => upd(i, { category: v })} options={cats} allowNew placeholder="القسم" />
                 </div>
               </div>
             ))}
-            <datalist id="m-cats-rev">{cats.map((c) => <option key={c} value={c} />)}</datalist>
           </div>
 
           {err && <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
@@ -325,8 +326,7 @@ function ProductForm({ token, cats, product, initial, onClose, onSaved }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">التصنيف</label>
-                <input value={category} onChange={(e) => setCategory(e.target.value)} list="m-cats" className={inp} />
-                <datalist id="m-cats">{cats.map((c) => <option key={c} value={c} />)}</datalist>
+                <CategoryPicker value={category} onChange={setCategory} options={cats} allowNew placeholder="اختر أو أضف تصنيفاً" />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">الوحدة</label>
@@ -512,7 +512,7 @@ function StoreEditor({ token, store, onSaved }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">التصنيف</label>
-          <input value={category} onChange={(e) => setCategory(e.target.value)} className={inp} placeholder="مثلاً: مطعم" />
+          <CategoryPicker value={category} onChange={setCategory} options={STORE_TYPES} allowNew placeholder="مثلاً: مطعم" />
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">هاتف المتجر</label>
@@ -618,6 +618,17 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const activeCount = useMemo(() => products.filter((p) => p.active).length, [products]);
+  const outCount = useMemo(() => products.filter((p) => p.stock != null && p.stock <= 0).length, [products]);
+  // group products by category (sorted), preserving each product's order within its group
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const p of products) {
+      const key = (p.category || 'بدون تصنيف').trim() || 'بدون تصنيف';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(p);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'));
+  }, [products]);
 
   function openAdd() { setEditProduct(null); setInitialProduct(null); setFormOpen(true); }
   function openEdit(p) { setEditProduct(p); setInitialProduct(null); setFormOpen(true); }
@@ -683,7 +694,10 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-display text-xl font-black text-ink dark:text-cream">منتجاتي</h2>
-                <p className="font-body text-xs text-ink/50 dark:text-cream/50">{products.length} منتج · {activeCount} ظاهر للزبائن</p>
+                <p className="font-body text-xs text-ink/50 dark:text-cream/50">
+                  {products.length} منتج · {activeCount} ظاهر
+                  {outCount > 0 && <span className="text-red-500"> · {outCount} نافد</span>}
+                </p>
               </div>
               <div className="flex gap-2">
                 <input ref={photoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
@@ -718,9 +732,20 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
                 <button onClick={openAdd} className="mt-4 flex items-center gap-1.5 rounded-xl bg-copper px-5 py-2.5 font-bold text-cream hover:bg-copper-dark"><Plus className="h-4 w-4" /> أضف أول منتج</button>
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {products.map((p) => (
-                  <ProductRow key={p.id} token={token} p={p} onEdit={openEdit} onChanged={load} />
+              <div className="space-y-5">
+                {grouped.map(([catName, items]) => (
+                  <div key={catName}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <h3 className="font-display text-sm font-black text-copper dark:text-copper-light">{catName}</h3>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[10px] font-bold text-ink/40 dark:bg-white/10 dark:text-cream/40">{items.length}</span>
+                      <span className="h-px flex-1 bg-ink/10 dark:bg-white/10" />
+                    </div>
+                    <div className="space-y-2.5">
+                      {items.map((p) => (
+                        <ProductRow key={p.id} token={token} p={p} onEdit={openEdit} onChanged={load} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

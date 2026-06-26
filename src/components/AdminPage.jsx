@@ -10,6 +10,7 @@ import {
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
+import CategoryPicker from './CategoryPicker.jsx';
 import {
   getAdminSession, setAdminSession, clearAdminSession,
   adminLogin, adminListOrders, adminUpdateStatus, adminStats,
@@ -1134,10 +1135,8 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
           <input className={inp} value={f.name} onChange={set('name')} placeholder="مثلاً: تفاح أحمر" />
         </Lbl>
         <Lbl label="القسم">
-          <select className={inp} value={f.category} onChange={set('category')}>
-            {cats.length === 0 && <option value="">— أضِف قسماً أولاً —</option>}
-            {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
+          <CategoryPicker value={f.category} onChange={(v) => setF((prev) => ({ ...prev, category: v }))}
+            options={cats.map((c) => c.name)} allowNew placeholder="اختر أو أضف قسماً" />
         </Lbl>
         {stores.length > 0 && (
           <Lbl label="المتجر" full>
@@ -1498,10 +1497,9 @@ function StoresManager({ admin }) {
         <div className="flex gap-2">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="اسم المتجر (مثلاً: مخبز السماوة)" className={inp + ' flex-1'} />
-          <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-            list="store-cats-add" placeholder="التصنيف"
-            className="w-28 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900" />
-          <datalist id="store-cats-add">{STORE_CATS.map((c) => <option key={c} value={c} />)}</datalist>
+          <div className="w-32 shrink-0">
+            <CategoryPicker value={form.category} onChange={(v) => setForm({ ...form, category: v })} options={STORE_CATS} allowNew placeholder="التصنيف" />
+          </div>
           <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">إضافة</button>
         </div>
         <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد الإضافة، اضغط ✎ لرفع شعار المتجر وكتابة وصفه. اربط المنتجات بالمتجر من «تعديل منتج».</p>
@@ -1694,10 +1692,7 @@ function StoreModal({ admin, store, onClose, onSaved }) {
           <input className={inp} value={name} onChange={(e) => setName(e.target.value)} />
         </Lbl>
         <Lbl label="التصنيف (اكتب أو اختر)">
-          <input className={inp} list="store-cats" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="مثلاً: مطعم" />
-          <datalist id="store-cats">
-            {STORE_CATS.map((c) => <option key={c} value={c} />)}
-          </datalist>
+          <CategoryPicker value={category} onChange={setCategory} options={STORE_CATS} allowNew placeholder="مثلاً: مطعم" />
         </Lbl>
         <Lbl label="التقييم (0-5)">
           <input type="number" step="0.1" min="0" max="5" dir="ltr" className={inp} value={rating} onChange={(e) => setRating(e.target.value)} placeholder="مثلاً: 4.5" />
