@@ -86,3 +86,42 @@ export async function uploadProductImage(file, id) {
   if (!url) return { error: 'تعذّر الحصول على رابط الصورة.' };
   return { url };
 }
+
+/*
+  Upload a wide store COVER image (banner). Keeps full photo (no white fill),
+  larger max so the banner stays crisp. Public `products` bucket.
+*/
+export async function uploadStoreCover(file, id) {
+  if (!supabase) return { error: 'التخزين غير مُهيّأ.' };
+  if (!file) return { error: 'لم يتم اختيار صورة.' };
+  if (!file.type?.startsWith('image/')) return { error: 'الرجاء اختيار صورة صحيحة.' };
+
+  const blob = await compressImage(file, { max: 1280, quality: 0.82 });
+  const path = `cover-${id || 's'}-${Date.now()}.jpg`;
+  const { error: upErr } = await supabase.storage
+    .from('products')
+    .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+  if (upErr) return { error: upErr.message || 'تعذّر رفع الصورة.' };
+  const { data } = supabase.storage.from('products').getPublicUrl(path);
+  return data?.publicUrl ? { url: data.publicUrl } : { error: 'تعذّر الحصول على رابط الصورة.' };
+}
+
+/*
+  Upload a short store COVER video (mp4/webm). Raw upload (no transcoding).
+  Guards against very large files. Public `products` bucket.
+*/
+export async function uploadStoreVideo(file, id) {
+  if (!supabase) return { error: 'التخزين غير مُهيّأ.' };
+  if (!file) return { error: 'لم يتم اختيار فيديو.' };
+  if (!file.type?.startsWith('video/')) return { error: 'الرجاء اختيار ملف فيديو.' };
+  if (file.size > 25 * 1024 * 1024) return { error: 'الفيديو كبير جداً (الحد ٢٥ ميغا). اختر مقطعاً أقصر.' };
+
+  const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+  const path = `storevid-${id || 's'}-${Date.now()}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from('products')
+    .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
+  if (upErr) return { error: upErr.message || 'تعذّر رفع الفيديو.' };
+  const { data } = supabase.storage.from('products').getPublicUrl(path);
+  return data?.publicUrl ? { url: data.publicUrl } : { error: 'تعذّر الحصول على رابط الفيديو.' };
+}

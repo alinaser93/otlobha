@@ -96,6 +96,8 @@ export const adminAddStore = (adminId, f = {}) =>
     p_phone: f.phone ?? null,
     p_rating: f.rating ?? null,
     p_sort: f.sort ?? 0,
+    p_cover: f.cover ?? null,
+    p_cover_video: f.coverVideo ?? null,
   });
 
 export const adminUpdateStore = (adminId, id, f = {}) =>
@@ -110,6 +112,8 @@ export const adminUpdateStore = (adminId, id, f = {}) =>
     p_rating: f.rating ?? null,
     p_sort: f.sort ?? null,
     p_active: f.active ?? null,
+    p_cover: f.cover ?? null,
+    p_cover_video: f.coverVideo ?? null,
   });
 
 export const adminRemoveStore = (adminId, id) =>
@@ -258,6 +262,8 @@ export async function fetchStoreCatalog() {
       name: s.name,
       category: s.category || 'بقالة',
       logo: s.logo || null,
+      cover: s.cover || null,
+      coverVideo: s.cover_video || null,
       tagline: s.tagline || '',
       phone: s.phone || '',
       rating: Number(s.rating) || 0,

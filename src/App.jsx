@@ -248,7 +248,8 @@ export default function App() {
           openProductId={deepLink?.type === 'product' ? deepLink.id : null}
           initialCat={deepLink?.type === 'category' ? deepLink.name : null}
           storeFilter={activeStore}
-          storeName={activeStore ? (stores.find((s) => s.id === activeStore)?.name || '') : ''}
+          store={activeStore ? (stores.find((s) => s.id === activeStore) || null) : null}
+          onClearStore={() => setActiveStore(null)}
         />
         <FreshnessPromise />
       </main>

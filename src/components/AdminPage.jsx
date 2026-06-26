@@ -30,7 +30,7 @@ import {
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
   adminReorderStores, adminSetProductStore,
 } from '../lib/products.js';
-import { uploadProductImage } from '../lib/storage.js';
+import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
 import { cleanProductImage } from '../lib/bgremove.js';
 
@@ -611,11 +611,15 @@ function OrderCard({ o, onStatus, drivers = [], onAssign }) {
         <select
           value={o.driver_id || ''}
           onChange={(e) => onAssign?.(o.id, e.target.value || null)}
-          className="flex-1 rounded-lg border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 px-2.5 py-1.5 text-sm text-ink dark:text-cream outline-none focus:border-copper"
+          className={`flex-1 rounded-lg px-2.5 py-1.5 text-sm font-bold outline-none transition ${
+            o.driver_id
+              ? 'border-2 border-green-400 bg-green-600 text-white animate-glow-green'
+              : 'border-2 border-red-400 bg-red-600 text-white animate-glow-red'
+          }`}
         >
-          <option value="">— بدون مندوب —</option>
+          <option value="" className="bg-night-800 text-cream">— بدون مندوب —</option>
           {drivers.map((d) => (
-            <option key={d.id} value={d.id}>{d.name || d.username}</option>
+            <option key={d.id} value={d.id} className="bg-night-800 text-cream">{d.name || d.username}</option>
           ))}
         </select>
         {o.delivery_status && (
@@ -1494,10 +1498,10 @@ function StoresManager({ admin }) {
         <div className="flex gap-2">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="اسم المتجر (مثلاً: مخبز السماوة)" className={inp + ' flex-1'} />
-          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="w-28 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900">
-            {STORE_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+            list="store-cats-add" placeholder="التصنيف"
+            className="w-28 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900" />
+          <datalist id="store-cats-add">{STORE_CATS.map((c) => <option key={c} value={c} />)}</datalist>
           <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">إضافة</button>
         </div>
         <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد الإضافة، اضغط ✎ لرفع شعار المتجر وكتابة وصفه. اربط المنتجات بالمتجر من «تعديل منتج».</p>
@@ -1555,15 +1559,21 @@ function StoreModal({ admin, store, onClose, onSaved }) {
   const [phone, setPhone] = useState(store.phone || '');
   const [rating, setRating] = useState(store.rating != null ? String(store.rating) : '');
   const [logo, setLogo] = useState(store.logo || '');
+  const [cover, setCover] = useState(store.cover || '');
+  const [coverVideo, setCoverVideo] = useState(store.cover_video || store.coverVideo || '');
   const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [covBusy, setCovBusy] = useState(false);
+  const [vidBusy, setVidBusy] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [cleanPct, setCleanPct] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
+  const coverRef = useRef(null);
+  const videoRef = useRef(null);
 
-  async function onFile(e) {
+  async function onLogo(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -1575,28 +1585,46 @@ function StoreModal({ admin, store, onClose, onSaved }) {
     setLogo(res.url);
   }
 
+  async function onCover(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCovBusy(true); setErr('');
+    const res = await uploadStoreCover(file, store.id);
+    setCovBusy(false);
+    if (res?.error) { setErr(res.error); return; }
+    setCover(res.url);
+  }
+
+  async function onVideo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setVidBusy(true); setErr('');
+    const res = await uploadStoreVideo(file, store.id);
+    setVidBusy(false);
+    if (res?.error) { setErr(res.error); return; }
+    setCoverVideo(res.url);
+  }
+
   async function cleanBg() {
     if (!srcFile) { setErr('ارفع شعاراً أولاً ثم نظّف خلفيته'); return; }
     setCleaning(true); setErr(''); setCleanPct(0);
     try {
       const blob = await cleanProductImage(srcFile, (p) => setCleanPct(p));
       const res = await uploadProductImage(blob, 'store-' + store.id);
-      if (res?.error) setErr(res.error);
-      else setLogo(res.url);
-    } catch {
-      setErr('تعذّر تنظيف الخلفية. جرّب صورة أوضح.');
-    } finally {
-      setCleaning(false);
-    }
+      if (res?.error) setErr(res.error); else setLogo(res.url);
+    } catch { setErr('تعذّر تنظيف الخلفية. جرّب صورة أوضح.'); }
+    finally { setCleaning(false); }
   }
 
   async function save() {
     if (!name.trim()) { setErr('اكتب اسم المتجر'); return; }
     setBusy(true); setErr('');
     const r = await adminUpdateStore(admin.id, store.id, {
-      name: name.trim(), category, tagline: tagline.trim(), phone: phone.trim(),
+      name: name.trim(), category: (category || '').trim() || 'بقالة', tagline: tagline.trim(), phone: phone.trim(),
       rating: rating === '' ? null : Math.min(5, Math.max(0, parseFloat(rating) || 0)),
-      logo,
+      logo, cover, coverVideo,
     });
     setBusy(false);
     if (r?.ok) onSaved();
@@ -1605,31 +1633,59 @@ function StoreModal({ admin, store, onClose, onSaved }) {
 
   return (
     <Modal title="تعديل المتجر" onClose={onClose}>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onLogo} />
+      <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={onCover} />
+      <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={onVideo} />
+
+      {/* COVER preview + buttons */}
+      <div>
+        <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">غلاف المتجر (صورة وفيديو)</span>
+        <div className="relative h-32 w-full overflow-hidden rounded-2xl bg-ink/5 ring-1 ring-ink/10 dark:bg-white/5 dark:ring-white/10">
+          {coverVideo ? (
+            <video className="h-full w-full object-cover" src={coverVideo} autoPlay muted loop playsInline poster={cover || undefined} />
+          ) : cover ? (
+            <img src={cover} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center text-sm text-ink/40 dark:text-cream/40">لا يوجد غلاف بعد</div>
+          )}
+          {(covBusy || vidBusy) && <div className="absolute inset-0 grid place-items-center bg-black/40"><Loader2 className="h-6 w-6 animate-spin text-white" /></div>}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" onClick={() => coverRef.current?.click()} disabled={covBusy}
+            className="flex items-center gap-1.5 rounded-lg bg-ink/5 px-3 py-1.5 text-[12px] font-bold text-ink/70 hover:bg-ink/10 disabled:opacity-60 dark:bg-white/10 dark:text-cream/70">
+            <ImageIcon className="h-3.5 w-3.5" /> {cover ? 'تغيير الصورة' : 'رفع صورة غلاف'}
+          </button>
+          <button type="button" onClick={() => videoRef.current?.click()} disabled={vidBusy}
+            className="flex items-center gap-1.5 rounded-lg bg-ink/5 px-3 py-1.5 text-[12px] font-bold text-ink/70 hover:bg-ink/10 disabled:opacity-60 dark:bg-white/10 dark:text-cream/70">
+            <Camera className="h-3.5 w-3.5" /> {coverVideo ? 'تغيير الفيديو' : 'رفع فيديو (اختياري)'}
+          </button>
+          {cover && <button type="button" onClick={() => setCover('')} className="text-[12px] font-bold text-red-600 dark:text-red-300">حذف الصورة</button>}
+          {coverVideo && <button type="button" onClick={() => setCoverVideo('')} className="text-[12px] font-bold text-red-600 dark:text-red-300">حذف الفيديو</button>}
+        </div>
+        <p className="mt-1 text-[11px] text-ink/40 dark:text-cream/40">الفيديو يُعرض تلقائياً (صامت) فوق الصورة. الحد ٢٥ ميغا — يُفضّل مقطع قصير.</p>
+      </div>
+
+      {/* LOGO */}
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => fileRef.current?.click()}
           className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-3xl ring-1 ring-ink/10 dark:ring-white/10">
-          {uploading
-            ? <Loader2 className="h-6 w-6 animate-spin text-copper" />
-            : logo
-              ? <img src={logo} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" />
+          {uploading ? <Loader2 className="h-6 w-6 animate-spin text-copper" />
+            : logo ? <img src={logo} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" />
               : <span>🏪</span>}
           <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-copper/90 py-0.5 text-[9px] font-bold text-white">
             <ImageIcon className="h-2.5 w-2.5" /> شعار
           </span>
         </button>
         <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
-          اضغط المربّع لرفع شعار المتجر. الأفضل خلفية بيضاء.
+          شعار المتجر (يظهر دائرياً). الأفضل خلفية بيضاء.
           {srcFile && (
             <button type="button" onClick={cleanBg} disabled={cleaning || uploading}
               className="mt-2 flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:opacity-90 disabled:opacity-60">
               {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {cleaning ? (cleanPct ? `ينظّف… ${cleanPct}%` : 'يحمّل الأداة…') : 'نظّف الخلفية'}
+              {cleaning ? (cleanPct ? `ينظّف… ${cleanPct}%` : 'يحمّل الأداة…') : 'نظّف خلفية الشعار'}
             </button>
           )}
-          {logo && !cleaning && (
-            <button type="button" onClick={() => { setLogo(''); setSrcFile(null); }} className="mt-1 block font-bold text-red-600 dark:text-red-300">إزالة الشعار</button>
-          )}
+          {logo && !cleaning && <button type="button" onClick={() => { setLogo(''); setSrcFile(null); }} className="mt-1 block font-bold text-red-600 dark:text-red-300">إزالة الشعار</button>}
         </div>
       </div>
 
@@ -1637,10 +1693,11 @@ function StoreModal({ admin, store, onClose, onSaved }) {
         <Lbl label="اسم المتجر" full>
           <input className={inp} value={name} onChange={(e) => setName(e.target.value)} />
         </Lbl>
-        <Lbl label="التصنيف">
-          <select className={inp} value={category} onChange={(e) => setCategory(e.target.value)}>
-            {STORE_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <Lbl label="التصنيف (اكتب أو اختر)">
+          <input className={inp} list="store-cats" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="مثلاً: مطعم" />
+          <datalist id="store-cats">
+            {STORE_CATS.map((c) => <option key={c} value={c} />)}
+          </datalist>
         </Lbl>
         <Lbl label="التقييم (0-5)">
           <input type="number" step="0.1" min="0" max="5" dir="ltr" className={inp} value={rating} onChange={(e) => setRating(e.target.value)} placeholder="مثلاً: 4.5" />
@@ -1656,7 +1713,7 @@ function StoreModal({ admin, store, onClose, onSaved }) {
       {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
 
       <div className="flex gap-2">
-        <button onClick={save} disabled={busy || uploading || cleaning}
+        <button onClick={save} disabled={busy || uploading || cleaning || covBusy || vidBusy}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
         </button>

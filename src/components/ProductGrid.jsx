@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ShoppingBasket } from 'lucide-react';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
 import ProductCard from './ProductCard.jsx';
 import ProductModal from './ProductModal.jsx';
+import StoreHeader from './StoreHeader.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, storeName = '' }) {
+export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore }) {
   const [cat, setCat] = useState('الكل');
   const [selected, setSelected] = useState(null);
   const didDeepLink = useRef(false);
@@ -36,6 +38,12 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
   return (
     <section id="products" className="bg-cream py-16 dark:bg-night sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        {store && (
+          <div className="mb-9">
+            <StoreHeader store={store} count={byStore.length} onBack={onClearStore} />
+          </div>
+        )}
+
         <motion.div
           variants={fadeUp}
           initial="hidden"
@@ -43,14 +51,15 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           viewport={viewportOnce}
           className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end"
         >
-          <div>
-            <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">
-              {storeName ? `منتجات ${storeName}` : 'مختار لك اليوم'}
-            </span>
-            <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">
-              {storeName || 'الأكثر طلباً'}
-            </h2>
-          </div>
+          {!store && (
+            <div>
+              <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">مختار لك اليوم</span>
+              <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">الأكثر طلباً</h2>
+            </div>
+          )}
+          {store && (
+            <h3 className="font-display text-2xl font-black text-ink dark:text-cream">تصفّح حسب القسم</h3>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => {
@@ -62,8 +71,8 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
                   onClick={() => setCat(c.name)}
                   className={`flex items-center gap-2 rounded-full py-1.5 pe-2 ps-4 font-body text-sm font-bold transition ${
                     active
-                      ? 'bg-brand-800 text-cream shadow-soft dark:bg-brand-600'
-                      : 'bg-cream text-ink/70 ring-1 ring-brand-900/10 hover:bg-beige dark:bg-white/10 dark:text-cream/70 dark:ring-white/10 dark:hover:bg-white/20'
+                      ? 'bg-brand-800 text-cream shadow-soft ring-1 ring-brand-800 dark:bg-brand-600 dark:ring-brand-600'
+                      : 'bg-white text-ink ring-1 ring-ink/10 hover:bg-beige hover:ring-copper/40 dark:bg-night-800 dark:text-cream/80 dark:ring-white/10 dark:hover:bg-night-700'
                   }`}
                 >
                   <span>{c.name}</span>
@@ -83,8 +92,22 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
         </motion.div>
 
         {list.length === 0 ? (
-          <div className="mt-12 rounded-3xl border border-dashed border-ink/15 py-16 text-center font-body text-ink/40 dark:border-white/15 dark:text-cream/40">
-            لا توجد منتجات في هذا القسم حالياً.
+          <div className="mt-10 flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-ink/15 bg-beige/30 py-16 text-center dark:border-white/15 dark:bg-white/5">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-copper/10 text-copper">
+              <ShoppingBasket className="h-8 w-8" />
+            </div>
+            <p className="mt-4 font-display text-lg font-bold text-ink/70 dark:text-cream/70">
+              {store ? 'لا توجد منتجات في هذا القسم بعد' : 'لا توجد منتجات في هذا القسم حالياً'}
+            </p>
+            <p className="mt-1 font-body text-sm text-ink/45 dark:text-cream/45">
+              {cat !== 'الكل' ? 'جرّب قسماً آخر من الأعلى 👆' : 'تابعنا — نضيف منتجات جديدة قريباً 🌿'}
+            </p>
+            {cat !== 'الكل' && (
+              <button onClick={() => setCat('الكل')}
+                className="mt-4 rounded-full bg-copper px-5 py-2 font-body text-sm font-bold text-cream hover:bg-copper-dark">
+                عرض كل الأقسام
+              </button>
+            )}
           </div>
         ) : (
           <motion.div layout className="mt-9 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">

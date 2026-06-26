@@ -30,10 +30,25 @@ export default {
       keyframes: {
         floaty: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-9px)' } },
         drift:  { '0%': { transform: 'translate3d(0,0,0)' }, '100%': { transform: 'translate3d(-2%,-3%,0)' } },
+        glowRed: {
+          '0%,100%': { boxShadow: '0 0 0 0 rgba(239,68,68,0.55), 0 0 10px 1px rgba(239,68,68,0.45)' },
+          '50%':     { boxShadow: '0 0 0 4px rgba(239,68,68,0.0), 0 0 24px 7px rgba(239,68,68,0.85)' },
+        },
+        glowGreen: {
+          '0%,100%': { boxShadow: '0 0 0 0 rgba(34,197,94,0.55), 0 0 10px 1px rgba(34,197,94,0.45)' },
+          '50%':     { boxShadow: '0 0 0 4px rgba(34,197,94,0.0), 0 0 24px 7px rgba(34,197,94,0.85)' },
+        },
+        glowBlue: {
+          '0%,100%': { boxShadow: '0 0 0 0 rgba(59,130,246,0.55), 0 0 10px 1px rgba(59,130,246,0.45)' },
+          '50%':     { boxShadow: '0 0 0 4px rgba(59,130,246,0.0), 0 0 24px 7px rgba(59,130,246,0.85)' },
+        },
       },
       animation: {
         floaty: 'floaty 4.5s ease-in-out infinite',
         drift:  'drift 14s ease-in-out infinite alternate',
+        'glow-red':   'glowRed 1.5s ease-in-out infinite',
+        'glow-green': 'glowGreen 1.5s ease-in-out infinite',
+        'glow-blue':  'glowBlue 1.5s ease-in-out infinite',
       },
     },
   },

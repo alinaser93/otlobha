@@ -25,6 +25,15 @@ const STEP_LABEL = Object.fromEntries(STEPS);
 const NEXT = { assigned: 'picked', picked: 'on_way', on_way: 'arrived', arrived: 'delivered' };
 const NEXT_LABEL = { assigned: 'استلمت الطلب', picked: 'انطلقت — في الطريق', on_way: 'وصلت للزبون', arrived: 'تم التسليم ✓' };
 
+// radiating "outline glow" styles (literal classes so Tailwind keeps them)
+const GLOW = {
+  red:   'bg-red-600 text-white border-2 border-red-400 animate-glow-red hover:bg-red-700',
+  green: 'bg-green-600 text-white border-2 border-green-400 animate-glow-green hover:bg-green-700',
+  blue:  'bg-blue-600 text-white border-2 border-blue-400 animate-glow-blue hover:bg-blue-700',
+};
+// advance-button glow by current delivery status
+const ADV_GLOW = { assigned: 'red', picked: 'red', on_way: 'green', arrived: 'blue' };
+
 const digits = (p) => (p || '').replace(/[^\d]/g, '');
 
 export default function DriverPage() {
@@ -419,15 +428,15 @@ function DeliveryCard({ o, onAdvance, driverId }) {
             </div>
           )}
           <button onClick={sendNow}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-ink/5 dark:bg-white/5 py-2 text-xs font-bold text-ink/70 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10">
-            <Navigation className="h-3.5 w-3.5" /> أرسل موقعي الآن
+            className={`flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold transition active:scale-[0.98] ${geoState === 'live' ? GLOW.green : GLOW.red}`}>
+            <Navigation className="h-4 w-4" /> {geoState === 'live' ? 'موقعك يُرسَل الآن ✓' : 'أرسل موقعي الآن'}
           </button>
         </div>
       )}
 
       {cur !== 'delivered' ? (
         <button onClick={() => onAdvance(o.id, cur)}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream transition hover:bg-copper-dark active:scale-[0.98]">
+          className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display font-bold transition active:scale-[0.98] ${GLOW[ADV_GLOW[cur]] || GLOW.red}`}>
           {NEXT_LABEL[cur]} <ChevronLeft className="h-4 w-4" />
         </button>
       ) : (
