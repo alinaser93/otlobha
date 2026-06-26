@@ -68,7 +68,7 @@ export function CodeInput({
         return (
           <div
             key={i}
-            className={`relative grid ${boxCls} place-items-center rounded-2xl border-2 bg-white/70 font-display text-2xl font-black text-ink transition-all duration-200 dark:bg-white/[0.06] dark:text-cream ${
+            className={`relative grid ${boxCls} place-items-center rounded-2xl border-2 bg-beige font-display text-2xl font-black text-ink transition-all duration-200 dark:bg-night-900 dark:text-cream ${
               error
                 ? 'border-red-400 shadow-[0_0_0_4px_rgba(248,113,113,0.18)]'
                 : active
