@@ -6,6 +6,7 @@ import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
 import BundleSection from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
+import StoresSection from './components/StoresSection.jsx';
 import Footer from './components/Footer.jsx';
 import CartDrawer from './components/CartDrawer.jsx';
 import CheckoutModal from './components/CheckoutModal.jsx';
@@ -71,6 +72,8 @@ export default function App() {
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);
   const [bundles, setBundles] = useState(BUNDLES);
+  const [stores, setStores] = useState([]);
+  const [activeStore, setActiveStore] = useState(null);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -117,6 +120,9 @@ export default function App() {
       m = path.match(/^\/c\/([^/?#]+)/);
       if (m) return { type: 'category', name: decodeURIComponent(m[1]) };
       if (sp.get('c')) return { type: 'category', name: sp.get('c') };
+      m = path.match(/^\/s\/([^/?#]+)/);
+      if (m) return { type: 'store', name: decodeURIComponent(m[1]) };
+      if (sp.get('s')) return { type: 'store', name: sp.get('s') };
     } catch (e) {}
     return null;
   }, []);
@@ -131,11 +137,23 @@ export default function App() {
       if (Array.isArray(res.products) && res.products.length) setProducts(res.products);
       if (Array.isArray(res.categories) && res.categories.length) setCategories(res.categories);
       if (Array.isArray(res.bundles) && res.bundles.length) setBundles(res.bundles);
-    });
+      if (Array.isArray(res.stores)) setStores(res.stores);    });
     return () => {
       alive = false;
     };
   }, []);
+
+  // if arriving via a store share link (/s/{name}), open that store once loaded
+  useEffect(() => {
+    if (deepLink?.type === 'store' && stores.length) {
+      const s = stores.find((x) => x.name === deepLink.name);
+      if (s) {
+        setActiveStore(s.id);
+        setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 80);
+      }
+    }
+    // eslint-disable-next-line
+  }, [stores]);
 
   // ── theme (dark / light) ──
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -212,7 +230,15 @@ export default function App() {
       />
 
       <main>
-        <Hero onShop={() => document.getElementById('bundles')?.scrollIntoView({ behavior: 'smooth' })} />
+        <Hero onShop={() => document.getElementById('stores')?.scrollIntoView({ behavior: 'smooth' })} />
+        <StoresSection
+          stores={stores}
+          activeStore={activeStore}
+          onSelect={(id) => {
+            setActiveStore(id);
+            if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
+          }}
+        />
         <BundleSection bundles={bundles} onAdd={addItem} fly={fly} />
         <ProductGrid
           products={products}
@@ -221,6 +247,8 @@ export default function App() {
           fly={fly}
           openProductId={deepLink?.type === 'product' ? deepLink.id : null}
           initialCat={deepLink?.type === 'category' ? deepLink.name : null}
+          storeFilter={activeStore}
+          storeName={activeStore ? (stores.find((s) => s.id === activeStore)?.name || '') : ''}
         />
         <FreshnessPromise />
       </main>

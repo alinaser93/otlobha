@@ -5,7 +5,7 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -27,6 +27,8 @@ import {
   adminReorderCategories,
   adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
   adminSetBundleActive, adminReorderBundles,
+  adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
+  adminReorderStores, adminSetProductStore,
 } from '../lib/products.js';
 import { uploadProductImage } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
@@ -151,6 +153,7 @@ function Dashboard({ admin, onOut }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [showCats, setShowCats] = useState(false);
+  const [showStores, setShowStores] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
@@ -382,6 +385,22 @@ function Dashboard({ admin, onOut }) {
             {showBundles && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                 <BundlesManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* stores manager */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowStores((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><StoreIcon className="h-4 w-4 text-copper" /> إدارة المتاجر</span>
+            <ChevronDown className={`h-5 w-5 transition ${showStores ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showStores && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <StoresManager admin={admin} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -980,6 +999,8 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
   const [track, setTrack] = useState(product?.stock !== null && product?.stock !== undefined);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : '');
+  const [stores, setStores] = useState([]);
+  const [storeId, setStoreId] = useState(product?.store_id || '');
   const [image, setImage] = useState(product?.image || '');
   const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -990,6 +1011,15 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  useEffect(() => {
+    adminListStores(admin.id).then((r) => {
+      const items = Array.isArray(r?.stores) ? r.stores : [];
+      setStores(items);
+      setStoreId((prev) => prev || product?.store_id || (items[0]?.id || ''));
+    });
+    // eslint-disable-next-line
+  }, []);
 
   async function cleanBg() {
     if (!srcFile) { setErr('ارفع صورة من جهازك أولاً ثم نظّف خلفيتها'); return; }
@@ -1049,9 +1079,15 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
     const r = product
       ? await adminUpdateProduct(admin.id, product.id, fields)
       : await adminAddProduct(admin.id, fields);
-    setBusy(false);
-    if (r?.ok) onSaved();
-    else setErr('تعذّر الحفظ، حاول مرّة ثانية.');
+    if (r?.ok) {
+      const pid = r.product?.id || product?.id;
+      if (pid && storeId) await adminSetProductStore(admin.id, pid, storeId);
+      setBusy(false);
+      onSaved();
+    } else {
+      setBusy(false);
+      setErr('تعذّر الحفظ، حاول مرّة ثانية.');
+    }
   }
 
   return (
@@ -1099,6 +1135,13 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
             {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </Lbl>
+        {stores.length > 0 && (
+          <Lbl label="المتجر" full>
+            <select className={inp} value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Lbl>
+        )}
         <Lbl label="السعر (د.ع)">
           <input type="number" inputMode="numeric" className={inp} value={f.price} onChange={set('price')} placeholder="0" dir="ltr" />
         </Lbl>
@@ -1370,6 +1413,243 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
         </Lbl>
         <Lbl label="إيموجي احتياطي">
           <input className={inp} value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🏷️" />
+        </Lbl>
+      </div>
+
+      {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy || uploading || cleaning}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
+        </button>
+        <button onClick={onClose} className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════ Stores ════════════════════════════ */
+const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
+
+function StoresManager({ admin }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ name: '', category: 'بقالة' });
+  const [editStore, setEditStore] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [msg, setMsg] = useState('');
+  const listRef = useRef([]);
+
+  async function load() {
+    setLoading(true);
+    const c = await adminListStores(admin.id);
+    const items = Array.isArray(c?.stores) ? c.stores : [];
+    setList(items); listRef.current = items;
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  function onReorder(next) { setList(next); listRef.current = next; }
+  async function persistOrder() { await adminReorderStores(admin.id, listRef.current.map((x) => x.id)); }
+
+  async function add() {
+    setMsg('');
+    if (!form.name.trim()) { setMsg('اكتب اسم المتجر'); return; }
+    const r = await adminAddStore(admin.id, { name: form.name.trim(), category: form.category });
+    if (r?.ok) { setForm({ name: '', category: 'بقالة' }); load(); }
+    else setMsg(r?.error === 'exists' ? 'هذا المتجر موجود مسبقاً' : 'تعذّرت الإضافة');
+  }
+
+  async function remove(s) {
+    setConfirm(null); setMsg('');
+    const r = await adminRemoveStore(admin.id, s.id);
+    if (r?.ok) load(); else setMsg('تعذّر الحذف');
+  }
+
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} متجر · اسحب للترتيب · اضغط ✎ للشعار والتفاصيل</span>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-ink/50 dark:text-cream/50">
+          <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
+        </div>
+      ) : (
+        <Reorder.Group axis="y" values={list} onReorder={onReorder} className="space-y-2">
+          {list.map((s) => (
+            <StoreRow key={s.id} s={s} onEdit={() => setEditStore(s)}
+              onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
+          ))}
+        </Reorder.Group>
+      )}
+      {msg && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">{msg}</p>}
+
+      <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800 p-3">
+        <div className="mb-2 flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة متجر</div>
+        <div className="flex gap-2">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="اسم المتجر (مثلاً: مخبز السماوة)" className={inp + ' flex-1'} />
+          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+            className="w-28 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900">
+            {STORE_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">إضافة</button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد الإضافة، اضغط ✎ لرفع شعار المتجر وكتابة وصفه. اربط المنتجات بالمتجر من «تعديل منتج».</p>
+      </div>
+
+      <AnimatePresence>
+        {editStore && (
+          <StoreModal admin={admin} store={editStore}
+            onClose={() => setEditStore(null)} onSaved={() => { setEditStore(null); load(); }} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function StoreRow({ s, onEdit, onDelete, confirm, setConfirm, onPersist }) {
+  const controls = useDragControls();
+  const [ok, setOk] = useState(true);
+  return (
+    <Reorder.Item value={s} dragListener={false} dragControls={controls} onDragEnd={onPersist}
+      className={`flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2 ${s.active ? '' : 'opacity-60'}`}>
+      <span onPointerDown={(e) => controls.start(e)}
+        className="cursor-grab touch-none px-0.5 text-ink/30 dark:text-cream/30 active:cursor-grabbing">
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-white text-2xl ring-1 ring-ink/5 dark:ring-white/10">
+        {s.logo && ok
+          ? <img src={s.logo} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" onError={() => setOk(false)} />
+          : <span>🏪</span>}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-display text-sm font-bold text-ink dark:text-cream">{s.name}</div>
+        <div className="flex flex-wrap items-center gap-x-1.5 text-[11px]">
+          <span className="rounded bg-ink/5 px-1.5 py-0.5 text-ink/60 dark:bg-white/10 dark:text-cream/60">{s.category}</span>
+          <span className="inline-flex items-center gap-0.5 font-bold text-amber-600 dark:text-amber-300"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {Number(s.rating || 0).toFixed(1)}</span>
+        </div>
+      </div>
+      <CopyLinkButton url={`${typeof window !== 'undefined' ? window.location.origin : ''}/s/${encodeURIComponent(s.name)}`} title="نسخ رابط المتجر" />
+      <button onClick={onEdit}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-4 w-4" /></button>
+      {confirm === s.id ? (
+        <button onClick={() => onDelete(s)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
+      ) : (
+        <button onClick={() => setConfirm(s.id)}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
+      )}
+    </Reorder.Item>
+  );
+}
+
+function StoreModal({ admin, store, onClose, onSaved }) {
+  const [name, setName] = useState(store.name || '');
+  const [category, setCategory] = useState(store.category || 'بقالة');
+  const [tagline, setTagline] = useState(store.tagline || '');
+  const [phone, setPhone] = useState(store.phone || '');
+  const [rating, setRating] = useState(store.rating != null ? String(store.rating) : '');
+  const [logo, setLogo] = useState(store.logo || '');
+  const [srcFile, setSrcFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanPct, setCleanPct] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSrcFile(file);
+    setUploading(true); setErr('');
+    const res = await uploadProductImage(file, 'store-' + store.id);
+    setUploading(false);
+    if (res?.error) { setErr(res.error); return; }
+    setLogo(res.url);
+  }
+
+  async function cleanBg() {
+    if (!srcFile) { setErr('ارفع شعاراً أولاً ثم نظّف خلفيته'); return; }
+    setCleaning(true); setErr(''); setCleanPct(0);
+    try {
+      const blob = await cleanProductImage(srcFile, (p) => setCleanPct(p));
+      const res = await uploadProductImage(blob, 'store-' + store.id);
+      if (res?.error) setErr(res.error);
+      else setLogo(res.url);
+    } catch {
+      setErr('تعذّر تنظيف الخلفية. جرّب صورة أوضح.');
+    } finally {
+      setCleaning(false);
+    }
+  }
+
+  async function save() {
+    if (!name.trim()) { setErr('اكتب اسم المتجر'); return; }
+    setBusy(true); setErr('');
+    const r = await adminUpdateStore(admin.id, store.id, {
+      name: name.trim(), category, tagline: tagline.trim(), phone: phone.trim(),
+      rating: rating === '' ? null : Math.min(5, Math.max(0, parseFloat(rating) || 0)),
+      logo,
+    });
+    setBusy(false);
+    if (r?.ok) onSaved();
+    else setErr(r?.error === 'exists' ? 'الاسم مستخدم لمتجر آخر' : 'تعذّر الحفظ');
+  }
+
+  return (
+    <Modal title="تعديل المتجر" onClose={onClose}>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-3xl ring-1 ring-ink/10 dark:ring-white/10">
+          {uploading
+            ? <Loader2 className="h-6 w-6 animate-spin text-copper" />
+            : logo
+              ? <img src={logo} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" />
+              : <span>🏪</span>}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-copper/90 py-0.5 text-[9px] font-bold text-white">
+            <ImageIcon className="h-2.5 w-2.5" /> شعار
+          </span>
+        </button>
+        <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+          اضغط المربّع لرفع شعار المتجر. الأفضل خلفية بيضاء.
+          {srcFile && (
+            <button type="button" onClick={cleanBg} disabled={cleaning || uploading}
+              className="mt-2 flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:opacity-90 disabled:opacity-60">
+              {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {cleaning ? (cleanPct ? `ينظّف… ${cleanPct}%` : 'يحمّل الأداة…') : 'نظّف الخلفية'}
+            </button>
+          )}
+          {logo && !cleaning && (
+            <button type="button" onClick={() => { setLogo(''); setSrcFile(null); }} className="mt-1 block font-bold text-red-600 dark:text-red-300">إزالة الشعار</button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Lbl label="اسم المتجر" full>
+          <input className={inp} value={name} onChange={(e) => setName(e.target.value)} />
+        </Lbl>
+        <Lbl label="التصنيف">
+          <select className={inp} value={category} onChange={(e) => setCategory(e.target.value)}>
+            {STORE_CATS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Lbl>
+        <Lbl label="التقييم (0-5)">
+          <input type="number" step="0.1" min="0" max="5" dir="ltr" className={inp} value={rating} onChange={(e) => setRating(e.target.value)} placeholder="مثلاً: 4.5" />
+        </Lbl>
+        <Lbl label="هاتف المتجر (اختياري)" full>
+          <input dir="ltr" className={inp} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXXX" />
+        </Lbl>
+        <Lbl label="وصف قصير (اختياري)" full>
+          <input className={inp} value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="مثلاً: أطيب خبز طازج في السماوة" />
         </Lbl>
       </div>
 

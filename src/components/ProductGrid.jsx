@@ -6,13 +6,14 @@ import ProductModal from './ProductModal.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null }) {
+export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, storeName = '' }) {
   const [cat, setCat] = useState('الكل');
   const [selected, setSelected] = useState(null);
   const didDeepLink = useRef(false);
   // categories may be plain strings (fallback) or objects { name, image, emoji }
   const cats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
-  const list = cat === 'الكل' ? products : products.filter((p) => p.tag === cat);
+  const byStore = storeFilter ? products.filter((p) => p.storeId === storeFilter) : products;
+  const list = cat === 'الكل' ? byStore : byStore.filter((p) => p.tag === cat);
 
   // open a shared product / category once the live catalog has loaded
   useEffect(() => {
@@ -43,8 +44,12 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end"
         >
           <div>
-            <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">مختار لك اليوم</span>
-            <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">الأكثر طلباً</h2>
+            <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">
+              {storeName ? `منتجات ${storeName}` : 'مختار لك اليوم'}
+            </span>
+            <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">
+              {storeName || 'الأكثر طلباً'}
+            </h2>
           </div>
 
           <div className="flex flex-wrap gap-2">

@@ -83,6 +83,44 @@ export const adminRemoveCategory = (adminId, id) =>
 export const adminReorderCategories = (adminId, ids) =>
   rpc('admin_reorder_categories', { p_admin_id: adminId, p_ids: ids });
 
+/* ───────────────────────── stores (admin) ───────────────────────── */
+export const adminListStores = (adminId) => rpc('admin_list_stores', { p_admin_id: adminId });
+
+export const adminAddStore = (adminId, f = {}) =>
+  rpc('admin_add_store', {
+    p_admin_id: adminId,
+    p_name: f.name,
+    p_category: f.category || 'بقالة',
+    p_logo: f.logo ?? null,
+    p_tagline: f.tagline ?? null,
+    p_phone: f.phone ?? null,
+    p_rating: f.rating ?? null,
+    p_sort: f.sort ?? 0,
+  });
+
+export const adminUpdateStore = (adminId, id, f = {}) =>
+  rpc('admin_update_store', {
+    p_admin_id: adminId,
+    p_id: id,
+    p_name: f.name ?? null,
+    p_category: f.category ?? null,
+    p_logo: f.logo ?? null,
+    p_tagline: f.tagline ?? null,
+    p_phone: f.phone ?? null,
+    p_rating: f.rating ?? null,
+    p_sort: f.sort ?? null,
+    p_active: f.active ?? null,
+  });
+
+export const adminRemoveStore = (adminId, id) =>
+  rpc('admin_remove_store', { p_admin_id: adminId, p_id: id });
+
+export const adminReorderStores = (adminId, ids) =>
+  rpc('admin_reorder_stores', { p_admin_id: adminId, p_ids: ids });
+
+export const adminSetProductStore = (adminId, productId, storeId) =>
+  rpc('admin_set_product_store', { p_admin_id: adminId, p_id: productId, p_store_id: storeId });
+
 /* ───────────────────────── bundles (admin) ───────────────────────── */
 export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
 
@@ -133,11 +171,12 @@ export const adminReorderBundles = (adminId, ids) =>
 export async function fetchStoreCatalog() {
   if (!supabaseEnabled || !supabase) return null;
   try {
-    const [pr, cr, br, bs] = await Promise.all([
+    const [pr, cr, br, bs, sr] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('categories').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('bundles').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.rpc('store_best_sellers', { p_limit: 200 }),
+      supabase.from('stores').select('*').eq('active', true).order('sort', { ascending: true }),
     ]);
     if (pr.error || cr.error) return null;
 
@@ -158,6 +197,7 @@ export async function fetchStoreCatalog() {
         id: r.id,
         name: r.name,
         tag: r.category,
+        storeId: r.store_id || null,
         price,
         unit: r.unit,
         emoji: r.emoji,
@@ -213,7 +253,19 @@ export async function fetchStoreCatalog() {
       };
     });
 
-    return { products, categories, bundles };
+    const stores = (sr && !sr.error ? sr.data || [] : []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      category: s.category || 'بقالة',
+      logo: s.logo || null,
+      tagline: s.tagline || '',
+      phone: s.phone || '',
+      rating: Number(s.rating) || 0,
+      ratingCount: s.rating_count || 0,
+      featured: !!s.featured,
+    }));
+
+    return { products, categories, bundles, stores };
   } catch {
     return null;
   }
