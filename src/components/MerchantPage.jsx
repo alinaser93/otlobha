@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
-  ClipboardList, MapPin, Clock,
+  ClipboardList, MapPin, Clock, Ban, ChevronDown,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -611,27 +611,27 @@ const fmtOrderDate = (iso) => {
   } catch { return ''; }
 };
 
-function OrdersList({ token }) {
-  const [orders, setOrders] = useState(null);
-  const [loading, setLoading] = useState(true);
+function OrdersList({ token, orders, onReload }) {
+  const [busyItem, setBusyItem] = useState(null); // `${orderId}:${name}`
 
-  async function load() {
-    setLoading(true);
-    const r = await merchantListOrders(token);
-    setOrders(r?.ok ? (r.orders || []) : []);
-    setLoading(false);
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
-
-  if (loading) {
-    return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل الطلبات…</div>;
+  async function markUnavailable(orderId, name) {
+    if (!window.confirm(`تعليم «${name}» غير متوفّر؟\nسيُحذف من الطلب ويُخصم من حساب الزبون تلقائياً.`)) return;
+    setBusyItem(`${orderId}:${name}`);
+    const r = await merchantMarkItemUnavailable(token, orderId, name);
+    setBusyItem(null);
+    if (r?.ok) { await onReload?.(); }
+    else alert('تعذّر التحديث. حدّث الصفحة وحاول ثانية.');
   }
 
-  const todayCount = (orders || []).filter((o) => {
+  const list = orders || [];
+  const todayCount = list.filter((o) => {
     if (!o.created_at) return false;
     const d = new Date(o.created_at); const n = new Date();
     return d.toDateString() === n.toDateString();
   }).length;
+
+  // active orders (not done/cancelled) can still be edited by the merchant
+  const editable = (st) => st !== 'done' && st !== 'cancelled';
 
   return (
     <>
@@ -639,15 +639,16 @@ function OrdersList({ token }) {
         <div>
           <h2 className="font-display text-xl font-black text-ink dark:text-cream">طلبات متجري</h2>
           <p className="font-body text-xs text-ink/50 dark:text-cream/50">
-            {(orders || []).length} طلب{todayCount > 0 && <span className="text-copper"> · {todayCount} اليوم</span>}
+            {list.length} طلب{todayCount > 0 && <span className="text-copper"> · {todayCount} اليوم</span>}
+            <span className="ml-1 inline-flex items-center gap-1 text-green-600 dark:text-green-300">· <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500" /></span> تحديث تلقائي</span>
           </p>
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+        <button onClick={() => onReload?.()} className="flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
           <Clock className="h-4 w-4" /> تحديث
         </button>
       </div>
 
-      {(orders || []).length === 0 ? (
+      {list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-ink/15 py-16 text-center dark:border-white/15">
           <ClipboardList className="mx-auto mb-3 h-10 w-10 text-ink/20 dark:text-cream/20" />
           <p className="font-bold text-ink/50 dark:text-cream/50">لا توجد طلبات بعد</p>
@@ -655,9 +656,11 @@ function OrdersList({ token }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {orders.map((o) => {
+          {list.map((o) => {
             const [label, cls] = ORDER_STATUS[o.status] || ['—', 'bg-ink/10 text-ink/60'];
             const items = o.items || [];
+            const removed = o.removed_items || [];
+            const canEdit = editable(o.status);
             return (
               <div key={o.id} className="rounded-2xl bg-cream p-4 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
                 <div className="flex items-start justify-between gap-2">
@@ -682,16 +685,35 @@ function OrdersList({ token }) {
                 </div>
 
                 {/* this store's items */}
-                <div className="mt-3 space-y-1.5 rounded-xl bg-ink/[0.03] p-2.5 dark:bg-white/[0.03]">
-                  {items.map((it, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-ink/80 dark:text-cream/80">
-                        <span className="font-bold text-copper dark:text-copper-light">{it.qty}×</span> {it.name}
-                      </span>
-                      <span className="font-bold text-ink/60 dark:text-cream/60">{fmt(it.price * it.qty)} د.ع</span>
-                    </div>
-                  ))}
+                <div className="mt-3 space-y-1 rounded-xl bg-ink/[0.03] p-2 dark:bg-white/[0.03]">
+                  {items.length === 0 && <p className="px-1 py-2 text-center text-xs text-ink/40 dark:text-cream/40">لا منتجات لك في هذا الطلب الآن.</p>}
+                  {items.map((it, i) => {
+                    const isBusy = busyItem === `${o.id}:${it.name}`;
+                    return (
+                      <div key={i} className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1.5">
+                        <span className="min-w-0 flex-1 truncate text-sm text-ink/80 dark:text-cream/80">
+                          <span className="font-bold text-copper dark:text-copper-light">{it.qty}×</span> {it.name}
+                        </span>
+                        <span className="shrink-0 text-sm font-bold text-ink/60 dark:text-cream/60">{fmt(it.price * it.qty)} د.ع</span>
+                        {canEdit && (
+                          <button onClick={() => markUnavailable(o.id, it.name)} disabled={isBusy}
+                            title="غير متوفّر — حذف من الطلب"
+                            className="flex shrink-0 items-center gap-1 rounded-lg bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-600 transition hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300">
+                            {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} نافذ
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* removed items note */}
+                {removed.length > 0 && (
+                  <div className="mt-2 rounded-xl bg-red-500/[0.06] p-2 text-xs">
+                    <span className="font-bold text-red-600 dark:text-red-300">أُزيل لعدم التوفّر: </span>
+                    <span className="text-ink/55 dark:text-cream/55">{removed.map((r) => `${r.qty}× ${r.name}`).join('، ')}</span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -699,7 +721,7 @@ function OrdersList({ token }) {
       )}
 
       <p className="mt-4 px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
-        💡 تعرض هذه الصفحة منتجاتك فقط ضمن كل طلب. إدارة حالة الطلب والتوصيل تتم مركزياً.
+        💡 إذا نفد منتج، اضغط «نافذ» ليُحذف من الطلب ويُخصم من حساب الزبون تلقائياً. إدارة حالة الطلب والتوصيل تتم مركزياً.
       </p>
     </>
   );
@@ -730,6 +752,20 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
+  // orders + silent live sync every 8s (powers the badge and the orders tab)
+  const [orders, setOrders] = useState([]);
+  async function loadOrders() {
+    const r = await merchantListOrders(token);
+    if (r?.ok) setOrders(Array.isArray(r.orders) ? r.orders : []);
+  }
+  useEffect(() => {
+    loadOrders();
+    const t = setInterval(loadOrders, 8000);
+    return () => clearInterval(t);
+    /* eslint-disable-next-line */
+  }, []);
+  const newOrdersCount = useMemo(() => orders.filter((o) => o.status === 'new').length, [orders]);
+
   const activeCount = useMemo(() => products.filter((p) => p.active).length, [products]);
   const outCount = useMemo(() => products.filter((p) => p.stock != null && p.stock <= 0).length, [products]);
   // group products by category (sorted), preserving each product's order within its group
@@ -742,6 +778,14 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'));
   }, [products]);
+
+  // collapsible category sections (all expanded by default)
+  const [collapsedCats, setCollapsedCats] = useState(() => new Set());
+  const toggleCat = (name) => setCollapsedCats((prev) => {
+    const next = new Set(prev);
+    next.has(name) ? next.delete(name) : next.add(name);
+    return next;
+  });
 
   function openAdd() { setEditProduct(null); setInitialProduct(null); setFormOpen(true); }
   function openEdit(p) { setEditProduct(p); setInitialProduct(null); setFormOpen(true); }
@@ -786,6 +830,10 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
               <span>· {store.category}</span>
             </div>
           </div>
+          <span className="hidden items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 dark:text-green-300 sm:inline-flex">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></span>
+            مباشر
+          </span>
           <button onClick={toggleTheme} className="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
           <button onClick={onLogout} className="flex items-center gap-1.5 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-bold text-ink/70 hover:bg-red-500/10 hover:text-red-600 dark:bg-white/10 dark:text-cream/70" title="خروج"><LogOut className="h-4 w-4" /></button>
         </div>
@@ -794,8 +842,11 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
           {[['products', 'منتجاتي', Package], ['orders', 'الطلبات', ClipboardList], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+              className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
+              {k === 'orders' && newOrdersCount > 0 && (
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">{newOrdersCount}</span>
+              )}
             </button>
           ))}
         </div>
@@ -845,26 +896,39 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
                 <button onClick={openAdd} className="mt-4 flex items-center gap-1.5 rounded-xl bg-copper px-5 py-2.5 font-bold text-cream hover:bg-copper-dark"><Plus className="h-4 w-4" /> أضف أول منتج</button>
               </div>
             ) : (
-              <div className="space-y-5">
-                {grouped.map(([catName, items]) => (
-                  <div key={catName}>
-                    <div className="mb-2 flex items-center gap-2">
-                      <h3 className="font-display text-sm font-black text-copper dark:text-copper-light">{catName}</h3>
-                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[10px] font-bold text-ink/40 dark:bg-white/10 dark:text-cream/40">{items.length}</span>
-                      <span className="h-px flex-1 bg-ink/10 dark:bg-white/10" />
+              <div className="space-y-3">
+                {grouped.map(([catName, items]) => {
+                  const isCollapsed = collapsedCats.has(catName);
+                  const outInCat = items.filter((p) => p.stock != null && p.stock <= 0).length;
+                  return (
+                    <div key={catName} className="overflow-hidden rounded-2xl border border-ink/5 bg-ink/[0.02] dark:border-white/5 dark:bg-white/[0.02]">
+                      <button onClick={() => toggleCat(catName)}
+                        className="flex w-full items-center gap-2 px-3.5 py-3 transition hover:bg-ink/[0.03] dark:hover:bg-white/[0.03]">
+                        <ChevronDown className={`h-4 w-4 text-copper transition-transform duration-300 ${isCollapsed ? '-rotate-90' : ''}`} />
+                        <h3 className="font-display text-sm font-black text-copper dark:text-copper-light">{catName}</h3>
+                        <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[10px] font-bold text-copper-dark dark:text-copper-light">{items.length}</span>
+                        {outInCat > 0 && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-500">{outInCat} نافد</span>}
+                        <span className="h-px flex-1 bg-ink/10 dark:bg-white/10" />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {!isCollapsed && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: 'easeInOut' }} className="overflow-hidden">
+                            <div className="space-y-2.5 p-2.5 pt-0">
+                              {items.map((p) => (
+                                <ProductRow key={p.id} token={token} p={p} onEdit={openEdit} onChanged={load} />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    <div className="space-y-2.5">
-                      {items.map((p) => (
-                        <ProductRow key={p.id} token={token} p={p} onEdit={openEdit} onChanged={load} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
         ) : tab === 'orders' ? (
-          <OrdersList token={token} />
+          <OrdersList token={token} orders={orders} onReload={loadOrders} />
         ) : (
           <>
             <div className="mb-4">

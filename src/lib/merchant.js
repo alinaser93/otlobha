@@ -45,6 +45,9 @@ export const merchantListProducts = (token) => rpc('merchant_list_products', { p
 
 export const merchantListOrders = (token) => rpc('merchant_list_orders', { p_token: token });
 
+export const merchantMarkItemUnavailable = (token, orderId, itemName) =>
+  rpc('merchant_mark_item_unavailable', { p_token: token, p_order_id: orderId, p_item_name: itemName });
+
 export const merchantAddProduct = (token, f = {}) =>
   rpc('merchant_add_product', {
     p_token: token,
