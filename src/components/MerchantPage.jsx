@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
-  ClipboardList, MapPin, Clock, Ban, ChevronDown,
+  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -11,7 +11,7 @@ import {
   merchantLogin, merchantMe, merchantLogout,
   merchantListProducts, merchantAddProduct, merchantUpdateProduct,
   merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore,
-  merchantListOrders,
+  merchantListOrders, merchantSetItemQty,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -611,65 +611,98 @@ const fmtOrderDate = (iso) => {
   } catch { return ''; }
 };
 
-function OrdersList({ token, orders, onReload }) {
-  const [busyItem, setBusyItem] = useState(null); // `${orderId}:${name}`
+const ORDER_FILTERS = [
+  ['all', 'الكل'], ['new', 'جديد'], ['preparing', 'قيد التحضير'],
+  ['delivering', 'جارٍ التوصيل'], ['done', 'تم'],
+];
+const onlyDigits = (s) => (s || '').replace(/[^\d]/g, '');
 
-  async function markUnavailable(orderId, name) {
-    if (!window.confirm(`تعليم «${name}» غير متوفّر؟\nسيُحذف من الطلب ويُخصم من حساب الزبون تلقائياً.`)) return;
+function OrdersList({ token, orders, onReload }) {
+  const [busyItem, setBusyItem] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const maxQty = useRef({}); // capture original ordered qty per item to cap "+"
+
+  // record the highest-seen qty for each item so the merchant can restore (but not inflate beyond the order)
+  useEffect(() => {
+    for (const o of orders || []) {
+      for (const it of o.items || []) {
+        const k = `${o.id}:${it.name}`;
+        if (maxQty.current[k] == null || it.qty > maxQty.current[k]) maxQty.current[k] = it.qty;
+      }
+    }
+  }, [orders]);
+
+  async function setQty(orderId, name, newQty) {
+    if (newQty <= 0 && !window.confirm(`إزالة «${name}» من الطلب؟\nسيُخصم من حساب الزبون تلقائياً.`)) return;
     setBusyItem(`${orderId}:${name}`);
-    const r = await merchantMarkItemUnavailable(token, orderId, name);
+    const r = await merchantSetItemQty(token, orderId, name, newQty);
     setBusyItem(null);
     if (r?.ok) { await onReload?.(); }
-    else alert('تعذّر التحديث. حدّث الصفحة وحاول ثانية.');
+    else alert('تعذّر التحديث. حاول ثانية.');
   }
 
   const list = orders || [];
-  const todayCount = list.filter((o) => {
-    if (!o.created_at) return false;
-    const d = new Date(o.created_at); const n = new Date();
-    return d.toDateString() === n.toDateString();
-  }).length;
+  const shown = filter === 'all' ? list : list.filter((o) => o.status === filter);
+  const counts = list.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
 
-  // active orders (not done/cancelled) can still be edited by the merchant
-  const editable = (st) => st !== 'done' && st !== 'cancelled';
+  const today = new Date().toDateString();
+  const todayOrders = list.filter((o) => o.created_at && new Date(o.created_at).toDateString() === today);
+  const todayEarnings = todayOrders.reduce((s, o) => s + (Number(o.subtotal) || 0), 0);
+
+  const DELIV = { assigned: 'مُسند', picked: 'استلم', on_way: 'في الطريق', arrived: 'وصل', delivered: 'سُلّم' };
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-black text-ink dark:text-cream">طلبات متجري</h2>
-          <p className="font-body text-xs text-ink/50 dark:text-cream/50">
-            {list.length} طلب{todayCount > 0 && <span className="text-copper"> · {todayCount} اليوم</span>}
-            <span className="ml-1 inline-flex items-center gap-1 text-green-600 dark:text-green-300">· <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500" /></span> تحديث تلقائي</span>
-          </p>
-        </div>
-        <button onClick={() => onReload?.()} className="flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
-          <Clock className="h-4 w-4" /> تحديث
-        </button>
+      <div className="mb-3">
+        <h2 className="font-display text-xl font-black text-ink dark:text-cream">طلبات متجري</h2>
+        <p className="font-body text-xs text-ink/50 dark:text-cream/50">{list.length} طلب · {todayOrders.length} اليوم</p>
       </div>
 
-      {list.length === 0 ? (
+      {/* today's earnings */}
+      {todayOrders.length > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl bg-gradient-to-br from-green-500/15 to-emerald-500/10 p-3.5 ring-1 ring-green-500/20">
+          <span className="flex items-center gap-1.5 text-sm font-bold text-green-700 dark:text-green-300"><Tag className="h-4 w-4" /> قيمة منتجاتك اليوم</span>
+          <span className="font-display text-xl font-black text-green-700 dark:text-green-300">{fmt(todayEarnings)} <span className="text-xs">د.ع</span></span>
+        </div>
+      )}
+
+      {/* status filters */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {ORDER_FILTERS.map(([k, label]) => (
+          <button key={k} onClick={() => setFilter(k)}
+            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${filter === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/55 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/55'}`}>
+            {label}{k !== 'all' && counts[k] > 0 && <span className="mr-1 opacity-70">({counts[k]})</span>}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-ink/15 py-16 text-center dark:border-white/15">
           <ClipboardList className="mx-auto mb-3 h-10 w-10 text-ink/20 dark:text-cream/20" />
-          <p className="font-bold text-ink/50 dark:text-cream/50">لا توجد طلبات بعد</p>
+          <p className="font-bold text-ink/50 dark:text-cream/50">لا توجد طلبات{filter !== 'all' ? ' في هذا القسم' : ' بعد'}</p>
           <p className="mt-1 text-xs text-ink/40 dark:text-cream/40">ستظهر هنا الطلبات التي تحتوي منتجاتك تلقائياً.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {list.map((o) => {
+          {shown.map((o) => {
             const [label, cls] = ORDER_STATUS[o.status] || ['—', 'bg-ink/10 text-ink/60'];
             const items = o.items || [];
             const removed = o.removed_items || [];
-            const canEdit = editable(o.status);
+            const canEdit = o.status !== 'done' && o.status !== 'cancelled';
+            const isNew = o.status === 'new';
+            const dphone = o.driver_phone;
             return (
-              <div key={o.id} className="rounded-2xl bg-cream p-4 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+              <div key={o.id} className={`rounded-2xl bg-cream p-4 shadow-soft ring-1 dark:bg-night-800 ${isNew ? 'ring-2 ring-copper/40' : 'ring-brand-900/5 dark:ring-white/10'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-display font-black text-ink dark:text-cream">طلب #{o.order_no || '—'}</span>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>
                     </div>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink/45 dark:text-cream/45"><Clock className="h-3 w-3" /> {fmtOrderDate(o.created_at)}</p>
+                    <p className="mt-0.5 flex items-center gap-2 text-xs text-ink/45 dark:text-cream/45">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {fmtOrderDate(o.created_at)}</span>
+                      {o.area && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" /> {o.area}</span>}
+                    </p>
                   </div>
                   <div className="text-left">
                     <div className="text-[10px] text-ink/40 dark:text-cream/40">قيمة منتجاتك</div>
@@ -677,37 +710,53 @@ function OrdersList({ token, orders, onReload }) {
                   </div>
                 </div>
 
-                {/* customer */}
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink/60 dark:text-cream/60">
-                  {o.customer_name && <span className="font-bold text-ink/75 dark:text-cream/75">{o.customer_name}</span>}
-                  {o.area && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" /> {o.area}</span>}
-                  {o.customer_phone && <a href={`tel:${o.customer_phone}`} className="flex items-center gap-0.5 text-green-600 dark:text-green-300"><Phone className="h-3 w-3" /> {o.customer_phone}</a>}
+                {/* driver (no customer data) */}
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-ink/[0.03] px-3 py-2 dark:bg-white/[0.03]">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-ink/70 dark:text-cream/70">
+                    <Truck className="h-3.5 w-3.5 text-copper" />
+                    {o.driver_name ? `المندوب: ${o.driver_name}` : 'لم يُسنَد مندوب بعد'}
+                  </span>
+                  {dphone && (
+                    <span className="flex gap-1.5">
+                      <a href={`https://wa.me/${onlyDigits(dphone)}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded-lg bg-[#25D366]/15 px-2 py-1 text-[11px] font-bold text-[#1aa851] dark:text-[#3ddc7f]"><MessageCircle className="h-3 w-3" /> واتساب</a>
+                      <a href={`tel:${dphone}`} className="flex items-center gap-1 rounded-lg bg-ink/10 px-2 py-1 text-[11px] font-bold text-ink/70 dark:bg-white/10 dark:text-cream/70"><Phone className="h-3 w-3" /> اتصال</a>
+                    </span>
+                  )}
                 </div>
 
-                {/* this store's items */}
+                {/* items with quantity stepper */}
                 <div className="mt-3 space-y-1 rounded-xl bg-ink/[0.03] p-2 dark:bg-white/[0.03]">
                   {items.length === 0 && <p className="px-1 py-2 text-center text-xs text-ink/40 dark:text-cream/40">لا منتجات لك في هذا الطلب الآن.</p>}
                   {items.map((it, i) => {
                     const isBusy = busyItem === `${o.id}:${it.name}`;
+                    const cap = maxQty.current[`${o.id}:${it.name}`] ?? it.qty;
                     return (
                       <div key={i} className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1.5">
-                        <span className="min-w-0 flex-1 truncate text-sm text-ink/80 dark:text-cream/80">
-                          <span className="font-bold text-copper dark:text-copper-light">{it.qty}×</span> {it.name}
-                        </span>
-                        <span className="shrink-0 text-sm font-bold text-ink/60 dark:text-cream/60">{fmt(it.price * it.qty)} د.ع</span>
-                        {canEdit && (
-                          <button onClick={() => markUnavailable(o.id, it.name)} disabled={isBusy}
-                            title="غير متوفّر — حذف من الطلب"
-                            className="flex shrink-0 items-center gap-1 rounded-lg bg-red-500/10 px-2 py-1 text-[11px] font-bold text-red-600 transition hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300">
-                            {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} نافذ
-                          </button>
+                        <span className="min-w-0 flex-1 truncate text-sm text-ink/80 dark:text-cream/80">{it.name}</span>
+                        <span className="shrink-0 text-xs font-bold text-ink/45 dark:text-cream/45">{fmt(it.price)}×</span>
+                        {canEdit ? (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <button onClick={() => setQty(o.id, it.name, it.qty - 1)} disabled={isBusy}
+                              title={it.qty <= 1 ? 'إزالة' : 'إنقاص'}
+                              className="grid h-7 w-7 place-items-center rounded-lg bg-red-500/10 text-red-600 transition hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300">
+                              {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (it.qty <= 1 ? <Trash2 className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />)}
+                            </button>
+                            <span className="w-6 text-center font-display font-black text-ink dark:text-cream">{it.qty}</span>
+                            <button onClick={() => setQty(o.id, it.name, it.qty + 1)} disabled={isBusy || it.qty >= cap}
+                              title="زيادة (حتى الكمية المطلوبة)"
+                              className="grid h-7 w-7 place-items-center rounded-lg bg-ink/10 text-ink/70 transition hover:bg-ink/20 disabled:opacity-30 dark:bg-white/10 dark:text-cream/70">
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="shrink-0 font-display font-black text-ink/70 dark:text-cream/70">{it.qty}×</span>
                         )}
+                        <span className="w-16 shrink-0 text-left text-sm font-bold text-ink/60 dark:text-cream/60">{fmt(it.price * it.qty)}</span>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* removed items note */}
                 {removed.length > 0 && (
                   <div className="mt-2 rounded-xl bg-red-500/[0.06] p-2 text-xs">
                     <span className="font-bold text-red-600 dark:text-red-300">أُزيل لعدم التوفّر: </span>
@@ -721,7 +770,7 @@ function OrdersList({ token, orders, onReload }) {
       )}
 
       <p className="mt-4 px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
-        💡 إذا نفد منتج، اضغط «نافذ» ليُحذف من الطلب ويُخصم من حساب الزبون تلقائياً. إدارة حالة الطلب والتوصيل تتم مركزياً.
+        💡 عدّل الكمية بـ − / + إن توفّر جزء فقط، أو أنقصها للصفر لإزالة المنتج — ويُخصم الفرق من حساب الزبون تلقائياً. التواصل مع الزبون يتم عبر المندوب.
       </p>
     </>
   );
@@ -830,7 +879,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
               <span>· {store.category}</span>
             </div>
           </div>
-          <span className="hidden items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 dark:text-green-300 sm:inline-flex">
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 dark:text-green-300">
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" /></span>
             مباشر
           </span>
