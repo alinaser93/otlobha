@@ -9,6 +9,8 @@ import ProductModal from './ProductModal.jsx';
 export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly }) {
   const [cat, setCat] = useState('الكل');
   const [selected, setSelected] = useState(null);
+  // categories may be plain strings (fallback) or objects { name, image, emoji }
+  const cats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
   const list = cat === 'الكل' ? products : products.filter((p) => p.tag === cat);
 
   return (
@@ -27,19 +29,32 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {categories.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`rounded-full px-4 py-2 font-body text-sm font-bold transition ${
-                  cat === c
-                    ? 'bg-brand-800 text-cream shadow-soft dark:bg-brand-600'
-                    : 'bg-cream text-ink/70 ring-1 ring-brand-900/10 hover:bg-beige dark:bg-white/10 dark:text-cream/70 dark:ring-white/10 dark:hover:bg-white/20'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+            {cats.map((c) => {
+              const active = cat === c.name;
+              const thumb = c.image || c.emoji;
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => setCat(c.name)}
+                  className={`flex items-center gap-2 rounded-full py-1.5 pe-2 ps-4 font-body text-sm font-bold transition ${
+                    active
+                      ? 'bg-brand-800 text-cream shadow-soft dark:bg-brand-600'
+                      : 'bg-cream text-ink/70 ring-1 ring-brand-900/10 hover:bg-beige dark:bg-white/10 dark:text-cream/70 dark:ring-white/10 dark:hover:bg-white/20'
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  {thumb && (
+                    <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-white text-base ring-1 ring-black/5">
+                      {c.image ? (
+                        <img src={c.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
+                      ) : (
+                        <span>{c.emoji}</span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 

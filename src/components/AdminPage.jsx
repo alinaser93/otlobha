@@ -1104,7 +1104,7 @@ function CategoriesManager({ admin }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ name: '', emoji: '' });
-  const [editing, setEditing] = useState(null);
+  const [editCat, setEditCat] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [msg, setMsg] = useState('');
   const listRef = useRef([]);
@@ -1134,14 +1134,6 @@ function CategoriesManager({ admin }) {
     else setMsg(r?.error === 'exists' ? 'هذا القسم موجود مسبقاً' : 'تعذّرت الإضافة');
   }
 
-  async function saveEdit() {
-    if (!editing?.name.trim()) { setMsg('اكتب اسم القسم'); return; }
-    setMsg('');
-    const r = await adminUpdateCategory(admin.id, editing.id, { name: editing.name.trim(), emoji: (editing.emoji || '').trim() });
-    if (r?.ok) { setEditing(null); load(); }
-    else setMsg(r?.error === 'exists' ? 'الاسم مستخدم لقسم آخر' : 'تعذّر الحفظ');
-  }
-
   async function remove(c) {
     setConfirm(null); setMsg('');
     const r = await adminRemoveCategory(admin.id, c.id);
@@ -1152,7 +1144,7 @@ function CategoriesManager({ admin }) {
 
   return (
     <div className="space-y-3 px-4 pb-4">
-      <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} قسم · اسحب للترتيب · يظهر بالمتجر بنفس الترتيب</span>
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{list.length} قسم · اسحب للترتيب · اضغط ✎ لإضافة صورة</span>
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-8 text-ink/50 dark:text-cream/50">
           <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
@@ -1160,8 +1152,8 @@ function CategoriesManager({ admin }) {
       ) : (
         <Reorder.Group axis="y" values={list} onReorder={onReorder} className="space-y-2">
           {list.map((c) => (
-            <CategoryRow key={c.id} c={c} editing={editing} setEditing={setEditing}
-              onSaveEdit={saveEdit} onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
+            <CategoryRow key={c.id} c={c} onEdit={() => setEditCat(c)}
+              onDelete={remove} confirm={confirm} setConfirm={setConfirm} onPersist={persistOrder} />
           ))}
         </Reorder.Group>
       )}
@@ -1171,19 +1163,27 @@ function CategoriesManager({ admin }) {
         <div className="mb-2 flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة قسم</div>
         <div className="flex gap-2">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="اسم القسم (مثلاً: مشروبات)" className={inp + ' flex-1'} />
+            placeholder="اسم القسم (مثلاً: أجبان)" className={inp + ' flex-1'} />
           <input value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value })}
             placeholder="🏷️" className="w-16 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900" />
           <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink dark:text-cream hover:bg-copper-dark">إضافة</button>
         </div>
+        <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد الإضافة، اضغط ✎ على القسم لرفع صورة له.</p>
       </div>
+
+      <AnimatePresence>
+        {editCat && (
+          <CategoryModal admin={admin} category={editCat}
+            onClose={() => setEditCat(null)} onSaved={() => { setEditCat(null); load(); }} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function CategoryRow({ c, editing, setEditing, onSaveEdit, onDelete, confirm, setConfirm, onPersist }) {
+function CategoryRow({ c, onEdit, onDelete, confirm, setConfirm, onPersist }) {
   const controls = useDragControls();
-  const isEditing = editing?.id === c.id;
+  const [ok, setOk] = useState(true);
   return (
     <Reorder.Item value={c} dragListener={false} dragControls={controls} onDragEnd={onPersist}
       className="flex items-center gap-2 rounded-xl border border-ink/10 dark:border-white/10 bg-beige dark:bg-night-900 p-2">
@@ -1191,31 +1191,125 @@ function CategoryRow({ c, editing, setEditing, onSaveEdit, onDelete, confirm, se
         className="cursor-grab touch-none px-0.5 text-ink/30 dark:text-cream/30 active:cursor-grabbing">
         <GripVertical className="h-4 w-4" />
       </span>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-xl ring-1 ring-ink/5 dark:bg-night-800 dark:ring-white/10">
-        {(isEditing ? editing.emoji : c.emoji) || '🏷️'}
+      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-xl ring-1 ring-ink/5 dark:ring-white/10">
+        {c.image && ok
+          ? <img src={c.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" onError={() => setOk(false)} />
+          : <span>{c.emoji || '🏷️'}</span>}
       </span>
-      {isEditing ? (
-        <>
-          <input className={inp + ' flex-1'} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
-          <input className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
-            value={editing.emoji} onChange={(e) => setEditing({ ...editing, emoji: e.target.value })} placeholder="🏷️" />
-          <button onClick={onSaveEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-green-500/15 text-green-600 dark:text-green-300"><Check className="h-4 w-4" /></button>
-          <button onClick={() => setEditing(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 dark:bg-white/10"><X className="h-4 w-4" /></button>
-        </>
+      <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{c.name}</span>
+      <button onClick={onEdit}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-4 w-4" /></button>
+      {confirm === c.id ? (
+        <button onClick={() => onDelete(c)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
       ) : (
-        <>
-          <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{c.name}</span>
-          <button onClick={() => setEditing({ id: c.id, name: c.name, emoji: c.emoji || '' })}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-4 w-4" /></button>
-          {confirm === c.id ? (
-            <button onClick={() => onDelete(c)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
-          ) : (
-            <button onClick={() => setConfirm(c.id)}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
-          )}
-        </>
+        <button onClick={() => setConfirm(c.id)}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
       )}
     </Reorder.Item>
+  );
+}
+
+function CategoryModal({ admin, category, onClose, onSaved }) {
+  const [name, setName] = useState(category.name || '');
+  const [emoji, setEmoji] = useState(category.emoji || '');
+  const [image, setImage] = useState(category.image || '');
+  const [srcFile, setSrcFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanPct, setCleanPct] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSrcFile(file);
+    setUploading(true); setErr('');
+    const res = await uploadProductImage(file, 'cat-' + category.id);
+    setUploading(false);
+    if (res?.error) { setErr(res.error); return; }
+    setImage(res.url);
+  }
+
+  async function cleanBg() {
+    if (!srcFile) { setErr('ارفع صورة أولاً ثم نظّف خلفيتها'); return; }
+    setCleaning(true); setErr(''); setCleanPct(0);
+    try {
+      const blob = await cleanProductImage(srcFile, (p) => setCleanPct(p));
+      const res = await uploadProductImage(blob, 'cat-' + category.id);
+      if (res?.error) setErr(res.error);
+      else setImage(res.url);
+    } catch {
+      setErr('تعذّر تنظيف الخلفية. جرّب صورة أوضح.');
+    } finally {
+      setCleaning(false);
+    }
+  }
+
+  async function save() {
+    if (!name.trim()) { setErr('اكتب اسم القسم'); return; }
+    setBusy(true); setErr('');
+    const r = await adminUpdateCategory(admin.id, category.id, {
+      name: name.trim(), emoji: emoji.trim(), image,
+    });
+    setBusy(false);
+    if (r?.ok) onSaved();
+    else setErr(r?.error === 'exists' ? 'الاسم مستخدم لقسم آخر' : 'تعذّر الحفظ');
+  }
+
+  return (
+    <Modal title="تعديل القسم" onClose={onClose}>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-3xl ring-1 ring-ink/10 dark:ring-white/10">
+          {uploading
+            ? <Loader2 className="h-6 w-6 animate-spin text-copper" />
+            : image
+              ? <img src={image} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" />
+              : <span>{emoji || '🏷️'}</span>}
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-copper/90 py-0.5 text-[9px] font-bold text-white">
+            <ImageIcon className="h-2.5 w-2.5" /> صورة
+          </span>
+        </button>
+        <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+          اضغط المربّع لرفع صورة للقسم (مثل صورة فواكه أو أجبان). الأفضل خلفية بيضاء.
+          {srcFile && (
+            <button type="button" onClick={cleanBg} disabled={cleaning || uploading}
+              className="mt-2 flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:opacity-90 disabled:opacity-60">
+              {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {cleaning ? (cleanPct ? `ينظّف… ${cleanPct}%` : 'يحمّل الأداة…') : 'نظّف الخلفية'}
+            </button>
+          )}
+          {image && !cleaning && (
+            <button type="button" onClick={() => { setImage(''); setSrcFile(null); }} className="mt-1 block font-bold text-red-600 dark:text-red-300">
+              إزالة الصورة (يرجع للإيموجي)
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <Lbl label="اسم القسم" full>
+          <input className={inp} value={name} onChange={(e) => setName(e.target.value)} />
+        </Lbl>
+        <Lbl label="إيموجي احتياطي">
+          <input className={inp} value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🏷️" />
+        </Lbl>
+      </div>
+
+      {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={busy || uploading || cleaning}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ
+        </button>
+        <button onClick={onClose} className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
+      </div>
+    </Modal>
   );
 }
 

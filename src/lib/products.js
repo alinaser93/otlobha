@@ -60,7 +60,7 @@ export const adminReorderProducts = (adminId, ids) =>
 export const adminListCategories = (adminId) => rpc('admin_list_categories', { p_admin_id: adminId });
 
 export const adminAddCategory = (adminId, f = {}) =>
-  rpc('admin_add_category', { p_admin_id: adminId, p_name: f.name, p_emoji: f.emoji || null });
+  rpc('admin_add_category', { p_admin_id: adminId, p_name: f.name, p_emoji: f.emoji || null, p_image: f.image ?? null });
 
 export const adminUpdateCategory = (adminId, id, f = {}) =>
   rpc('admin_update_category', {
@@ -70,6 +70,7 @@ export const adminUpdateCategory = (adminId, id, f = {}) =>
     p_emoji: f.emoji ?? null,
     p_sort: f.sort ?? null,
     p_active: f.active ?? null,
+    p_image: f.image ?? null,
   });
 
 export const adminRemoveCategory = (adminId, id) =>
@@ -147,7 +148,10 @@ export async function fetchStoreCatalog() {
       badge: r.badge || undefined,
       description: r.description || '',
     }));
-    const categories = ['الكل', ...(cr.data || []).map((c) => c.name)];
+    const categories = [
+      { name: 'الكل', image: null, emoji: null },
+      ...(cr.data || []).map((c) => ({ name: c.name, image: c.image || null, emoji: c.emoji || null })),
+    ];
 
     // bundles map back to the exact shape BundleCard/cart expect (parallel arrays)
     const bundles = (br.error ? [] : (br.data || [])).map((r) => {
