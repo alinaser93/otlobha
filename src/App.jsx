@@ -69,7 +69,13 @@ function FreshnessPromise() {
 }
 
 export default function App() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => {
+    try { const raw = localStorage.getItem('otlobha-cart'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
+  // keep the cart across reloads
+  useEffect(() => {
+    try { localStorage.setItem('otlobha-cart', JSON.stringify(items)); } catch { /* ignore quota */ }
+  }, [items]);
   const [myActiveOrder, setMyActiveOrder] = useState(null);
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);

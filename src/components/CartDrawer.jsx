@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingCart, Gift, MessageCircle, Truck, PartyPopper, Plus, Minus, Trash2, Package, ChevronLeft } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, calcDelivery } from '../config.js';
@@ -92,23 +92,48 @@ function MiniOrderTracker({ order }) {
   );
 }
 
-// a cart line that can be swiped left to reveal delete, with +/- stepper
+// a cart line with a reliable +/- stepper and a SAFE native-touch swipe
+// (swipe right = +1 with a celebratory cue, swipe left = -1). No framer-motion
+// drag here on purpose — it left a stuck touch-state that froze the page on mobile.
 function CartRow({ it, onInc, onDec, onRemove }) {
-  const x = useMotionValue(0);
-  const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.4, 0]);
+  const [dx, setDx] = useState(0);          // live swipe offset
+  const [flash, setFlash] = useState(null); // 'inc' | 'dec' brief feedback
+  const start = useRef(null);
+  const THRESH = 55;
+
+  function onTouchStart(e) { start.current = e.touches[0].clientX; }
+  function onTouchMove(e) {
+    if (start.current == null) return;
+    const delta = e.touches[0].clientX - start.current;
+    // a little resistance so it feels elastic
+    setDx(Math.max(-100, Math.min(100, delta * 0.7)));
+  }
+  function onTouchEnd() {
+    if (dx >= THRESH) { onInc(it.key); ping('inc'); }
+    else if (dx <= -THRESH) { onDec(it.key); ping('dec'); }
+    setDx(0);
+    start.current = null;
+  }
+  function ping(kind) { setFlash(kind); setTimeout(() => setFlash(null), 450); }
+
+  const showInc = dx > 12;   // swiping right reveals the green "add" hint
+  const showDec = dx < -12;  // swiping left reveals the amber "less" hint
+
   return (
-    <div className="relative mb-3 overflow-hidden rounded-2xl">
-      {/* delete background revealed on swipe */}
-      <motion.div style={{ opacity: bgOpacity }} className="absolute inset-0 flex items-center justify-start rounded-2xl bg-red-500 pl-5">
-        <Trash2 className="h-5 w-5 text-white" />
-      </motion.div>
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={{ left: 0.6, right: 0 }}
-        onDragEnd={(_, info) => { if (info.offset.x < -90) onRemove(it.key); }}
-        style={{ x }}
-        className="relative flex items-center gap-3 rounded-2xl bg-white/40 p-3 ring-1 ring-white/40 backdrop-blur-sm dark:bg-white/[0.08] dark:ring-white/10"
+    <div className="relative mb-3 select-none overflow-hidden rounded-2xl">
+      {/* swipe hints behind the row */}
+      <div className="absolute inset-0 flex items-center justify-between rounded-2xl px-5">
+        <span className={`flex items-center gap-1 font-display text-sm font-black text-green-600 transition-opacity ${showInc ? 'opacity-100' : 'opacity-0'}`}><Plus className="h-5 w-5" /> زيادة</span>
+        <span className={`flex items-center gap-1 font-display text-sm font-black text-amber-600 transition-opacity ${showDec ? 'opacity-100' : 'opacity-0'}`}>إنقاص <Minus className="h-5 w-5" /></span>
+      </div>
+
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={() => { setDx(0); start.current = null; }}
+        style={{ transform: `translateX(${dx}px)`, transition: start.current == null ? 'transform .2s ease' : 'none' }}
+        className={`relative flex items-center gap-3 rounded-2xl bg-white/45 p-3 ring-1 backdrop-blur-sm dark:bg-white/[0.08] dark:ring-white/10 ${flash === 'inc' ? 'ring-2 ring-green-400' : flash === 'dec' ? 'ring-2 ring-amber-400' : 'ring-white/40'}`}
       >
         <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/80 text-2xl ring-1 ring-white/50">
           <CartThumb image={it.image} emoji={it.emoji} />
@@ -119,17 +144,24 @@ function CartRow({ it, onInc, onDec, onRemove }) {
         </div>
         {/* stepper */}
         <div className="flex shrink-0 items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-white/60 dark:bg-night-900/60 dark:ring-white/10">
-          <button onClick={() => onDec(it.key)} aria-label="إنقاص"
-            className="grid h-7 w-7 place-items-center rounded-full bg-ink/5 text-ink/70 transition hover:bg-ink/10 active:scale-90 dark:bg-white/10 dark:text-cream/70">
-            {it.qty <= 1 ? <Trash2 className="h-3.5 w-3.5 text-red-500" /> : <Minus className="h-4 w-4" />}
-          </button>
-          <span className="min-w-6 text-center font-display text-sm font-black text-ink dark:text-cream">{it.qty}</span>
-          <button onClick={() => onInc(it.key)} aria-label="زيادة"
+          {it.qty <= 1 ? (
+            <button onClick={() => onRemove(it.key)} aria-label="حذف"
+              className="grid h-7 w-7 place-items-center rounded-full bg-red-500/10 text-red-500 transition hover:bg-red-500/20 active:scale-90">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          ) : (
+            <button onClick={() => onDec(it.key)} aria-label="إنقاص"
+              className="grid h-7 w-7 place-items-center rounded-full bg-ink/5 text-ink/70 transition hover:bg-ink/10 active:scale-90 dark:bg-white/10 dark:text-cream/70">
+              <Minus className="h-4 w-4" />
+            </button>
+          )}
+          <span className={`min-w-6 text-center font-display text-sm font-black text-ink transition-transform dark:text-cream ${flash === 'inc' ? 'scale-150 text-green-600' : ''}`}>{it.qty}</span>
+          <button onClick={() => { onInc(it.key); ping('inc'); }} aria-label="زيادة"
             className="grid h-7 w-7 place-items-center rounded-full bg-copper text-cream transition hover:bg-copper-dark active:scale-90">
             <Plus className="h-4 w-4" />
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -194,7 +226,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer, onChe
                   {items.map((it) => (
                     <CartRow key={it.key} it={it} onInc={onInc} onDec={onDec} onRemove={onRemove} />
                   ))}
-                  <p className="mt-1 text-center font-body text-[11px] text-ink/40 dark:text-cream/40">اسحب المنتج لليسار للحذف ←</p>
+                  <p className="mt-1 text-center font-body text-[11px] text-ink/40 dark:text-cream/40">اسحب المنتج يميناً للزيادة · يساراً للإنقاص 👆</p>
                 </>
               )}
             </div>
