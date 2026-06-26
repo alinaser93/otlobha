@@ -43,6 +43,8 @@ export const merchantUpdateStore = (token, f = {}) =>
 // products (store-scoped)
 export const merchantListProducts = (token) => rpc('merchant_list_products', { p_token: token });
 
+export const merchantListOrders = (token) => rpc('merchant_list_orders', { p_token: token });
+
 export const merchantAddProduct = (token, f = {}) =>
   rpc('merchant_add_product', {
     p_token: token,

@@ -3,7 +3,7 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import {
   Lock, LogOut, RefreshCw, Loader2, Package, Clock, MapPin, Phone,
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
-  ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
+  ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
   Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star,
 } from 'lucide-react';
@@ -30,6 +30,7 @@ import {
   adminSetBundleActive, adminReorderBundles,
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
+  adminSetStoreCommission, adminCommissionReport,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
@@ -155,6 +156,7 @@ function Dashboard({ admin, onOut }) {
   const [showProducts, setShowProducts] = useState(false);
   const [showCats, setShowCats] = useState(false);
   const [showStores, setShowStores] = useState(false);
+  const [showEarnings, setShowEarnings] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
@@ -402,6 +404,22 @@ function Dashboard({ admin, onOut }) {
             {showStores && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                 <StoresManager admin={admin} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* earnings / commission */}
+        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
+          <button onClick={() => setShowEarnings((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
+            <span className="flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /> أرباحي (العمولات)</span>
+            <ChevronDown className={`h-5 w-5 transition ${showEarnings ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showEarnings && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <EarningsManager admin={admin} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1435,6 +1453,100 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
 /* ════════════════════════════ Stores ════════════════════════════ */
 const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
 
+function EarningsManager({ admin }) {
+  const [range, setRange] = useState('all');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const sinceFor = (r) => {
+    const now = new Date();
+    if (r === 'today') { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.toISOString(); }
+    if (r === 'week') return new Date(now.getTime() - 7 * 86400000).toISOString();
+    if (r === 'month') return new Date(now.getTime() - 30 * 86400000).toISOString();
+    return null;
+  };
+
+  async function load(r) {
+    setLoading(true);
+    const res = await adminCommissionReport(admin.id, sinceFor(r));
+    setData(res?.ok ? res : { ok: false, stores: [], total_revenue: 0, total_commission: 0 });
+    setLoading(false);
+  }
+  useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range]);
+
+  const stores = data?.stores || [];
+
+  return (
+    <div className="space-y-4 p-4">
+      {/* range filter */}
+      <div className="flex flex-wrap gap-2">
+        {[['today', 'اليوم'], ['week', 'آخر أسبوع'], ['month', 'آخر شهر'], ['all', 'الكل']].map(([k, label]) => (
+          <button key={k} onClick={() => setRange(k)}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-bold transition ${range === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ الحساب…</div>
+      ) : (
+        <>
+          {/* totals */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-gradient-to-br from-green-500/15 to-emerald-500/10 p-4 ring-1 ring-green-500/20">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300"><Wallet className="h-3.5 w-3.5" /> أرباحك (عمولات)</div>
+              <div className="mt-1 font-display text-2xl font-black text-green-700 dark:text-green-300">{fmt(data?.total_commission || 0)}<span className="text-sm"> د.ع</span></div>
+            </div>
+            <div className="rounded-2xl bg-ink/5 p-4 ring-1 ring-ink/10 dark:bg-white/5 dark:ring-white/10">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-ink/60 dark:text-cream/60"><TrendingUp className="h-3.5 w-3.5" /> إجمالي المبيعات</div>
+              <div className="mt-1 font-display text-2xl font-black text-ink dark:text-cream">{fmt(data?.total_revenue || 0)}<span className="text-sm"> د.ع</span></div>
+            </div>
+          </div>
+
+          {/* per-store */}
+          {stores.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-ink/15 py-10 text-center text-sm text-ink/40 dark:border-white/15 dark:text-cream/40">
+              لا توجد أرباح في هذه الفترة بعد.<br />
+              <span className="text-xs">تُحسب العمولات من الطلبات الجديدة التي تحمل بيانات المتجر.</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="px-1 text-xs font-bold text-ink/40 dark:text-cream/40">الأرباح حسب المتجر</div>
+              {stores.map((s) => (
+                <div key={s.id} className="rounded-2xl bg-cream p-3.5 ring-1 ring-brand-900/5 dark:bg-night-900 dark:ring-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="font-display font-bold text-ink dark:text-cream">{s.name}</span>
+                    <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[11px] font-bold text-copper-dark dark:text-copper-light">عمولة {s.pct}%</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-ink/5 py-1.5 dark:bg-white/5">
+                      <div className="text-[10px] text-ink/40 dark:text-cream/40">مبيعات</div>
+                      <div className="text-sm font-bold text-ink dark:text-cream">{fmt(s.revenue)}</div>
+                    </div>
+                    <div className="rounded-lg bg-green-500/10 py-1.5">
+                      <div className="text-[10px] text-green-700/70 dark:text-green-300/70">ربحك</div>
+                      <div className="text-sm font-black text-green-700 dark:text-green-300">{fmt(s.commission)}</div>
+                    </div>
+                    <div className="rounded-lg bg-ink/5 py-1.5 dark:bg-white/5">
+                      <div className="text-[10px] text-ink/40 dark:text-cream/40">للمتجر</div>
+                      <div className="text-sm font-bold text-ink dark:text-cream">{fmt(s.net)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
+            💡 «ربحك» = عمولتك من مبيعات المتجر. «للمتجر» = المبلغ المستحقّ للمتجر بعد عمولتك. تُحسب من الطلبات غير الملغاة.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function StoresManager({ admin }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1556,6 +1668,7 @@ function StoreModal({ admin, store, onClose, onSaved }) {
   const [tagline, setTagline] = useState(store.tagline || '');
   const [phone, setPhone] = useState(store.phone || '');
   const [rating, setRating] = useState(store.rating != null ? String(store.rating) : '');
+  const [commission, setCommission] = useState(store.commission_pct != null ? String(store.commission_pct) : '15');
   const [logo, setLogo] = useState(store.logo || '');
   const [cover, setCover] = useState(store.cover || '');
   const [coverVideo, setCoverVideo] = useState(store.cover_video || store.coverVideo || '');
@@ -1624,6 +1737,8 @@ function StoreModal({ admin, store, onClose, onSaved }) {
       rating: rating === '' ? null : Math.min(5, Math.max(0, parseFloat(rating) || 0)),
       logo, cover, coverVideo,
     });
+    // save commission rate (best-effort, separate RPC)
+    await adminSetStoreCommission(admin.id, store.id, commission === '' ? 15 : Math.min(100, Math.max(0, parseFloat(commission) || 0)));
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr(r?.error === 'exists' ? 'الاسم مستخدم لمتجر آخر' : 'تعذّر الحفظ');
@@ -1696,6 +1811,9 @@ function StoreModal({ admin, store, onClose, onSaved }) {
         </Lbl>
         <Lbl label="التقييم (0-5)">
           <input type="number" step="0.1" min="0" max="5" dir="ltr" className={inp} value={rating} onChange={(e) => setRating(e.target.value)} placeholder="مثلاً: 4.5" />
+        </Lbl>
+        <Lbl label="نسبة عمولتك % (ربحك من المتجر)">
+          <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={commission} onChange={(e) => setCommission(e.target.value)} placeholder="15" />
         </Lbl>
         <Lbl label="هاتف المتجر (اختياري)" full>
           <input dir="ltr" className={inp} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXXX" />

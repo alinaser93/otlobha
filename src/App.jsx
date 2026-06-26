@@ -203,7 +203,7 @@ export default function App() {
       if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + 1 } : i));
       // bundles carry an `emojis` array; products carry a single `emoji`
       const image = p.emojis ? (p.images?.[0] ?? p.image) : p.image;
-      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: 1 }];
+      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: 1, storeId: p.storeId ?? null }];
     });
     setBump(true);
     setTimeout(() => setBump(false), 520);

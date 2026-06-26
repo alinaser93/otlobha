@@ -146,6 +146,13 @@ export const storeMyFollows = (accountId) =>
 export const adminSetStoreCredentials = (adminId, storeId, username, password) =>
   rpc('admin_set_store_credentials', { p_admin_id: adminId, p_store_id: storeId, p_username: username, p_password: password });
 
+/* ───────────────────────── commission / earnings (admin) ───────────────────────── */
+export const adminSetStoreCommission = (adminId, storeId, pct) =>
+  rpc('admin_set_store_commission', { p_admin_id: adminId, p_store_id: storeId, p_pct: pct });
+
+export const adminCommissionReport = (adminId, since = null) =>
+  rpc('admin_commission_report', { p_admin_id: adminId, p_since: since });
+
 /* ───────────────────────── bundles (admin) ───────────────────────── */
 export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
 

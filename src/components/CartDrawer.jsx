@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingCart, Gift, MessageCircle } from 'lucide-react';
+import { X, ShoppingCart, Gift, MessageCircle, Truck, PartyPopper } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { FREE_DELIVERY_OVER, calcDelivery } from '../config.js';
 
 // cart line thumbnail: real product image (white bg melts via multiply), emoji fallback.
-// the tile stays light in both themes so the product is always visible.
 function CartThumb({ image, emoji }) {
   const [ok, setOk] = useState(true);
   if (image && ok) {
@@ -21,7 +21,47 @@ function CartThumb({ image, emoji }) {
   return <span>{emoji}</span>;
 }
 
+// motivational progress toward free delivery — nudges the customer to add more
+function FreeDeliveryBar({ total, storeCount }) {
+  if (!FREE_DELIVERY_OVER || FREE_DELIVERY_OVER <= 0) return null;
+  const reached = total >= FREE_DELIVERY_OVER;
+  const pct = Math.max(0, Math.min(100, Math.round((total / FREE_DELIVERY_OVER) * 100)));
+  const remaining = Math.max(0, FREE_DELIVERY_OVER - total);
+  const fee = calcDelivery(total, storeCount);
+
+  return (
+    <div className={`mb-3 rounded-2xl p-3 ring-1 backdrop-blur-md ${reached ? 'bg-green-500/15 ring-green-500/30' : 'bg-copper/10 ring-copper/25'}`}>
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold">
+        {reached ? (
+          <span className="flex items-center gap-1.5 text-green-700 dark:text-green-300">
+            <PartyPopper className="h-4 w-4" /> رائع! حصلت على توصيل مجاني 🎉
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-copper-dark dark:text-copper-light">
+            <Truck className="h-4 w-4" /> باقي <span className="font-black">{fmt(remaining)}</span> د.ع للتوصيل المجاني
+          </span>
+        )}
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
+        <motion.div
+          className={`h-full rounded-full ${reached ? 'bg-green-500' : 'bg-gradient-to-l from-copper to-copper-light'}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+        />
+      </div>
+      {!reached && (
+        <p className="mt-1.5 text-[11px] text-ink/50 dark:text-cream/50">
+          التوصيل الآن: <span className="font-bold">{fmt(fee)} د.ع</span>
+          {storeCount > 1 && <span> ({storeCount} متاجر)</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function CartDrawer({ open, onClose, items, total, onRefer, onCheckout }) {
+  const storeCount = Math.max(1, new Set((items || []).map((it) => it.storeId).filter(Boolean)).size || 1);
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
     return () => {
@@ -100,6 +140,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer, onChe
               >
                 <Gift className="h-4 w-4" /> اربح 5,000 د.ع — شارك الرابط
               </button>
+              {items.length > 0 && <FreeDeliveryBar total={total} storeCount={storeCount} />}
               <div className="mb-3 flex items-center justify-between font-display">
                 <span className="text-ink/70 dark:text-cream/70">المجموع</span>
                 <span className="text-2xl font-black text-brand-800 dark:text-brand-400">

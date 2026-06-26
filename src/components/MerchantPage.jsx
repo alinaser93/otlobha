@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
+  ClipboardList, MapPin, Clock,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -10,6 +11,7 @@ import {
   merchantLogin, merchantMe, merchantLogout,
   merchantListProducts, merchantAddProduct, merchantUpdateProduct,
   merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore,
+  merchantListOrders,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -592,6 +594,117 @@ function ProductRow({ token, p, onEdit, onChanged }) {
 }
 
 /* ───────────────────────── dashboard ───────────────────────── */
+// ───────────────────────── merchant orders (read-only, scoped to this store) ─────────────────────────
+const ORDER_STATUS = {
+  new: ['جديد', 'bg-blue-500/15 text-blue-600 dark:text-blue-300'],
+  preparing: ['قيد التحضير', 'bg-amber-500/15 text-amber-600 dark:text-amber-300'],
+  delivering: ['جارٍ التوصيل', 'bg-purple-500/15 text-purple-600 dark:text-purple-300'],
+  done: ['تم', 'bg-green-500/15 text-green-600 dark:text-green-300'],
+  cancelled: ['ملغى', 'bg-red-500/15 text-red-600 dark:text-red-300'],
+};
+const fmtOrderDate = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('ar', { month: 'short', day: 'numeric' }) + ' · ' +
+      d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+};
+
+function OrdersList({ token }) {
+  const [orders, setOrders] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    const r = await merchantListOrders(token);
+    setOrders(r?.ok ? (r.orders || []) : []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل الطلبات…</div>;
+  }
+
+  const todayCount = (orders || []).filter((o) => {
+    if (!o.created_at) return false;
+    const d = new Date(o.created_at); const n = new Date();
+    return d.toDateString() === n.toDateString();
+  }).length;
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-black text-ink dark:text-cream">طلبات متجري</h2>
+          <p className="font-body text-xs text-ink/50 dark:text-cream/50">
+            {(orders || []).length} طلب{todayCount > 0 && <span className="text-copper"> · {todayCount} اليوم</span>}
+          </p>
+        </div>
+        <button onClick={load} className="flex items-center gap-1.5 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+          <Clock className="h-4 w-4" /> تحديث
+        </button>
+      </div>
+
+      {(orders || []).length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-16 text-center dark:border-white/15">
+          <ClipboardList className="mx-auto mb-3 h-10 w-10 text-ink/20 dark:text-cream/20" />
+          <p className="font-bold text-ink/50 dark:text-cream/50">لا توجد طلبات بعد</p>
+          <p className="mt-1 text-xs text-ink/40 dark:text-cream/40">ستظهر هنا الطلبات التي تحتوي منتجاتك تلقائياً.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {orders.map((o) => {
+            const [label, cls] = ORDER_STATUS[o.status] || ['—', 'bg-ink/10 text-ink/60'];
+            const items = o.items || [];
+            return (
+              <div key={o.id} className="rounded-2xl bg-cream p-4 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-display font-black text-ink dark:text-cream">طلب #{o.order_no || '—'}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>
+                    </div>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink/45 dark:text-cream/45"><Clock className="h-3 w-3" /> {fmtOrderDate(o.created_at)}</p>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[10px] text-ink/40 dark:text-cream/40">قيمة منتجاتك</div>
+                    <div className="font-display font-black text-copper dark:text-copper-light">{fmt(o.subtotal)} <span className="text-xs">د.ع</span></div>
+                  </div>
+                </div>
+
+                {/* customer */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink/60 dark:text-cream/60">
+                  {o.customer_name && <span className="font-bold text-ink/75 dark:text-cream/75">{o.customer_name}</span>}
+                  {o.area && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" /> {o.area}</span>}
+                  {o.customer_phone && <a href={`tel:${o.customer_phone}`} className="flex items-center gap-0.5 text-green-600 dark:text-green-300"><Phone className="h-3 w-3" /> {o.customer_phone}</a>}
+                </div>
+
+                {/* this store's items */}
+                <div className="mt-3 space-y-1.5 rounded-xl bg-ink/[0.03] p-2.5 dark:bg-white/[0.03]">
+                  {items.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-ink/80 dark:text-cream/80">
+                        <span className="font-bold text-copper dark:text-copper-light">{it.qty}×</span> {it.name}
+                      </span>
+                      <span className="font-bold text-ink/60 dark:text-cream/60">{fmt(it.price * it.qty)} د.ع</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="mt-4 px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
+        💡 تعرض هذه الصفحة منتجاتك فقط ضمن كل طلب. إدارة حالة الطلب والتوصيل تتم مركزياً.
+      </p>
+    </>
+  );
+}
+
 function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   const { token } = session;
   const [store, setStore] = useState(session.store);
@@ -679,7 +792,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
 
         {/* tabs */}
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {[['products', 'منتجاتي', Package], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
+          {[['products', 'منتجاتي', Package], ['orders', 'الطلبات', ClipboardList], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -750,6 +863,8 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
               </div>
             )}
           </>
+        ) : tab === 'orders' ? (
+          <OrdersList token={token} />
         ) : (
           <>
             <div className="mb-4">

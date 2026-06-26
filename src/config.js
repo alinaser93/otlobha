@@ -10,10 +10,19 @@ export const SHOP_NAME = 'اطلبها';
 export const CITY = 'السماوة';
 
 // 🚚 التوصيل
-// DELIVERY_FEE: أجور التوصيل بالدينار (0 = توصيل مجاني دائماً).
-// FREE_DELIVERY_OVER: يصبح التوصيل مجانياً فوق هذا المبلغ (0 = معطّل).
-export const DELIVERY_FEE = 0;
-export const FREE_DELIVERY_OVER = 0;
+// النظام: أجور أساسية + زيادة لكل متجر إضافي (بسقف)، ويصبح مجانياً فوق مبلغ معيّن.
+// عدّل الأرقام هنا حسب حاجتك (بالدينار):
+export const DELIVERY_FEE = 2000;          // الأجور الأساسية (متجر واحد)
+export const DELIVERY_EXTRA_STORE = 500;   // يُضاف لكل متجر إضافي بعد الأول
+export const DELIVERY_FEE_CAP = 3000;      // الحد الأقصى للأجور مهما تعدّدت المتاجر
+export const FREE_DELIVERY_OVER = 80000;   // توصيل مجاني فوق هذا المبلغ (0 = معطّل)
+
+// يحسب أجور التوصيل حسب إجمالي السلّة وعدد المتاجر المختلفة فيها
+export function calcDelivery(total, storeCount = 1) {
+  if (FREE_DELIVERY_OVER > 0 && total >= FREE_DELIVERY_OVER) return 0;
+  const extra = Math.max(0, (storeCount || 1) - 1) * DELIVERY_EXTRA_STORE;
+  return Math.min(DELIVERY_FEE + extra, DELIVERY_FEE_CAP);
+}
 
 // 📍 مناطق/أحياء السماوة وأقضيتها — أضِف أو احذف بحرية
 export const AREAS = [
