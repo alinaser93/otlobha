@@ -30,6 +30,7 @@ import {
 } from '../lib/products.js';
 import { uploadProductImage } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
+import { cleanProductImage } from '../lib/bgremove.js';
 
 const STATUS = {
   new: { label: 'جديد', dot: 'bg-amber-400', chip: 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300', glow: 'bg-amber-400/40' },
@@ -936,12 +937,30 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
     description: product?.description || '',
   });
   const [image, setImage] = useState(product?.image || '');
+  const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanPct, setCleanPct] = useState(0);
   const [busy, setBusy] = useState(false);
   const [gen, setGen] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e.target.value }));
+
+  async function cleanBg() {
+    if (!srcFile) { setErr('ارفع صورة من جهازك أولاً ثم نظّف خلفيتها'); return; }
+    setCleaning(true); setErr(''); setCleanPct(0);
+    try {
+      const blob = await cleanProductImage(srcFile, (p) => setCleanPct(p));
+      const res = await uploadProductImage(blob, product?.id || 'new');
+      if (res?.error) setErr(res.error);
+      else setImage(res.url);
+    } catch {
+      setErr('تعذّر تنظيف الخلفية. جرّب صورة أوضح أو جهازاً أقوى.');
+    } finally {
+      setCleaning(false);
+    }
+  }
 
   async function writeWithAI() {
     if (!f.name.trim()) { setErr('اكتب اسم المنتج أولاً'); return; }
@@ -958,6 +977,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    setSrcFile(file);
     setUploading(true); setErr('');
     const res = await uploadProductImage(file, product?.id || 'new');
     setUploading(false);
@@ -1005,8 +1025,18 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
         </button>
         <div className="text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
           اضغط المربّع لرفع صورة المنتج من جهازك. الأفضل صورة على خلفية بيضاء.
-          {image && (
-            <button type="button" onClick={() => setImage('')} className="mt-1 block font-bold text-red-600 dark:text-red-300">
+          {srcFile && (
+            <button type="button" onClick={cleanBg} disabled={cleaning || uploading}
+              className="mt-2 flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white transition hover:opacity-90 disabled:opacity-60">
+              {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {cleaning ? (cleanPct ? `ينظّف… ${cleanPct}%` : 'يحمّل الأداة…') : 'نظّف الخلفية (أبيض موحّد)'}
+            </button>
+          )}
+          {cleaning && (
+            <span className="mt-1 block text-[10px] text-ink/40 dark:text-cream/40">أول مرّة قد تأخذ وقتاً لتحميل الأداة (~٢٠ ميغا، مرّة واحدة).</span>
+          )}
+          {image && !cleaning && (
+            <button type="button" onClick={() => { setImage(''); setSrcFile(null); }} className="mt-1 block font-bold text-red-600 dark:text-red-300">
               إزالة الصورة (يرجع للإيموجي)
             </button>
           )}
