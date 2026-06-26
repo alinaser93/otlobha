@@ -16,7 +16,7 @@ import { useAuth } from './lib/auth.jsx';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
 import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
-import { WHATSAPP_NUMBER, applySettings } from './config.js';
+import { SETTINGS, applySettings } from './config.js';
 
 /* ── slim promo bar ── */
 function TopBar() {
@@ -314,7 +314,7 @@ export default function App() {
 
       {/* floating WhatsApp customer-service button — bottom-right */}
       <motion.a
-        href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('مرحباً، لديّ استفسار 🙏')}`}
+        href={`https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent('مرحباً، لديّ استفسار 🙏')}`}
         target="_blank"
         rel="noreferrer"
         whileTap={{ scale: 0.92 }}

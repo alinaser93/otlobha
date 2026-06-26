@@ -5,13 +5,11 @@ import { fmt } from '../data/catalog.js';
 import { createOrder } from '../lib/orders.js';
 import { useAuth } from '../lib/auth.jsx';
 import {
-  WHATSAPP_NUMBER,
+  SETTINGS,
   SHOP_NAME,
   CITY,
   AREAS,
   PAYMENT_METHODS,
-  DELIVERY_FEE,
-  FREE_DELIVERY_OVER,
   calcDelivery,
 } from '../config.js';
 
@@ -130,7 +128,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       `💰 *الإجمالي: ${fmt(grand)} د.ع*`,
     ].filter(Boolean);
 
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join('\n'))}`;
+    const url = `https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent(parts.join('\n'))}`;
     window.open(url, '_blank');
 
     // Save the order to the database + grant loyalty points (registered users).

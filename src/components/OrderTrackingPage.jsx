@@ -5,7 +5,7 @@ import {
   Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { WHATSAPP_NUMBER, SHOP_NAME } from '../config.js';
+import { SETTINGS, SHOP_NAME } from '../config.js';
 import { getOrderByToken } from '../lib/orders.js';
 import LiveRouteMap from './LiveRouteMap.jsx';
 
@@ -103,7 +103,7 @@ export default function OrderTrackingPage() {
   const step = currentStep(order);
   const cancelled = step === -1;
   const items = Array.isArray(order.items) ? order.items : [];
-  const wa = digits(WHATSAPP_NUMBER);
+  const wa = digits(SETTINGS.whatsapp_number);
   const hasMap = order.driver_lat && order.driver_lng;
   const driverPt = hasMap ? { lat: order.driver_lat, lng: order.driver_lng } : null;
   // customer location is stored in location_url as ...?q=LAT,LNG

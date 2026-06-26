@@ -20,14 +20,18 @@ export const SETTINGS = {
   driver_fee_base: 1500,            // أجرة المندوب لكل توصيل
   driver_fee_per_extra_store: 500,  // يُضاف لأجرة المندوب لكل متجر إضافي
   default_commission_pct: 15,       // العمولة الافتراضية للمتاجر الجديدة
+  whatsapp_number: '9647748600445', // رقم واتساب استلام الطلبات/الاستفسارات
 };
+
+const NUMERIC_KEYS = ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct'];
 
 // يدمج إعدادات قادمة من الخادم في الكائن الحيّ (يُستدعى عند الإقلاع وبعد أي تعديل)
 export function applySettings(s) {
   if (!s) return;
-  for (const k of Object.keys(SETTINGS)) {
+  for (const k of NUMERIC_KEYS) {
     if (s[k] != null && !Number.isNaN(Number(s[k]))) SETTINGS[k] = Number(s[k]);
   }
+  if (typeof s.whatsapp_number === 'string' && s.whatsapp_number.trim()) SETTINGS.whatsapp_number = s.whatsapp_number.trim();
 }
 
 // ثوابت للتوافق الخلفي (قيمها الابتدائية فقط)

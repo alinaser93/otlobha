@@ -160,6 +160,7 @@ function Dashboard({ admin, onOut }) {
   const [showStores, setShowStores] = useState(false);
   const [showEarnings, setShowEarnings] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [section, setSection] = useState('orders'); // orders | catalog | stores | finance | people | settings | profile
   const [showBundles, setShowBundles] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
@@ -269,6 +270,17 @@ function Dashboard({ admin, onOut }) {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
+        {/* section navigation */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
+            <button key={k} onClick={() => setSection(k)}
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${section === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+
+        {section === 'orders' && (<>
         {/* stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat icon={Clock} label="طلبات اليوم" value={stats?.today_orders ?? '—'} accent="text-amber-700 dark:text-amber-300" />
@@ -331,194 +343,94 @@ function Dashboard({ admin, onOut }) {
             {shown.map((o) => <OrderCard key={o.id} o={o} onStatus={setStatus} drivers={drivers} onAssign={assignDriver} />)}
           </div>
         )}
+        </>)}
 
-        {/* users manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowUsers((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> المستخدمون</span>
-            <ChevronDown className={`h-5 w-5 transition ${showUsers ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showUsers && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <UsersManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* products manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowProducts((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Package className="h-4 w-4 text-copper" /> إدارة المنتجات</span>
-            <ChevronDown className={`h-5 w-5 transition ${showProducts ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showProducts && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <ProductsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* categories manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowCats((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Layers className="h-4 w-4 text-copper" /> إدارة الأقسام</span>
-            <ChevronDown className={`h-5 w-5 transition ${showCats ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showCats && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <CategoriesManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* bundles manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowBundles((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Boxes className="h-4 w-4 text-copper" /> إدارة الباقات</span>
-            <ChevronDown className={`h-5 w-5 transition ${showBundles ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showBundles && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <BundlesManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* stores manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowStores((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><StoreIcon className="h-4 w-4 text-copper" /> إدارة المتاجر</span>
-            <ChevronDown className={`h-5 w-5 transition ${showStores ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showStores && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <StoresManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* earnings / commission */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowEarnings((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /> المالية والأرباح</span>
-            <ChevronDown className={`h-5 w-5 transition ${showEarnings ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showEarnings && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <EarningsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* settings control panel */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowSettings((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-copper" /> الإعدادات والأرقام</span>
-            <ChevronDown className={`h-5 w-5 transition ${showSettings ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showSettings && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <SettingsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* my profile */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowProfile((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> ملفّي الشخصي</span>
-            <ChevronDown className={`h-5 w-5 transition ${showProfile ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showProfile && me && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <div className="px-4 pb-4">
-                  <ProfileForm
-                    initial={me}
-                    show={{ phone: true, email: true, birthdate: true, gender: true }}
-                    uploadPrefix="admin"
-                    uploadId={admin.id}
-                    onAvatarChange={async (url) => {
-                      const r = await adminUpdateProfile(admin.id, { avatar_url: url });
-                      if (r?.ok) setMe(r.profile);
-                      return { error: r?.ok ? undefined : (r?.msg || 'تعذّر الحفظ') };
-                    }}
-                    onSave={async (vals) => {
-                      const r = await adminUpdateProfile(admin.id, {
-                        name: vals.name.trim(), phone: vals.phone.trim() || null,
-                        email: vals.email.trim() || null, birthdate: vals.birthdate || null, gender: vals.gender || null,
-                      });
-                      if (r?.ok) setMe(r.profile);
-                      return { error: r?.ok ? undefined : (r?.msg || 'تعذّر الحفظ') };
-                    }}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* drivers manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowDrivers((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Truck className="h-4 w-4 text-copper" /> إدارة المندوبين</span>
-            <ChevronDown className={`h-5 w-5 transition ${showDrivers ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showDrivers && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <DriversManager admin={admin} onChange={load} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* admins manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button
-            onClick={() => setShowAdmins((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold"
-          >
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> إدارة المشرفين</span>
-            <ChevronDown className={`h-5 w-5 transition ${showAdmins ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showAdmins && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <AdminsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {section === 'catalog' && <SectionCard><CatalogSection admin={admin} /></SectionCard>}
+        {section === 'stores' && <SectionCard><StoresManager admin={admin} /></SectionCard>}
+        {section === 'finance' && <SectionCard><EarningsManager admin={admin} /></SectionCard>}
+        {section === 'people' && <SectionCard><PeopleSection admin={admin} onChange={load} /></SectionCard>}
+        {section === 'settings' && <SectionCard><SettingsManager admin={admin} /></SectionCard>}
+        {section === 'profile' && (
+          <SectionCard>
+            <div className="p-4">
+              {me ? (
+                <ProfileForm
+                  initial={me}
+                  show={{ phone: true, email: true }}
+                  uploadPrefix="admin"
+                  uploadId={admin.id}
+                  title="ملفّي الشخصي"
+                  onAvatarChange={async (url) => {
+                    const r = await adminUpdateProfile(admin.id, { avatar_url: url });
+                    if (r?.ok) setMe(r.profile);
+                    return { error: r?.ok ? undefined : 'تعذّر الحفظ' };
+                  }}
+                  onSave={async (vals) => {
+                    const r = await adminUpdateProfile(admin.id, {
+                      name: (vals.name || '').trim(), phone: (vals.phone || '').trim() || null, email: (vals.email || '').trim() || null,
+                    });
+                    if (r?.ok) { setMe(r.profile); return {}; }
+                    return { error: 'تعذّر الحفظ' };
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>
+              )}
+            </div>
+          </SectionCard>
+        )}
 
         <div className="pb-6 pt-2 text-center text-xs text-ink/35 dark:text-cream/30">اطلبها — لوحة الإدارة</div>
       </main>
     </div>
   );
 }
+
+// a card container for an admin section
+function SectionCard({ children }) {
+  return <div className="overflow-hidden rounded-2xl border border-ink/10 bg-cream dark:border-white/10 dark:bg-night-800">{children}</div>;
+}
+
+// sub-tabs used inside grouped admin sections
+function SubTabs({ value, onChange, tabs }) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto border-b border-ink/5 px-4 py-3 no-scrollbar dark:border-white/5">
+      {tabs.map(([k, label, Icon]) => (
+        <button key={k} onClick={() => onChange(k)}
+          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${value === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+          <Icon className="h-4 w-4" /> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// الكتالوج: المنتجات + الأقسام + الباقات
+function CatalogSection({ admin }) {
+  const [t, setT] = useState('products');
+  return (
+    <div>
+      <SubTabs value={t} onChange={setT} tabs={[['products', 'المنتجات', Package], ['categories', 'الأقسام', Layers], ['bundles', 'الباقات', Boxes]]} />
+      {t === 'products' && <ProductsManager admin={admin} />}
+      {t === 'categories' && <CategoriesManager admin={admin} />}
+      {t === 'bundles' && <BundlesManager admin={admin} />}
+    </div>
+  );
+}
+
+// المستخدمون: الزبائن + المندوبون + المشرفون
+function PeopleSection({ admin, onChange }) {
+  const [t, setT] = useState('customers');
+  return (
+    <div>
+      <SubTabs value={t} onChange={setT} tabs={[['customers', 'الزبائن', Users], ['drivers', 'المندوبون', Truck], ['admins', 'المشرفون', KeyRound]]} />
+      {t === 'customers' && <UsersManager admin={admin} />}
+      {t === 'drivers' && <DriversManager admin={admin} onChange={onChange} />}
+      {t === 'admins' && <AdminsManager admin={admin} />}
+    </div>
+  );
+}
+
 
 function Stat({ icon: Icon, label, value, suffix, accent }) {
   return (
@@ -1490,6 +1402,7 @@ function SettingsManager({ admin }) {
     for (const k of ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct']) {
       payload[k] = Math.max(0, parseFloat(s[k]) || 0);
     }
+    payload.whatsapp_number = (s.whatsapp_number || '').replace(/[^\d]/g, '');
     const r = await adminUpdateSettings(admin.id, payload);
     setSaving(false);
     if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
@@ -1539,6 +1452,16 @@ function SettingsManager({ admin }) {
         </div>
       </div>
 
+      {/* whatsapp */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><MessageCircle className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">رقم واتساب الاستلام</h3></div>
+        <input type="tel" dir="ltr" value={s.whatsapp_number ?? ''} onChange={set('whatsapp_number')} className={fieldInp} placeholder="9647XXXXXXXXX" />
+        <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">رمز الدولة + الرقم بدون «+» أو صفر (العراق: 964 ثم الرقم). يستقبل الطلبات والاستفسارات.</p>
+      </div>
+
+      {/* live preview */}
+      <LivePreview s={s} />
+
       <button onClick={save} disabled={saving}
         className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display font-bold text-cream shadow-soft transition disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-copper hover:bg-copper-dark'}`}>
         {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : saved ? <Check className="h-5 w-5" /> : <Save className="h-5 w-5" />}
@@ -1547,6 +1470,43 @@ function SettingsManager({ admin }) {
       <p className="text-center text-[11px] leading-relaxed text-ink/45 dark:text-cream/45">
         💡 تُطبَّق فوراً على كل التطبيق. أجور المندوب تُحتسب على الطلبات الجديدة المُسلّمة.
       </p>
+    </div>
+  );
+}
+
+// معاينة حيّة: تحسب مثالاً واقعياً من القيم الحالية أثناء التعديل
+function LivePreview({ s }) {
+  const n = (k) => Math.max(0, parseFloat(s[k]) || 0);
+  const free = n('free_delivery_over');
+  const calc = (total, stores) => {
+    if (free > 0 && total >= free) return 0;
+    return Math.min(n('delivery_fee') + Math.max(0, stores - 1) * n('delivery_extra_store'), n('delivery_fee_cap'));
+  };
+  const driverFee = (stores) => n('driver_fee_base') + Math.max(0, stores - 1) * n('driver_fee_per_extra_store');
+  const examples = [
+    { label: 'طلب 25,000 من متجر واحد', total: 25000, stores: 1 },
+    { label: 'طلب 50,000 من متجرين', total: 50000, stores: 2 },
+    { label: `طلب ${fmt(free || 100000)} (حدّ المجاني)`, total: free || 100000, stores: 1 },
+  ];
+  return (
+    <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
+      <div className="mb-2 flex items-center gap-2"><Eye className="h-4 w-4 text-brand-700 dark:text-brand-300" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">معاينة حيّة (تتغيّر مع الأرقام)</h3></div>
+      <div className="space-y-2">
+        {examples.map((ex, i) => {
+          const d = calc(ex.total, ex.stores);
+          const f = driverFee(ex.stores);
+          return (
+            <div key={i} className="rounded-xl bg-cream p-2.5 text-xs dark:bg-night-900">
+              <p className="mb-1 font-bold text-ink/70 dark:text-cream/70">{ex.label}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                <span className="text-ink/55 dark:text-cream/55">التوصيل: <b className={d === 0 ? 'text-green-600 dark:text-green-400' : 'text-ink dark:text-cream'}>{d === 0 ? 'مجاني' : fmt(d) + ' د.ع'}</b></span>
+                <span className="text-ink/55 dark:text-cream/55">أجرة المندوب: <b className="text-copper dark:text-copper-light">{fmt(f)} د.ع</b></span>
+                <span className="text-ink/55 dark:text-cream/55">يدفع الزبون: <b className="text-ink dark:text-cream">{fmt(ex.total + d)} د.ع</b></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

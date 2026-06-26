@@ -165,6 +165,7 @@ export const adminUpdateSettings = (adminId, s = {}) =>
     p_driver_fee_base: s.driver_fee_base ?? null,
     p_driver_fee_per_extra_store: s.driver_fee_per_extra_store ?? null,
     p_default_commission_pct: s.default_commission_pct ?? null,
+    p_whatsapp_number: s.whatsapp_number ?? null,
   });
 
 /* ───────────────────────── finance (admin) ───────────────────────── */
