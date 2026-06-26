@@ -33,7 +33,7 @@ import {
   adminSetStoreCommission, adminCommissionReport,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
-import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
+import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
 import { cleanProductImage } from '../lib/bgremove.js';
 
 const STATUS = {
@@ -2029,23 +2029,34 @@ function IngredientRow({ ing, onChange, onRemove }) {
     if (!res?.error) onChange({ ...ing, image: res.url });
   }
   return (
-    <div className="flex items-center gap-2">
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <button type="button" onClick={() => fileRef.current?.click()} title="صورة المكوّن"
-        className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
-        {uploading
-          ? <Loader2 className="h-4 w-4 animate-spin text-copper" />
-          : ing.image
-            ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
-            : <span>{ing.emoji || '🛒'}</span>}
-      </button>
-      <input className={inp + ' flex-1'} value={ing.name} onChange={(e) => onChange({ ...ing, name: e.target.value })} placeholder="اسم المكوّن" />
-      <input className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
-        value={ing.emoji} onChange={(e) => onChange({ ...ing, emoji: e.target.value })} placeholder="🍆" />
-      <button type="button" onClick={onRemove}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
-        <Trash2 className="h-4 w-4" />
-      </button>
+    <div className="rounded-xl border border-ink/10 bg-beige/50 p-2 dark:border-white/10 dark:bg-night-900/50">
+      <div className="flex items-center gap-2">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+        <button type="button" onClick={() => fileRef.current?.click()} title="صورة المكوّن"
+          className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
+          {uploading
+            ? <Loader2 className="h-4 w-4 animate-spin text-copper" />
+            : ing.image
+              ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
+              : <span>{ing.emoji || '🛒'}</span>}
+        </button>
+        <input className={inp + ' flex-1'} value={ing.name} onChange={(e) => onChange({ ...ing, name: e.target.value })} placeholder="اسم المكوّن" />
+        <input className="w-12 shrink-0 rounded-xl border border-ink/10 bg-beige px-1 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
+          value={ing.emoji} onChange={(e) => onChange({ ...ing, emoji: e.target.value })} placeholder="🍆" />
+        <button type="button" onClick={onRemove}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-ink/40 dark:text-cream/40">الكمية</span>
+          <input type="number" min="1" dir="ltr" value={ing.qty ?? 1} onChange={(e) => onChange({ ...ing, qty: e.target.value })}
+            className="h-9 w-full rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+        </div>
+        <input value={ing.unit || ''} onChange={(e) => onChange({ ...ing, unit: e.target.value })} placeholder="الوحدة (كيلو/علبة..)"
+          className="h-9 rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+      </div>
     </div>
   );
 }
@@ -2062,9 +2073,12 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
   const [image, setImage] = useState(bundle?.image || '');
   const [ingredients, setIngredients] = useState(
     Array.isArray(bundle?.ingredients) && bundle.ingredients.length
-      ? bundle.ingredients.map((x) => ({ name: x?.name || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
+      ? bundle.ingredients.map((x) => ({ name: x?.name || '', qty: x?.qty ?? 1, unit: x?.unit || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
       : []
   );
+  const [aiProducts, setAiProducts] = useState([]);
+  const [aiBusy, setAiBusy] = useState(false);
+  useEffect(() => { adminListProducts(admin.id).then((r) => { if (Array.isArray(r?.products)) setAiProducts(r.products); }); /* eslint-disable-next-line */ }, []);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -2082,14 +2096,32 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     setImage(res.url);
   }
 
-  function addIngredient() { setIngredients((l) => [...l, { name: '', emoji: '🛒', image: '' }]); }
+  function addIngredient() { setIngredients((l) => [...l, { name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]); }
   function updateIngredient(i, next) { setIngredients((l) => l.map((x, idx) => (idx === i ? next : x))); }
   function removeIngredient(i) { setIngredients((l) => l.filter((_, idx) => idx !== i)); }
+
+  async function generateAI() {
+    setErr('');
+    if (aiProducts.length < 2) { setErr('لا توجد منتجات كافية لتوليد باقة.'); return; }
+    setAiBusy(true);
+    const r = await generateBundle(aiProducts.map((p) => ({ name: p.name, price: p.price, unit: p.unit })));
+    setAiBusy(false);
+    if (!r?.ok || !r.bundle) { setErr(r?.error || 'تعذّر توليد الباقة.'); return; }
+    const byName = new Map(aiProducts.map((p) => [p.name, p]));
+    const ing = (r.bundle.ingredients || []).map((x) => {
+      const p = byName.get(x.name);
+      return { name: x.name, qty: x.qty, unit: x.unit || (p?.unit || ''), emoji: p?.emoji || '🛒', image: p?.image || '' };
+    });
+    const full = ing.reduce((s, x) => s + ((byName.get(x.name)?.price || 0) * (x.qty || 0)), 0);
+    const price = Math.max(0, Math.round(full * (1 - (r.bundle.discount_pct || 10) / 100)));
+    setIngredients(ing);
+    setF((prev) => ({ ...prev, name: r.bundle.name || prev.name, kicker: r.bundle.kicker || prev.kicker, description: r.bundle.description || prev.description, old_price: full || prev.old_price, price: price || full }));
+  }
 
   async function save() {
     if (!f.name.trim()) { setErr('اكتب اسم الباقة'); return; }
     const cleanIngredients = ingredients
-      .map((x) => ({ name: (x.name || '').trim(), emoji: (x.emoji || '').trim() || '🛒', image: (x.image || '').trim() || null }))
+      .map((x) => ({ name: (x.name || '').trim(), qty: Math.max(1, parseInt(x.qty, 10) || 1), unit: (x.unit || '').trim(), emoji: (x.emoji || '').trim() || '🛒', image: (x.image || '').trim() || null }))
       .filter((x) => x.name);
     setBusy(true); setErr('');
     const fields = {
@@ -2161,13 +2193,20 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
       <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-beige/60 dark:bg-night-900/60 p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-bold text-ink/60 dark:text-cream/60">المكوّنات ({ingredients.length})</span>
-          <button type="button" onClick={addIngredient}
-            className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark dark:text-copper-light hover:bg-copper/25">
-            <Plus className="h-3.5 w-3.5" /> أضف مكوّن
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={generateAI} disabled={aiBusy}
+              className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white hover:opacity-90 disabled:opacity-60">
+              {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} توليد بالذكاء
+            </button>
+            <button type="button" onClick={addIngredient}
+              className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark dark:text-copper-light hover:bg-copper/25">
+              <Plus className="h-3.5 w-3.5" /> أضف مكوّن
+            </button>
+          </div>
         </div>
+        {aiBusy && <p className="mb-2 flex items-center gap-1.5 text-[12px] font-bold text-indigo-600 dark:text-indigo-300"><Sparkles className="h-3.5 w-3.5 animate-pulse" /> الذكاء يكوّن باقة من المنتجات…</p>}
         {ingredients.length === 0 ? (
-          <p className="py-2 text-center text-[12px] text-ink/40 dark:text-cream/40">أضِف مكوّنات الباقة (تظهر كدوائر على الكرت).</p>
+          <p className="py-2 text-center text-[12px] text-ink/40 dark:text-cream/40">أضِف مكوّنات الباقة، أو دع الذكاء يقترحها.</p>
         ) : (
           <div className="space-y-2">
             {ingredients.map((ing, i) => (

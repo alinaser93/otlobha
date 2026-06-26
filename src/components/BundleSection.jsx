@@ -113,6 +113,7 @@ function BundleCard({ b, onAdd, fly }) {
 }
 
 export default function BundleSection({ bundles = BUNDLES, onAdd, fly }) {
+  if (!bundles || bundles.length === 0) return null;
   return (
     <section id="bundles" className="relative bg-beige py-16 dark:bg-night-900 sm:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">

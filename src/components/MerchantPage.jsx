@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
-  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck,
+  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -12,11 +12,13 @@ import {
   merchantListProducts, merchantAddProduct, merchantUpdateProduct,
   merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore,
   merchantListOrders, merchantSetItemQty,
+  merchantListBundles, merchantAddBundle, merchantUpdateBundle,
+  merchantRemoveBundle, merchantSetBundleActive,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { cleanProductImage } from '../lib/bgremove.js';
-import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage } from '../lib/ai.js';
+import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage, generateBundle } from '../lib/ai.js';
 import CategoryPicker from './CategoryPicker.jsx';
 
 const STORE_TYPES = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
@@ -776,6 +778,341 @@ function OrdersList({ token, orders, onReload }) {
   );
 }
 
+// ───────────────────────── merchant bundles ─────────────────────────
+const BUNDLE_UNITS = ['كيلو', 'علبة', 'باقة', 'قطعة', 'حبة', 'كرتون', 'كيس', 'لتر'];
+
+// compute the full (pre-discount) value of a bundle from its ingredients × product prices
+function bundleFullPrice(ingredients, productByName) {
+  return (ingredients || []).reduce((sum, ing) => {
+    const p = productByName.get(ing.name);
+    const price = p ? (Number(p.price) || 0) : 0;
+    return sum + price * (Number(ing.qty) || 0);
+  }, 0);
+}
+
+function BundlesManager({ token, products }) {
+  const [bundles, setBundles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editBundle, setEditBundle] = useState(null);
+  const [aiInitial, setAiInitial] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState('');
+
+  const productByName = useMemo(() => new Map(products.map((p) => [p.name, p])), [products]);
+
+  async function load() {
+    setLoading(true);
+    const r = await merchantListBundles(token);
+    setBundles(r?.ok ? (r.bundles || []) : []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  function openAdd() { setEditBundle(null); setAiInitial(null); setFormOpen(true); }
+  function openEdit(b) { setEditBundle(b); setAiInitial(null); setFormOpen(true); }
+
+  async function generateWithAI() {
+    setAiErr('');
+    if (products.length < 2) { setAiErr('أضِف منتجات أكثر أولاً ليقترح الذكاء باقة.'); return; }
+    setAiBusy(true);
+    const r = await generateBundle(products.map((p) => ({ name: p.name, price: p.price, unit: p.unit })));
+    setAiBusy(false);
+    if (!r?.ok || !r.bundle) { setAiErr(r?.error || 'تعذّر توليد الباقة، حاول مجدداً.'); return; }
+    // enrich AI ingredients with emoji/image from the matching product
+    const ingredients = (r.bundle.ingredients || []).map((x) => {
+      const p = productByName.get(x.name);
+      return { name: x.name, qty: x.qty, unit: x.unit || (p?.unit || ''), emoji: p?.emoji || '🛒', image: p?.image || '' };
+    });
+    const full = bundleFullPrice(ingredients, productByName);
+    const price = Math.max(0, Math.round(full * (1 - (r.bundle.discount_pct || 10) / 100)));
+    setEditBundle(null);
+    setAiInitial({
+      name: r.bundle.name, kicker: r.bundle.kicker, description: r.bundle.description,
+      ingredients, old_price: full || null, price: price || full,
+    });
+    setFormOpen(true);
+  }
+
+  async function remove(b) {
+    if (!window.confirm(`حذف باقة «${b.name}»؟`)) return;
+    const r = await merchantRemoveBundle(token, b.id);
+    if (r?.ok) load();
+  }
+  async function toggleActive(b) {
+    const r = await merchantSetBundleActive(token, b.id, !b.active);
+    if (r?.ok) setBundles((prev) => prev.map((x) => (x.id === b.id ? { ...x, active: !x.active } : x)));
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل الباقات…</div>;
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-black text-ink dark:text-cream">باقاتي</h2>
+          <p className="font-body text-xs text-ink/50 dark:text-cream/50">اجمع منتجاتك في باقات بسعر مميّز — تظهر للزبائن في متجرك</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={generateWithAI} disabled={aiBusy}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 px-4 py-2.5 font-display text-sm font-bold text-white shadow-soft transition hover:opacity-90 disabled:opacity-60">
+            {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} توليد بالذكاء
+          </button>
+          <button onClick={openAdd} className="flex items-center gap-1.5 rounded-xl bg-copper px-4 py-2.5 font-display text-sm font-bold text-cream shadow-soft hover:bg-copper-dark">
+            <Plus className="h-4 w-4" /> أضف باقة
+          </button>
+        </div>
+      </div>
+
+      {aiBusy && (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-indigo-500/10 px-4 py-3 text-sm font-bold text-indigo-600 dark:text-indigo-300">
+          <Sparkles className="h-4 w-4 animate-pulse" /> الذكاء يراجع منتجاتك ويكوّن باقة مقترحة…
+        </div>
+      )}
+      {aiErr && <div className="mb-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-600 dark:text-red-300">{aiErr}</div>}
+
+      {bundles.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-16 text-center dark:border-white/15">
+          <Gift className="mx-auto mb-3 h-10 w-10 text-ink/20 dark:text-cream/20" />
+          <p className="font-bold text-ink/50 dark:text-cream/50">لا توجد باقات بعد</p>
+          <p className="mt-1 text-xs text-ink/40 dark:text-cream/40">أنشئ باقة يدوياً أو دع الذكاء يقترح واحدة من منتجاتك.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {bundles.map((b) => {
+            const ing = Array.isArray(b.ingredients) ? b.ingredients : [];
+            return (
+              <div key={b.id} className={`rounded-2xl bg-cream p-4 shadow-soft ring-1 dark:bg-night-800 ${b.active ? 'ring-brand-900/5 dark:ring-white/10' : 'opacity-60 ring-ink/10'}`}>
+                <div className="flex items-start gap-3">
+                  <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl text-2xl" style={{ background: b.accent || '#0F5132' }}>
+                    {b.image ? <img src={b.image} alt="" className="h-full w-full object-cover" /> : '🧺'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display font-black text-ink dark:text-cream">{b.name}</h3>
+                    {b.kicker && <p className="text-[11px] font-bold text-copper dark:text-copper-light">{b.kicker}</p>}
+                    <p className="mt-0.5 text-xs text-ink/50 dark:text-cream/50">{ing.length} مكوّن</p>
+                  </div>
+                  <div className="text-left">
+                    <div className="font-display font-black text-copper dark:text-copper-light">{fmt(b.price)} <span className="text-xs">د.ع</span></div>
+                    {b.old_price > 0 && <div className="text-xs text-ink/40 line-through dark:text-cream/40">{fmt(b.old_price)}</div>}
+                  </div>
+                </div>
+                {/* ingredients preview */}
+                {ing.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {ing.slice(0, 6).map((x, i) => (
+                      <span key={i} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/60 dark:bg-white/10 dark:text-cream/60">
+                        {x.name}{x.qty ? ` × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => toggleActive(b)} className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${b.active ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-ink/10 text-ink/50 dark:bg-white/10 dark:text-cream/50'}`}>
+                    {b.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {b.active ? 'ظاهرة' : 'مخفية'}
+                  </button>
+                  <button onClick={() => openEdit(b)} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-xs font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70"><Pencil className="h-3.5 w-3.5" /> تعديل</button>
+                  <button onClick={() => remove(b)} className="flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-3.5 w-3.5" /> حذف</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {formOpen && (
+        <BundleForm token={token} products={products} bundle={editBundle} initial={aiInitial}
+          onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); load(); }} />
+      )}
+    </>
+  );
+}
+
+function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
+  const base = bundle || initial || {};
+  const productByName = useMemo(() => new Map(products.map((p) => [p.name, p])), [products]);
+  const productNames = useMemo(() => products.map((p) => p.name), [products]);
+
+  const [name, setName] = useState(base.name || '');
+  const [kicker, setKicker] = useState(base.kicker || '');
+  const [description, setDescription] = useState(base.description || base.desc || '');
+  const [image, setImage] = useState(base.image || '');
+  const [accent, setAccent] = useState(base.accent || '#0F5132');
+  const [ingredients, setIngredients] = useState(
+    Array.isArray(base.ingredients) && base.ingredients.length
+      ? base.ingredients.map((x) => ({ name: x.name || '', qty: x.qty || 1, unit: x.unit || '', emoji: x.emoji || '🛒', image: x.image || '' }))
+      : [{ name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]
+  );
+  const [oldPrice, setOldPrice] = useState(base.old_price != null ? String(base.old_price) : '');
+  const [price, setPrice] = useState(base.price != null ? String(base.price) : '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [descBusy, setDescBusy] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  const inp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
+
+  const full = useMemo(() => bundleFullPrice(ingredients, productByName), [ingredients, productByName]);
+
+  function setIng(i, patch) {
+    setIngredients((list) => list.map((x, idx) => {
+      if (idx !== i) return x;
+      const next = { ...x, ...patch };
+      // when a product is picked, auto-fill unit/emoji/image
+      if ('name' in patch) {
+        const p = productByName.get(patch.name);
+        if (p) { next.unit = next.unit || p.unit || ''; next.emoji = p.emoji || '🛒'; next.image = p.image || ''; }
+      }
+      return next;
+    }));
+  }
+  function addIng() { setIngredients((l) => [...l, { name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]); }
+  function removeIng(i) { setIngredients((l) => l.filter((_, idx) => idx !== i)); }
+
+  function applyFullAsOld() { if (full > 0) setOldPrice(String(full)); }
+
+  async function genDesc() {
+    if (!name.trim()) { setErr('اكتب اسم الباقة أولاً'); return; }
+    setDescBusy(true);
+    const items = ingredients.filter((x) => x.name).map((x) => x.name).join('، ');
+    const r = await generateProductDescription({ name: name.trim(), category: 'باقة', unit: '', current: items ? `الباقة تحتوي: ${items}` : '' });
+    setDescBusy(false);
+    if (r?.ok && r.description) setDescription(r.description);
+  }
+
+  async function onFile(e) {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setImgBusy(true);
+    const up = await uploadProductImage(file, 'bundle-' + Date.now());
+    setImgBusy(false);
+    if (up?.url) setImage(up.url);
+  }
+
+  async function save() {
+    const clean = ingredients
+      .filter((x) => x.name && x.name.trim())
+      .map((x) => ({ name: x.name.trim(), qty: Math.max(1, parseInt(x.qty, 10) || 1), unit: (x.unit || '').trim(), emoji: x.emoji || '🛒', image: x.image || null }));
+    if (!name.trim()) { setErr('اكتب اسم الباقة'); return; }
+    if (clean.length < 2) { setErr('أضِف منتجين على الأقل للباقة'); return; }
+    if (!price && price !== '0') { setErr('حدّد سعر الباقة'); return; }
+
+    setBusy(true); setErr('');
+    const payload = {
+      name: name.trim(), kicker: kicker.trim() || null, description: description.trim() || null,
+      price: Math.max(0, parseInt(price, 10) || 0),
+      old_price: oldPrice === '' ? null : Math.max(0, parseInt(oldPrice, 10) || 0),
+      accent, image: image || null, ingredients: clean,
+    };
+    const r = bundle ? await merchantUpdateBundle(token, bundle.id, payload) : await merchantAddBundle(token, payload);
+    setBusy(false);
+    if (r?.ok) onSaved();
+    else setErr(r?.error === 'name_required' ? 'اكتب اسم الباقة' : 'تعذّر الحفظ، حاول ثانية');
+  }
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-cream p-5 dark:bg-night-800 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-black text-ink dark:text-cream">{bundle ? 'تعديل باقة' : 'باقة جديدة'}</h3>
+          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-ink/60 dark:bg-white/10 dark:text-cream/60"><X className="h-5 w-5" /></button>
+        </div>
+
+        {/* image */}
+        <div className="mb-3 flex items-center gap-3">
+          <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl text-3xl" style={{ background: accent }}>
+            {image ? <img src={image} alt="" className="h-full w-full object-cover" /> : '🧺'}
+          </span>
+          <div className="flex flex-col gap-1.5">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+            <button onClick={() => fileRef.current?.click()} disabled={imgBusy} className="flex items-center gap-1.5 rounded-lg bg-ink/5 px-3 py-1.5 text-xs font-bold text-ink/70 dark:bg-white/10 dark:text-cream/70">
+              {imgBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />} صورة الباقة
+            </button>
+            {image && <button onClick={() => setImage('')} className="text-[11px] font-bold text-red-500">إزالة الصورة</button>}
+          </div>
+        </div>
+
+        <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">اسم الباقة</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} className={inp} placeholder="مثلاً: سلة الطبخ الأسبوعية" />
+
+        <label className="mb-1 mt-3 block text-[11px] font-bold text-ink/50 dark:text-cream/50">سطر تشويقي (اختياري)</label>
+        <input value={kicker} onChange={(e) => setKicker(e.target.value)} className={inp} placeholder="مثلاً: وفّر وقتك" />
+
+        <div className="mb-1 mt-3 flex items-center justify-between">
+          <label className="block text-[11px] font-bold text-ink/50 dark:text-cream/50">الوصف (اختياري)</label>
+          <button onClick={genDesc} disabled={descBusy} className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2 py-1 text-[11px] font-bold text-white disabled:opacity-60">
+            {descBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} توليد بالذكاء
+          </button>
+        </div>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inp} placeholder="وصف قصير يشهّي الزبون…" />
+
+        {/* ingredients */}
+        <div className="mb-2 mt-4 flex items-center justify-between">
+          <span className="text-[12px] font-bold text-ink/60 dark:text-cream/60">المكوّنات ({ingredients.length})</span>
+          <button onClick={addIng} className="flex items-center gap-1 rounded-lg bg-copper/15 px-2 py-1 text-[11px] font-bold text-copper-dark dark:text-copper-light"><Plus className="h-3 w-3" /> مكوّن</button>
+        </div>
+        <div className="space-y-2">
+          {ingredients.map((ing, i) => (
+            <div key={i} className="rounded-xl border border-ink/10 bg-beige/50 p-2 dark:border-white/10 dark:bg-night-900/50">
+              <div className="flex items-center gap-2">
+                <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
+                  {ing.image ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" /> : ing.emoji}
+                </span>
+                <div className="min-w-0 flex-1"><CategoryPicker value={ing.name} onChange={(v) => setIng(i, { name: v })} options={productNames} allowNew={false} placeholder="اختر منتجاً" /></div>
+                <button onClick={() => removeIng(i)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-500"><Trash2 className="h-4 w-4" /></button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-ink/40 dark:text-cream/40">الكمية</span>
+                  <input type="number" min="1" dir="ltr" value={ing.qty} onChange={(e) => setIng(i, { qty: e.target.value })}
+                    className="h-8 w-full rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+                </div>
+                <div className="min-w-0"><CategoryPicker value={ing.unit} onChange={(v) => setIng(i, { unit: v })} options={BUNDLE_UNITS} allowNew placeholder="الوحدة" /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* pricing */}
+        <div className="mt-4 rounded-xl bg-copper/5 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-ink/55 dark:text-cream/55">قيمة المنتجات مفردة:</span>
+            <span className="flex items-center gap-2">
+              <span className="font-display font-black text-ink dark:text-cream">{fmt(full)} د.ع</span>
+              {full > 0 && <button onClick={applyFullAsOld} className="rounded bg-copper/20 px-2 py-0.5 text-[10px] font-bold text-copper-dark dark:text-copper-light">اجعله السعر قبل الخصم</button>}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">قبل الخصم (اختياري)</label>
+              <input type="number" dir="ltr" value={oldPrice} onChange={(e) => setOldPrice(e.target.value)} className={inp} placeholder={full ? String(full) : '0'} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">سعر الباقة</label>
+              <input type="number" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} className={inp} placeholder="0" />
+            </div>
+          </div>
+          {oldPrice && price && parseInt(oldPrice, 10) > parseInt(price, 10) && (
+            <p className="mt-1.5 text-center text-[11px] font-bold text-green-600 dark:text-green-300">يوفّر الزبون {fmt(parseInt(oldPrice, 10) - parseInt(price, 10))} د.ع 🎉</p>
+          )}
+        </div>
+
+        {err && <p className="mt-3 flex items-center gap-1 text-xs font-bold text-red-500"><AlertTriangle className="h-3.5 w-3.5" /> {err}</p>}
+
+        <div className="mt-4 flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-xl bg-ink/5 py-3 font-bold text-ink/70 dark:bg-white/10 dark:text-cream/70">إلغاء</button>
+          <button onClick={save} disabled={busy} className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-cream shadow-soft hover:bg-copper-dark disabled:opacity-60">
+            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} {bundle ? 'حفظ التعديلات' : 'إنشاء الباقة'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   const { token } = session;
   const [store, setStore] = useState(session.store);
@@ -889,7 +1226,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
 
         {/* tabs */}
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {[['products', 'منتجاتي', Package], ['orders', 'الطلبات', ClipboardList], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
+          {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -978,6 +1315,8 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
           </>
         ) : tab === 'orders' ? (
           <OrdersList token={token} orders={orders} onReload={loadOrders} />
+        ) : tab === 'bundles' ? (
+          <BundlesManager token={token} products={products} cats={cats} />
         ) : (
           <>
             <div className="mb-4">

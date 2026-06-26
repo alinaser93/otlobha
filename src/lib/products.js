@@ -275,13 +275,18 @@ export async function fetchStoreCatalog() {
         name: r.name,
         kicker: r.kicker || '',
         desc: r.description || '',
-        items: ing.map((x) => x?.name || ''),
+        // show quantity + unit inline when present (e.g. "طماطم × 5 كيلو")
+        items: ing.map((x) => {
+          const nm = x?.name || '';
+          return x?.qty ? `${nm} × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : nm;
+        }),
         emojis: ing.map((x) => x?.emoji || '🛒'),
         images: ing.map((x) => x?.image || null),
         image: r.image || null,
         price: r.price,
         old: r.old_price ?? null,
         accent: r.accent || '#0F5132',
+        storeId: r.store_id || null,
       };
     });
 

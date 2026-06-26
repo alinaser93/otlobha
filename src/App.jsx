@@ -245,6 +245,12 @@ export default function App() {
     setCartOpen(true);
   }, [products, bundles]);
 
+  // homepage shows admin (global) bundles; a store page shows that store's bundles
+  const shownBundles = useMemo(
+    () => bundles.filter((b) => (activeStore ? b.storeId === activeStore : !b.storeId)),
+    [bundles, activeStore]
+  );
+
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
       <TopBar />
@@ -270,7 +276,7 @@ export default function App() {
             if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
           }}
         />
-        <BundleSection bundles={bundles} onAdd={addItem} fly={fly} />
+        <BundleSection bundles={shownBundles} onAdd={addItem} fly={fly} />
         <ProductGrid
           products={products}
           categories={categories}

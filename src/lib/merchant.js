@@ -51,6 +51,41 @@ export const merchantMarkItemUnavailable = (token, orderId, itemName) =>
 export const merchantSetItemQty = (token, orderId, itemName, newQty) =>
   rpc('merchant_set_item_qty', { p_token: token, p_order_id: orderId, p_item_name: itemName, p_new_qty: newQty });
 
+/* ───────────────────────── merchant bundles ───────────────────────── */
+export const merchantListBundles = (token) => rpc('merchant_list_bundles', { p_token: token });
+
+export const merchantAddBundle = (token, f = {}) =>
+  rpc('merchant_add_bundle', {
+    p_token: token,
+    p_name: f.name,
+    p_kicker: f.kicker || null,
+    p_description: f.description || null,
+    p_price: f.price ?? 0,
+    p_old_price: f.old_price ?? null,
+    p_accent: f.accent || '#0F5132',
+    p_image: f.image || null,
+    p_ingredients: f.ingredients || [],
+  });
+
+export const merchantUpdateBundle = (token, id, f = {}) =>
+  rpc('merchant_update_bundle', {
+    p_token: token,
+    p_id: id,
+    p_name: f.name ?? null,
+    p_kicker: f.kicker ?? null,
+    p_description: f.description ?? null,
+    p_price: f.price ?? null,
+    p_old_price: f.old_price ?? null,
+    p_accent: f.accent ?? null,
+    p_image: f.image ?? null,
+    p_ingredients: f.ingredients ?? null,
+    p_active: f.active ?? null,
+  });
+
+export const merchantRemoveBundle = (token, id) => rpc('merchant_remove_bundle', { p_token: token, p_id: id });
+export const merchantSetBundleActive = (token, id, active) =>
+  rpc('merchant_set_bundle_active', { p_token: token, p_id: id, p_active: active });
+
 export const merchantAddProduct = (token, f = {}) =>
   rpc('merchant_add_product', {
     p_token: token,
