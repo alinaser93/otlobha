@@ -193,20 +193,30 @@ function Board({ driver, onOut }) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-5">
+        {/* daily summary */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-copper dark:text-copper-light">{active.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">طلب نشط</div>
+          </div>
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-green-600 dark:text-green-400">{done.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">مُسلّم</div>
+          </div>
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-ink dark:text-cream">{active.length + done.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">الإجمالي</div>
+          </div>
+        </div>
+
         {/* tabs */}
         <div className="flex gap-2">
-          <button onClick={() => setTab('active')}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'active' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
-            النشطة ({active.length})
-          </button>
-          <button onClick={() => setTab('done')}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'done' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
-            المُسلّمة ({done.length})
-          </button>
-          <button onClick={() => setTab('wallet')}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'wallet' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
-            محفظتي
-          </button>
+          {[['active', 'النشطة', Package, active.length], ['done', 'المُسلّمة', CheckCircle2, done.length], ['wallet', 'محفظتي', Wallet, null]].map(([k, label, Icon, count]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold transition ${tab === k ? 'bg-copper text-ink shadow-soft dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
+              <Icon className="h-4 w-4" /> {label}{count != null ? ` (${count})` : ''}
+            </button>
+          ))}
         </div>
 
         {tab === 'wallet' ? (

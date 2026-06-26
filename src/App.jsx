@@ -13,6 +13,7 @@ import CheckoutModal from './components/CheckoutModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import { useAuth } from './lib/auth.jsx';
+import { listMyOrders } from './lib/orders.js';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
 import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
@@ -69,6 +70,7 @@ function FreshnessPromise() {
 
 export default function App() {
   const [items, setItems] = useState([]);
+  const [myActiveOrder, setMyActiveOrder] = useState(null);
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);
   const [bundles, setBundles] = useState(BUNDLES);
@@ -83,6 +85,18 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
   const { account } = useAuth();
+
+  // load the customer's most recent active order for the cart mini-tracker
+  useEffect(() => {
+    if (!account?.id) { setMyActiveOrder(null); return; }
+    let alive = true;
+    listMyOrders(account.id).then((res) => {
+      if (!alive || !res?.ok) return;
+      const active = (res.orders || []).filter((o) => o.status !== 'done' && o.status !== 'cancelled');
+      setMyActiveOrder(active[0] || null);
+    });
+    return () => { alive = false; };
+  }, [account?.id, cartOpen]);
 
   // open account if signed in, otherwise prompt sign-in
   const openAccount = useCallback(() => {
@@ -213,6 +227,20 @@ export default function App() {
     setTimeout(() => setToast(null), 1800);
   }, []);
 
+  // cart line controls
+  const incItem = useCallback((key) => {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)));
+  }, []);
+  const decItem = useCallback((key) => {
+    setItems((prev) => prev.flatMap((i) => {
+      if (i.key !== key) return [i];
+      return i.qty <= 1 ? [] : [{ ...i, qty: i.qty - 1 }];
+    }));
+  }, []);
+  const removeItem = useCallback((key) => {
+    setItems((prev) => prev.filter((i) => i.key !== key));
+  }, []);
+
   // (removed the intrusive auto-popup; rewards now live in the account panel)
 
   // "أعد الطلب" — re-add a past order's items to the cart (matched by name to
@@ -334,6 +362,10 @@ export default function App() {
         onClose={() => setCartOpen(false)}
         items={items}
         total={total}
+        onInc={incItem}
+        onDec={decItem}
+        onRemove={removeItem}
+        lastOrder={myActiveOrder}
         onRefer={() => {
           setCartOpen(false);
           openAccount();

@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingCart, Gift, MessageCircle, Truck, PartyPopper } from 'lucide-react';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { X, ShoppingCart, Gift, MessageCircle, Truck, PartyPopper, Plus, Minus, Trash2, Package, ChevronLeft } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, calcDelivery } from '../config.js';
+
+// status labels for the mini order tracker
+const CART_ORDER_STATUS = {
+  new: { label: 'طلبك قيد المراجعة', step: 1 },
+  preparing: { label: 'يُحضّر طلبك الآن', step: 2 },
+  delivering: { label: 'مندوبك في الطريق إليك', step: 3 },
+  done: { label: 'تم توصيل طلبك', step: 4 },
+};
 
 // cart line thumbnail: real product image (white bg melts via multiply), emoji fallback.
 function CartThumb({ image, emoji }) {
@@ -61,7 +69,72 @@ function FreeDeliveryBar({ total, storeCount }) {
   );
 }
 
-export default function CartDrawer({ open, onClose, items, total, onRefer, onCheckout }) {
+// a tiny tappable tracker for the customer's most recent active order
+function MiniOrderTracker({ order }) {
+  if (!order) return null;
+  const st = CART_ORDER_STATUS[order.status] || CART_ORDER_STATUS.new;
+  const pct = Math.round((st.step / 4) * 100);
+  return (
+    <a href={`/order/${order.id}`}
+      className="mb-3 block rounded-2xl bg-brand-800/10 p-3 ring-1 ring-brand-800/15 backdrop-blur-md transition hover:bg-brand-800/15 dark:bg-brand-500/10 dark:ring-white/10">
+      <div className="flex items-center gap-2">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-800 text-cream"><Truck className="h-4 w-4" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-[13px] font-black text-brand-800 dark:text-brand-300">{st.label}</p>
+          <p className="text-[10px] text-ink/50 dark:text-cream/50">طلب #{order.order_no} · تتبّع الآن</p>
+        </div>
+        <ChevronLeft className="h-4 w-4 shrink-0 text-brand-800/60 dark:text-brand-300/60" />
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-800/15 dark:bg-white/10">
+        <div className="h-full rounded-full bg-brand-700 transition-all dark:bg-brand-400" style={{ width: `${pct}%` }} />
+      </div>
+    </a>
+  );
+}
+
+// a cart line that can be swiped left to reveal delete, with +/- stepper
+function CartRow({ it, onInc, onDec, onRemove }) {
+  const x = useMotionValue(0);
+  const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.4, 0]);
+  return (
+    <div className="relative mb-3 overflow-hidden rounded-2xl">
+      {/* delete background revealed on swipe */}
+      <motion.div style={{ opacity: bgOpacity }} className="absolute inset-0 flex items-center justify-start rounded-2xl bg-red-500 pl-5">
+        <Trash2 className="h-5 w-5 text-white" />
+      </motion.div>
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={{ left: 0.6, right: 0 }}
+        onDragEnd={(_, info) => { if (info.offset.x < -90) onRemove(it.key); }}
+        style={{ x }}
+        className="relative flex items-center gap-3 rounded-2xl bg-white/40 p-3 ring-1 ring-white/40 backdrop-blur-sm dark:bg-white/[0.08] dark:ring-white/10"
+      >
+        <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/80 text-2xl ring-1 ring-white/50">
+          <CartThumb image={it.image} emoji={it.emoji} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-display text-[15px] font-bold text-ink dark:text-cream">{it.name}</div>
+          <div className="font-display text-sm font-black text-brand-800 dark:text-brand-400">{fmt(it.price * it.qty)} د.ع</div>
+        </div>
+        {/* stepper */}
+        <div className="flex shrink-0 items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-white/60 dark:bg-night-900/60 dark:ring-white/10">
+          <button onClick={() => onDec(it.key)} aria-label="إنقاص"
+            className="grid h-7 w-7 place-items-center rounded-full bg-ink/5 text-ink/70 transition hover:bg-ink/10 active:scale-90 dark:bg-white/10 dark:text-cream/70">
+            {it.qty <= 1 ? <Trash2 className="h-3.5 w-3.5 text-red-500" /> : <Minus className="h-4 w-4" />}
+          </button>
+          <span className="min-w-6 text-center font-display text-sm font-black text-ink dark:text-cream">{it.qty}</span>
+          <button onClick={() => onInc(it.key)} aria-label="زيادة"
+            className="grid h-7 w-7 place-items-center rounded-full bg-copper text-cream transition hover:bg-copper-dark active:scale-90">
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+export default function CartDrawer({ open, onClose, items, total, onRefer, onCheckout, onInc, onDec, onRemove, lastOrder }) {
   const storeCount = Math.max(1, new Set((items || []).map((it) => it.storeId).filter(Boolean)).size || 1);
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -106,6 +179,7 @@ export default function CartDrawer({ open, onClose, items, total, onRefer, onChe
             </div>
 
             <div className="relative flex-1 overflow-y-auto px-5 py-4">
+              <MiniOrderTracker order={lastOrder} />
               {items.length === 0 ? (
                 <div className="grid h-full place-items-center text-center">
                   <div>
@@ -116,21 +190,12 @@ export default function CartDrawer({ open, onClose, items, total, onRefer, onChe
                   </div>
                 </div>
               ) : (
-                items.map((it) => (
-                  <div
-                    key={it.key}
-                    className="mb-3 flex items-center gap-3 rounded-2xl bg-white/30 p-3 ring-1 ring-white/40 backdrop-blur-sm dark:bg-white/[0.06] dark:ring-white/10"
-                  >
-                    <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-white/80 text-2xl ring-1 ring-white/50">
-                      <CartThumb image={it.image} emoji={it.emoji} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-display text-[15px] font-bold text-ink dark:text-cream">{it.name}</div>
-                      <div className="font-body text-xs text-ink/50 dark:text-cream/50">×{it.qty}</div>
-                    </div>
-                    <div className="font-display font-black text-brand-800 dark:text-brand-400">{fmt(it.price * it.qty)} د.ع</div>
-                  </div>
-                ))
+                <>
+                  {items.map((it) => (
+                    <CartRow key={it.key} it={it} onInc={onInc} onDec={onDec} onRemove={onRemove} />
+                  ))}
+                  <p className="mt-1 text-center font-body text-[11px] text-ink/40 dark:text-cream/40">اسحب المنتج لليسار للحذف ←</p>
+                </>
               )}
             </div>
 
