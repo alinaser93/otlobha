@@ -4,7 +4,7 @@ import { BundleDetailModal } from './BundleSection.jsx';
 import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
-  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical,
+  ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
   Star, Users, Check, Lock, User, AlertTriangle, Tag,
 } from 'lucide-react';
 import {
@@ -16,6 +16,7 @@ import {
   merchantListBundles, merchantAddBundle, merchantUpdateBundle,
   merchantRemoveBundle, merchantSetBundleActive,
   merchantReorderBundles, merchantSetBundleSeason,
+  merchantWallet, merchantInvoices, merchantConfirmReceipt,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -1215,6 +1216,129 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
   );
 }
 
+// ───────────────────────── merchant wallet & invoices ─────────────────────────
+const PAY_METHODS = [['driver', 'عبر المندوب (نقد)', Banknote], ['rafidain', 'مصرف الرافدين', Wallet]];
+
+function MerchantWallet({ token }) {
+  const [wallet, setWallet] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [confirmFor, setConfirmFor] = useState(null); // invoice awaiting method choice
+
+  async function load() {
+    setLoading(true);
+    const [w, inv] = await Promise.all([merchantWallet(token), merchantInvoices(token)]);
+    setWallet(w?.ok ? w : null);
+    setInvoices(inv?.ok ? (inv.invoices || []) : []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  async function confirm(inv, method) {
+    setConfirmFor(null);
+    const r = await merchantConfirmReceipt(token, inv.id, method);
+    if (r?.ok) load();
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل المحفظة…</div>;
+  }
+
+  const due = wallet?.due || 0, paid = wallet?.paid || 0, pending = wallet?.pending || 0;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-display text-xl font-black text-ink dark:text-cream">محفظتي</h2>
+        <p className="font-body text-xs text-ink/50 dark:text-cream/50">مستحقّاتك من الطلبات المسلّمة بعد خصم عمولة اطلبها ({wallet?.commission_pct || 15}%)</p>
+      </div>
+
+      {/* summary cards */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-gradient-to-br from-brand-800 to-brand-900 p-3 text-cream shadow-soft">
+          <p className="text-[11px] opacity-80">إجمالي مستحقّاتك</p>
+          <p className="mt-1 font-display text-lg font-black">{fmt(due)}</p>
+          <p className="text-[10px] opacity-70">دينار</p>
+        </div>
+        <div className="rounded-2xl bg-cream p-3 shadow-soft ring-1 ring-green-500/20 dark:bg-night-800">
+          <p className="text-[11px] text-ink/55 dark:text-cream/55">استلمته</p>
+          <p className="mt-1 font-display text-lg font-black text-green-600 dark:text-green-400">{fmt(paid)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">دينار</p>
+        </div>
+        <div className="rounded-2xl bg-cream p-3 shadow-soft ring-1 ring-copper/30 dark:bg-night-800">
+          <p className="text-[11px] text-ink/55 dark:text-cream/55">قيد التحصيل</p>
+          <p className="mt-1 font-display text-lg font-black text-copper dark:text-copper-light">{fmt(pending)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">دينار</p>
+        </div>
+      </div>
+
+      {/* invoices */}
+      <div className="flex items-center gap-2">
+        <Receipt className="h-4 w-4 text-ink/50 dark:text-cream/50" />
+        <h3 className="font-display text-sm font-black text-ink dark:text-cream">سجل الفواتير ({invoices.length})</h3>
+      </div>
+
+      {invoices.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-12 text-center dark:border-white/15">
+          <Receipt className="mx-auto mb-2 h-8 w-8 text-ink/20 dark:text-cream/20" />
+          <p className="text-sm font-bold text-ink/50 dark:text-cream/50">لا توجد فواتير بعد</p>
+          <p className="mt-1 text-xs text-ink/40 dark:text-cream/40">تظهر هنا فاتورة لكل طلب يُسلَّم للزبون.</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="rounded-2xl bg-cream p-3.5 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-display font-black text-ink dark:text-cream">فاتورة #{inv.order_no || '—'}</p>
+                  <p className="text-[11px] text-ink/45 dark:text-cream/45">{inv.area || ''} · {new Date(inv.created_at).toLocaleDateString('en-GB')}</p>
+                </div>
+                {inv.settled ? (
+                  <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 dark:text-green-300"><CheckCircle2 className="h-3.5 w-3.5" /> استُلمت</span>
+                ) : (
+                  <span className="rounded-full bg-copper/15 px-2.5 py-1 text-[11px] font-bold text-copper dark:text-copper-light">قيد التحصيل</span>
+                )}
+              </div>
+
+              <div className="mt-2 space-y-1 rounded-xl bg-beige/60 p-2.5 text-xs dark:bg-night-900/60">
+                <div className="flex justify-between"><span className="text-ink/55 dark:text-cream/55">قيمة بضاعتك</span><span className="font-bold text-ink dark:text-cream">{fmt(inv.goods)} د.ع</span></div>
+                <div className="flex justify-between"><span className="text-ink/55 dark:text-cream/55">عمولة اطلبها</span><span className="font-bold text-red-500">− {fmt(inv.commission)} د.ع</span></div>
+                <div className="flex justify-between border-t border-ink/10 pt-1 dark:border-white/10"><span className="font-bold text-ink dark:text-cream">صافي مستحقّك</span><span className="font-display font-black text-brand-800 dark:text-brand-400">{fmt(inv.net)} د.ع</span></div>
+              </div>
+
+              {!inv.settled ? (
+                confirmFor === inv.id ? (
+                  <div className="mt-2.5">
+                    <p className="mb-1.5 text-[11px] font-bold text-ink/60 dark:text-cream/60">كيف استلمت المبلغ؟</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PAY_METHODS.map(([key, label, Icon]) => (
+                        <button key={key} onClick={() => confirm(inv, key)}
+                          className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-800 py-2.5 text-xs font-bold text-cream hover:bg-brand-900">
+                          <Icon className="h-4 w-4" /> {label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setConfirmFor(null)} className="mt-1.5 w-full text-center text-[11px] text-ink/40 dark:text-cream/40">إلغاء</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmFor(inv.id)}
+                    className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-copper py-2.5 text-sm font-bold text-cream shadow-soft hover:bg-copper-dark">
+                    <CheckCircle2 className="h-4 w-4" /> تأكيد استلام المبلغ
+                  </button>
+                )
+              ) : (
+                <p className="mt-2 text-center text-[11px] text-ink/45 dark:text-cream/45">
+                  استُلم {inv.method === 'rafidain' ? 'عبر مصرف الرافدين' : 'عبر المندوب نقداً'}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   const { token } = session;
   const [store, setStore] = useState(session.store);
@@ -1328,7 +1452,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
 
         {/* tabs */}
         <div className="mx-auto flex max-w-4xl gap-1 px-4 pb-2">
-          {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
+          {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['wallet', 'محفظتي', Wallet], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -1419,6 +1543,8 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
           <OrdersList token={token} orders={orders} onReload={loadOrders} />
         ) : tab === 'bundles' ? (
           <BundlesManager token={token} products={products} cats={cats} />
+        ) : tab === 'wallet' ? (
+          <MerchantWallet token={token} />
         ) : (
           <>
             <div className="mb-4">

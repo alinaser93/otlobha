@@ -88,6 +88,12 @@ export const merchantSetBundleActive = (token, id, active) =>
 export const merchantReorderBundles = (token, ids) => rpc('merchant_reorder_bundles', { p_token: token, p_ids: ids });
 export const merchantSetBundleSeason = (token, id, season) => rpc('merchant_set_bundle_season', { p_token: token, p_id: id, p_season: season });
 
+/* ───────────────────────── merchant wallet & invoices ───────────────────────── */
+export const merchantWallet = (token) => rpc('merchant_wallet', { p_token: token });
+export const merchantInvoices = (token, limit = 100) => rpc('merchant_invoices', { p_token: token, p_limit: limit });
+export const merchantConfirmReceipt = (token, orderId, method) =>
+  rpc('merchant_confirm_receipt', { p_token: token, p_order_id: orderId, p_method: method });
+
 export const merchantAddProduct = (token, f = {}) =>
   rpc('merchant_add_product', {
     p_token: token,

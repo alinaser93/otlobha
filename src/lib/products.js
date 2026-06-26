@@ -153,6 +153,14 @@ export const adminSetStoreCommission = (adminId, storeId, pct) =>
 export const adminCommissionReport = (adminId, since = null) =>
   rpc('admin_commission_report', { p_admin_id: adminId, p_since: since });
 
+/* ───────────────────────── finance (admin) ───────────────────────── */
+export const adminFinanceReport = (adminId, since = null) =>
+  rpc('admin_finance_report', { p_admin_id: adminId, p_since: since });
+export const adminSettleMerchant = (adminId, storeId, amount, method, note = null) =>
+  rpc('admin_settle_merchant', { p_admin_id: adminId, p_store_id: storeId, p_amount: amount, p_method: method, p_note: note });
+export const adminSettleDriver = (adminId, driverId, amount, method, note = null) =>
+  rpc('admin_settle_driver', { p_admin_id: adminId, p_driver_id: driverId, p_amount: amount, p_method: method, p_note: note });
+
 /* ───────────────────────── bundles (admin) ───────────────────────── */
 export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
 

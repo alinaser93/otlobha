@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Lock, LogOut, RefreshCw, Loader2, Phone, MessageCircle,
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
+  Wallet, Banknote, TrendingUp, Store as StoreIcon,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
-  driverGetMe, driverUpdateProfile,
+  driverGetMe, driverUpdateProfile, driverWallet,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 
@@ -202,9 +203,15 @@ function Board({ driver, onOut }) {
             className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'done' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
             المُسلّمة ({done.length})
           </button>
+          <button onClick={() => setTab('wallet')}
+            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'wallet' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
+            محفظتي
+          </button>
         </div>
 
-        {loading ? (
+        {tab === 'wallet' ? (
+          <DriverWallet driverId={driver.id} />
+        ) : loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>
         ) : shown.length === 0 ? (
           <div className="py-16 text-center text-ink/40 dark:text-cream/40">{tab === 'active' ? 'لا توجد طلبات نشطة الآن.' : 'لا توجد طلبات مُسلّمة بعد.'}</div>
@@ -255,6 +262,71 @@ function Board({ driver, onOut }) {
 }
 
 /* ───────────── Delivery card ───────────── */
+function DriverWallet({ driverId }) {
+  const [w, setW] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let on = true;
+    driverWallet(driverId).then((r) => { if (on) { setW(r?.ok ? r : null); setLoading(false); } });
+    return () => { on = false; };
+  }, [driverId]);
+
+  if (loading) return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل المحفظة…</div>;
+  if (!w) return <div className="py-16 text-center text-ink/40 dark:text-cream/40">تعذّر تحميل المحفظة.</div>;
+
+  const list = w.deliveries_list || [];
+  return (
+    <div className="space-y-4">
+      {/* hero: earnings */}
+      <div className="rounded-3xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-cream shadow-card">
+        <div className="flex items-center gap-2 text-cream/80"><TrendingUp className="h-4 w-4" /> <span className="text-sm font-bold">أرباحك من التوصيل</span></div>
+        <p className="mt-1 font-display text-4xl font-black">{fmt(w.earned)} <span className="text-lg">د.ع</span></p>
+        <p className="mt-1 text-sm text-cream/70">من {w.deliveries} توصيلة مُسلّمة</p>
+      </div>
+
+      {/* cash flow */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-cream p-3.5 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+          <div className="flex items-center gap-1.5 text-ink/55 dark:text-cream/55"><Banknote className="h-4 w-4" /> <span className="text-[11px]">حصّلته نقداً</span></div>
+          <p className="mt-1 font-display text-xl font-black text-ink dark:text-cream">{fmt(w.collected)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">دينار (بضاعة + توصيل)</p>
+        </div>
+        <div className="rounded-2xl bg-copper/10 p-3.5 shadow-soft ring-1 ring-copper/30">
+          <div className="flex items-center gap-1.5 text-copper-dark dark:text-copper-light"><Wallet className="h-4 w-4" /> <span className="text-[11px] font-bold">تسلّمه للإدارة</span></div>
+          <p className="mt-1 font-display text-xl font-black text-copper dark:text-copper-light">{fmt(w.remaining)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">المتبقّي بعد أجرتك</p>
+        </div>
+      </div>
+      <p className="rounded-xl bg-beige/60 px-3 py-2 text-center text-[11px] text-ink/50 dark:bg-night-900/60 dark:text-cream/50">
+        💡 أجرتك: <b>١٥٠٠ د.ع</b> لكل توصيلة + <b>٥٠٠ د.ع</b> لكل محل إضافي بنفس الطلب.
+      </p>
+
+      {/* per-delivery breakdown */}
+      <div className="flex items-center gap-2"><Package className="h-4 w-4 text-ink/50 dark:text-cream/50" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">تفاصيل التوصيلات ({list.length})</h3></div>
+      {list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-12 text-center text-sm text-ink/45 dark:border-white/15 dark:text-cream/45">لا توجد توصيلات مُسلّمة بعد.</div>
+      ) : (
+        <div className="space-y-2">
+          {list.map((d) => (
+            <div key={d.id} className="flex items-center justify-between rounded-2xl bg-cream p-3 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+              <div>
+                <p className="font-display font-bold text-ink dark:text-cream">طلب #{d.order_no || '—'}</p>
+                <p className="flex items-center gap-1 text-[11px] text-ink/45 dark:text-cream/45">
+                  <StoreIcon className="h-3 w-3" /> {d.stores || 1} محل · {new Date(d.created_at).toLocaleDateString('en-GB')}
+                </p>
+              </div>
+              <div className="text-left">
+                <p className="font-display font-black text-green-600 dark:text-green-400">+{fmt(d.fee)} د.ع</p>
+                <p className="text-[10px] text-ink/40 dark:text-cream/40">حصّل {fmt(d.total)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeliveryCard({ o, onAdvance, driverId }) {
   const items = Array.isArray(o.items) ? o.items : [];
   const cur = o.delivery_status || 'assigned';

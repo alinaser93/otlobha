@@ -31,6 +31,7 @@ import {
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
+  adminFinanceReport, adminSettleMerchant, adminSettleDriver,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
@@ -413,7 +414,7 @@ function Dashboard({ admin, onOut }) {
         <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
           <button onClick={() => setShowEarnings((v) => !v)}
             className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /> أرباحي (العمولات)</span>
+            <span className="flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /> المالية والأرباح</span>
             <ChevronDown className={`h-5 w-5 transition ${showEarnings ? 'rotate-180' : ''}`} />
           </button>
           <AnimatePresence>
@@ -1457,6 +1458,7 @@ function EarningsManager({ admin }) {
   const [range, setRange] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('merchants'); // merchants | drivers
 
   const sinceFor = (r) => {
     const now = new Date();
@@ -1468,13 +1470,23 @@ function EarningsManager({ admin }) {
 
   async function load(r) {
     setLoading(true);
-    const res = await adminCommissionReport(admin.id, sinceFor(r));
-    setData(res?.ok ? res : { ok: false, stores: [], total_revenue: 0, total_commission: 0 });
+    const res = await adminFinanceReport(admin.id, sinceFor(r));
+    setData(res?.ok ? res : { ok: false, merchants: [], drivers: [], total_commission: 0, total_delivery: 0, total_driver_fees: 0, net: 0 });
     setLoading(false);
   }
   useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range]);
 
-  const stores = data?.stores || [];
+  async function settleMerchant(m, amount, method) {
+    const r = await adminSettleMerchant(admin.id, m.id, amount, method);
+    if (r?.ok) load(range);
+  }
+  async function settleDriver(d, amount, method) {
+    const r = await adminSettleDriver(admin.id, d.id, amount, method);
+    if (r?.ok) load(range);
+  }
+
+  const merchants = data?.merchants || [];
+  const drivers = data?.drivers || [];
 
   return (
     <div className="space-y-4 p-4">
@@ -1492,57 +1504,126 @@ function EarningsManager({ admin }) {
         <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ الحساب…</div>
       ) : (
         <>
-          {/* totals */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-gradient-to-br from-green-500/15 to-emerald-500/10 p-4 ring-1 ring-green-500/20">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-300"><Wallet className="h-3.5 w-3.5" /> أرباحك (عمولات)</div>
-              <div className="mt-1 font-display text-2xl font-black text-green-700 dark:text-green-300">{fmt(data?.total_commission || 0)}<span className="text-sm"> د.ع</span></div>
+          {/* net profit hero */}
+          <div className="rounded-3xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-cream shadow-card">
+            <div className="flex items-center gap-1.5 text-cream/80"><Wallet className="h-4 w-4" /> <span className="text-sm font-bold">صافي ربح اطلبها</span></div>
+            <p className="mt-1 font-display text-4xl font-black">{fmt(data?.net || 0)} <span className="text-lg">د.ع</span></p>
+            <p className="mt-1 text-xs text-cream/70">العمولات + التوصيل − أجور المندوبين · من {data?.orders_count || 0} طلب مُسلّم</p>
+          </div>
+
+          {/* breakdown cards */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-green-500/10 p-3 ring-1 ring-green-500/20">
+              <div className="text-[11px] font-bold text-green-700/80 dark:text-green-300/80">العمولات</div>
+              <div className="mt-0.5 font-display text-lg font-black text-green-700 dark:text-green-300">{fmt(data?.total_commission || 0)}</div>
             </div>
-            <div className="rounded-2xl bg-ink/5 p-4 ring-1 ring-ink/10 dark:bg-white/5 dark:ring-white/10">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-ink/60 dark:text-cream/60"><TrendingUp className="h-3.5 w-3.5" /> إجمالي المبيعات</div>
-              <div className="mt-1 font-display text-2xl font-black text-ink dark:text-cream">{fmt(data?.total_revenue || 0)}<span className="text-sm"> د.ع</span></div>
+            <div className="rounded-2xl bg-copper/10 p-3 ring-1 ring-copper/20">
+              <div className="text-[11px] font-bold text-copper-dark dark:text-copper-light">التوصيل</div>
+              <div className="mt-0.5 font-display text-lg font-black text-copper dark:text-copper-light">{fmt(data?.total_delivery || 0)}</div>
+            </div>
+            <div className="rounded-2xl bg-red-500/10 p-3 ring-1 ring-red-500/20">
+              <div className="text-[11px] font-bold text-red-600/80 dark:text-red-300/80">أجور المندوبين</div>
+              <div className="mt-0.5 font-display text-lg font-black text-red-600 dark:text-red-300">−{fmt(data?.total_driver_fees || 0)}</div>
             </div>
           </div>
 
-          {/* per-store */}
-          {stores.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-ink/15 py-10 text-center text-sm text-ink/40 dark:border-white/15 dark:text-cream/40">
-              لا توجد أرباح في هذه الفترة بعد.<br />
-              <span className="text-xs">تُحسب العمولات من الطلبات الجديدة التي تحمل بيانات المتجر.</span>
-            </div>
+          {/* merchants / drivers toggle */}
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-ink/5 p-1 dark:bg-white/5">
+            {[['merchants', 'تسويات التجار'], ['drivers', 'تسويات المندوبين']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)}
+                className={`rounded-lg py-2 text-sm font-bold transition ${view === k ? 'bg-copper text-cream shadow-seal' : 'text-ink/60 dark:text-cream/60'}`}>{l}</button>
+            ))}
+          </div>
+
+          {view === 'merchants' ? (
+            merchants.length === 0 ? (
+              <Empty text="لا توجد مستحقّات للتجار في هذه الفترة." />
+            ) : (
+              <div className="space-y-2">
+                {merchants.map((m) => (
+                  <SettleRow key={m.id} title={m.name} tag={`عمولة ${m.pct}%`}
+                    rows={[['قيمة البضاعة', m.goods], ['عمولتك', -m.commission], ['مستحقّ المتجر', m.due]]}
+                    paid={m.paid} pending={m.pending}
+                    onSettle={(amt, method) => settleMerchant(m, amt, method)}
+                    settleLabel="تسوية مع التاجر" />
+                ))}
+              </div>
+            )
           ) : (
-            <div className="space-y-2">
-              <div className="px-1 text-xs font-bold text-ink/40 dark:text-cream/40">الأرباح حسب المتجر</div>
-              {stores.map((s) => (
-                <div key={s.id} className="rounded-2xl bg-cream p-3.5 ring-1 ring-brand-900/5 dark:bg-night-900 dark:ring-white/10">
-                  <div className="flex items-center justify-between">
-                    <span className="font-display font-bold text-ink dark:text-cream">{s.name}</span>
-                    <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[11px] font-bold text-copper-dark dark:text-copper-light">عمولة {s.pct}%</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-lg bg-ink/5 py-1.5 dark:bg-white/5">
-                      <div className="text-[10px] text-ink/40 dark:text-cream/40">مبيعات</div>
-                      <div className="text-sm font-bold text-ink dark:text-cream">{fmt(s.revenue)}</div>
-                    </div>
-                    <div className="rounded-lg bg-green-500/10 py-1.5">
-                      <div className="text-[10px] text-green-700/70 dark:text-green-300/70">ربحك</div>
-                      <div className="text-sm font-black text-green-700 dark:text-green-300">{fmt(s.commission)}</div>
-                    </div>
-                    <div className="rounded-lg bg-ink/5 py-1.5 dark:bg-white/5">
-                      <div className="text-[10px] text-ink/40 dark:text-cream/40">للمتجر</div>
-                      <div className="text-sm font-bold text-ink dark:text-cream">{fmt(s.net)}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            drivers.length === 0 ? (
+              <Empty text="لا توجد مستحقّات للمندوبين في هذه الفترة." />
+            ) : (
+              <div className="space-y-2">
+                {drivers.map((d) => (
+                  <SettleRow key={d.id} title={d.name} tag={`${d.deliveries} توصيلة`}
+                    rows={[['حصّل نقداً', d.collected], ['أجرته', -d.earned], ['يسلّمه للإدارة', d.owes]]}
+                    paid={d.paid} pending={d.remaining}
+                    onSettle={(amt, method) => settleDriver(d, amt, method)}
+                    settleLabel="تأكيد استلام النقد" pendingLabel="المتبقّي عليه" />
+                ))}
+              </div>
+            )
           )}
 
           <p className="px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
-            💡 «ربحك» = عمولتك من مبيعات المتجر. «للمتجر» = المبلغ المستحقّ للمتجر بعد عمولتك. تُحسب من الطلبات غير الملغاة.
+            💡 تُحسب من الطلبات المُسلّمة فقط. «تسوية التاجر» = دفعت له مستحقّاته. «استلام النقد» = استلمت من المندوب ما يخصّ الإدارة.
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function Empty({ text }) {
+  return <div className="rounded-2xl border border-dashed border-ink/15 py-10 text-center text-sm text-ink/40 dark:border-white/15 dark:text-cream/40">{text}</div>;
+}
+
+// a settlement row with expandable amount/method picker
+function SettleRow({ title, tag, rows, paid, pending, onSettle, settleLabel, pendingLabel = 'قيد التحصيل' }) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(pending || 0));
+  const [method, setMethod] = useState('cash');
+  return (
+    <div className="rounded-2xl bg-cream p-3.5 ring-1 ring-brand-900/5 dark:bg-night-900 dark:ring-white/10">
+      <div className="flex items-center justify-between">
+        <span className="font-display font-bold text-ink dark:text-cream">{title}</span>
+        <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[11px] font-bold text-copper-dark dark:text-copper-light">{tag}</span>
+      </div>
+      <div className="mt-2 space-y-1 rounded-xl bg-beige/60 p-2.5 text-xs dark:bg-night-800/60">
+        {rows.map(([label, val], i) => (
+          <div key={i} className="flex justify-between">
+            <span className="text-ink/55 dark:text-cream/55">{label}</span>
+            <span className={`font-bold ${val < 0 ? 'text-red-500' : 'text-ink dark:text-cream'}`}>{val < 0 ? '− ' : ''}{fmt(Math.abs(val))} د.ع</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="text-green-600 dark:text-green-400">سُوّي: <b>{fmt(paid)}</b></span>
+        <span className="text-copper dark:text-copper-light">{pendingLabel}: <b>{fmt(pending)}</b></span>
+      </div>
+
+      {pending > 0 && (open ? (
+        <div className="mt-2.5 rounded-xl bg-ink/5 p-2.5 dark:bg-white/5">
+          <div className="flex items-center gap-2">
+            <input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)}
+              className="w-28 rounded-lg border border-ink/10 bg-beige px-2 py-1.5 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+            <div className="flex gap-1">
+              {[['cash', 'نقد'], ['rafidain', 'رافدين']].map(([k, l]) => (
+                <button key={k} onClick={() => setMethod(k)}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${method === k ? 'bg-copper text-cream' : 'bg-ink/10 text-ink/60 dark:bg-white/10 dark:text-cream/60'}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-ink/10 py-2 text-xs font-bold text-ink/60 dark:bg-white/10 dark:text-cream/60">إلغاء</button>
+            <button onClick={() => { onSettle(Math.max(0, parseInt(amount, 10) || 0), method); setOpen(false); }}
+              className="flex-[2] rounded-lg bg-green-600 py-2 text-xs font-bold text-white hover:bg-green-700">تأكيد التسوية</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => { setAmount(String(pending)); setOpen(true); }}
+          className="mt-2.5 w-full rounded-xl bg-copper py-2.5 text-sm font-bold text-cream shadow-soft hover:bg-copper-dark">{settleLabel}</button>
+      ))}
     </div>
   );
 }

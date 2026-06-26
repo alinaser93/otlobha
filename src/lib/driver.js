@@ -47,3 +47,6 @@ export const driverUpdateProfile = (driverId, f) =>
     p_birthdate: f.birthdate ?? null, p_gender: f.gender ?? null,
     p_vehicle: f.vehicle ?? null, p_avatar_url: f.avatar_url ?? null,
   });
+
+// driver wallet (earnings + cash owed to admin)
+export const driverWallet = (driverId) => rpc('driver_wallet', { p_driver_id: driverId });
