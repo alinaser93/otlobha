@@ -819,8 +819,11 @@ function BundlesManager({ token, products }) {
     const r = await generateBundle(products.map((p) => ({ name: p.name, price: p.price, unit: p.unit })));
     setAiBusy(false);
     if (!r?.ok || !r.bundle) { setAiErr(r?.error || 'تعذّر توليد الباقة، حاول مجدداً.'); return; }
-    // enrich AI ingredients with emoji/image from the matching product
-    const ingredients = (r.bundle.ingredients || []).map((x) => {
+    // enrich AI ingredients with emoji/image from the matching product, dedupe by name
+    const seen = new Set();
+    const ingredients = (r.bundle.ingredients || []).filter((x) => {
+      if (seen.has(x.name)) return false; seen.add(x.name); return true;
+    }).map((x) => {
       const p = productByName.get(x.name);
       return { name: x.name, qty: x.qty, unit: x.unit || (p?.unit || ''), emoji: p?.emoji || '🛒', image: p?.image || '' };
     });
@@ -945,8 +948,13 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
       ? base.ingredients.map((x) => ({ name: x.name || '', qty: x.qty || 1, unit: x.unit || '', emoji: x.emoji || '🛒', image: x.image || '' }))
       : [{ name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]
   );
-  const [oldPrice, setOldPrice] = useState(base.old_price != null ? String(base.old_price) : '');
-  const [price, setPrice] = useState(base.price != null ? String(base.price) : '');
+  // pricing is driven by a discount % so it stays live as ingredients change
+  const initDisc = (() => {
+    const op = base.old_price, pr = base.price;
+    if (op && pr != null && op > 0) return Math.min(95, Math.max(0, Math.round((1 - pr / op) * 100)));
+    return 10;
+  })();
+  const [discountPct, setDiscountPct] = useState(initDisc);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [descBusy, setDescBusy] = useState(false);
@@ -956,6 +964,12 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
   const inp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
 
   const full = useMemo(() => bundleFullPrice(ingredients, productByName), [ingredients, productByName]);
+  const price = Math.max(0, Math.round(full * (1 - discountPct / 100)));
+  const saving = Math.max(0, full - price);
+  function onPriceInput(v) {
+    const p = Math.max(0, parseInt(v, 10) || 0);
+    if (full > 0) setDiscountPct(Math.min(95, Math.max(0, Math.round((1 - p / full) * 100))));
+  }
 
   function setIng(i, patch) {
     setIngredients((list) => list.map((x, idx) => {
@@ -971,8 +985,6 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
   }
   function addIng() { setIngredients((l) => [...l, { name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]); }
   function removeIng(i) { setIngredients((l) => l.filter((_, idx) => idx !== i)); }
-
-  function applyFullAsOld() { if (full > 0) setOldPrice(String(full)); }
 
   async function genDesc() {
     if (!name.trim()) { setErr('اكتب اسم الباقة أولاً'); return; }
@@ -998,13 +1010,13 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
       .map((x) => ({ name: x.name.trim(), qty: Math.max(1, parseInt(x.qty, 10) || 1), unit: (x.unit || '').trim(), emoji: x.emoji || '🛒', image: x.image || null }));
     if (!name.trim()) { setErr('اكتب اسم الباقة'); return; }
     if (clean.length < 2) { setErr('أضِف منتجين على الأقل للباقة'); return; }
-    if (!price && price !== '0') { setErr('حدّد سعر الباقة'); return; }
+    if (price <= 0) { setErr('سعر الباقة غير صالح — تأكّد من أسعار المنتجات'); return; }
 
     setBusy(true); setErr('');
     const payload = {
       name: name.trim(), kicker: kicker.trim() || null, description: description.trim() || null,
-      price: Math.max(0, parseInt(price, 10) || 0),
-      old_price: oldPrice === '' ? null : Math.max(0, parseInt(oldPrice, 10) || 0),
+      price,
+      old_price: full > price ? full : null,
       accent, image: image || null, ingredients: clean,
     };
     const r = bundle ? await merchantUpdateBundle(token, bundle.id, payload) : await merchantAddBundle(token, payload);
@@ -1061,7 +1073,7 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
                 <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
                   {ing.image ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" /> : ing.emoji}
                 </span>
-                <div className="min-w-0 flex-1"><CategoryPicker value={ing.name} onChange={(v) => setIng(i, { name: v })} options={productNames} allowNew={false} placeholder="اختر منتجاً" /></div>
+                <div className="min-w-0 flex-1"><CategoryPicker value={ing.name} onChange={(v) => setIng(i, { name: v })} options={productNames.filter((n) => n === ing.name || !ingredients.some((o, idx) => idx !== i && o.name === n))} allowNew={false} placeholder="اختر منتجاً" /></div>
                 <button onClick={() => removeIng(i)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-500"><Trash2 className="h-4 w-4" /></button>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1076,27 +1088,40 @@ function BundleForm({ token, products, bundle, initial, onClose, onSaved }) {
           ))}
         </div>
 
-        {/* pricing */}
-        <div className="mt-4 rounded-xl bg-copper/5 p-3">
-          <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-ink/55 dark:text-cream/55">قيمة المنتجات مفردة:</span>
-            <span className="flex items-center gap-2">
-              <span className="font-display font-black text-ink dark:text-cream">{fmt(full)} د.ع</span>
-              {full > 0 && <button onClick={applyFullAsOld} className="rounded bg-copper/20 px-2 py-0.5 text-[10px] font-bold text-copper-dark dark:text-copper-light">اجعله السعر قبل الخصم</button>}
-            </span>
+        {/* pricing — driven by discount %, updates live with ingredients */}
+        <div className="mt-4 rounded-2xl bg-copper/5 p-3.5">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs text-ink/55 dark:text-cream/55">قيمة المنتجات مفردة (قبل الخصم)</span>
+            <span className="font-display text-lg font-black text-ink/70 line-through dark:text-cream/70">{fmt(full)} د.ع</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">قبل الخصم (اختياري)</label>
-              <input type="number" dir="ltr" value={oldPrice} onChange={(e) => setOldPrice(e.target.value)} className={inp} placeholder={full ? String(full) : '0'} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">سعر الباقة</label>
-              <input type="number" dir="ltr" value={price} onChange={(e) => setPrice(e.target.value)} className={inp} placeholder="0" />
+
+          {/* discount slider + number */}
+          <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">نسبة الخصم على الباقة</label>
+          <div className="flex items-center gap-3">
+            <input type="range" min="0" max="50" value={discountPct} onChange={(e) => setDiscountPct(parseInt(e.target.value, 10) || 0)}
+              className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-ink/10 accent-copper dark:bg-white/10" />
+            <div className="flex items-center gap-1 rounded-lg bg-cream px-2 py-1 dark:bg-night-900">
+              <input type="number" min="0" max="95" dir="ltr" value={discountPct} onChange={(e) => setDiscountPct(Math.min(95, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                className="w-10 bg-transparent text-center text-sm font-black text-copper outline-none dark:text-copper-light" />
+              <span className="text-xs font-bold text-copper dark:text-copper-light">%</span>
             </div>
           </div>
-          {oldPrice && price && parseInt(oldPrice, 10) > parseInt(price, 10) && (
-            <p className="mt-1.5 text-center text-[11px] font-bold text-green-600 dark:text-green-300">يوفّر الزبون {fmt(parseInt(oldPrice, 10) - parseInt(price, 10))} د.ع 🎉</p>
+
+          {/* final price (editable → adjusts discount) */}
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-copper/10 p-3">
+            <span className="text-sm font-bold text-ink/70 dark:text-cream/70">سعر الباقة للزبون</span>
+            <div className="flex items-baseline gap-1">
+              <input type="number" dir="ltr" value={price} onChange={(e) => onPriceInput(e.target.value)}
+                className="w-24 rounded-lg border border-copper/30 bg-cream px-2 py-1 text-left font-display text-xl font-black text-copper outline-none focus:border-copper dark:bg-night-900 dark:text-copper-light" />
+              <span className="text-xs font-bold text-copper dark:text-copper-light">د.ع</span>
+            </div>
+          </div>
+
+          {saving > 0 && (
+            <p className="mt-2 text-center text-xs font-bold text-green-600 dark:text-green-300">يوفّر الزبون {fmt(saving)} د.ع ({discountPct}%) 🎉</p>
+          )}
+          {full === 0 && (
+            <p className="mt-2 text-center text-[11px] text-amber-600 dark:text-amber-300">⚠️ أضِف منتجات لها أسعار ليُحسب سعر الباقة تلقائياً.</p>
           )}
         </div>
 
