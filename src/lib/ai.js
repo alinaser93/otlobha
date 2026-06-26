@@ -42,19 +42,35 @@ export async function extractProductsFromImage(file, categories = []) {
 }
 
 // ask the AI to write a short marketing description for one product
-export async function generateProductDescription({ name, category, unit, price }) {
+// opts: { name, category, unit, price, style?, current? }
+//   style + current → refine an existing description ('shorter'|'longer'|'persuasive')
+export async function generateProductDescription({ name, category, unit, price, style, current }) {
+  return postAI({ task: 'description', name, category, unit, price, style, current }, 'فشل التوليد');
+}
+
+// suggest a promotional badge from the allowed set (or '')
+export async function suggestBadge({ name, category }) {
+  return postAI({ task: 'badge', name, category }, 'فشل اقتراح الشارة');
+}
+
+// suggest a typical retail price (IQD) for the Iraqi market
+export async function suggestPrice({ name, category, unit }) {
+  return postAI({ task: 'price', name, category, unit }, 'فشل اقتراح السعر');
+}
+
+async function postAI(payload, failMsg) {
   let res;
   try {
     res = await fetch('/api/generate-description', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, unit, price }),
+      body: JSON.stringify(payload),
     });
   } catch {
     return { ok: false, error: 'تعذّر الاتصال بالخادم. تأكّد من الإنترنت.' };
   }
   let data = null;
   try { data = await res.json(); } catch {}
-  if (!data) return { ok: false, error: `فشل التوليد (${res.status})` };
+  if (!data) return { ok: false, error: `${failMsg} (${res.status})` };
   return data;
 }

@@ -28,7 +28,7 @@ import {
   adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
   adminSetBundleActive, adminReorderBundles,
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
-  adminReorderStores, adminSetProductStore,
+  adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
@@ -1712,6 +1712,8 @@ function StoreModal({ admin, store, onClose, onSaved }) {
 
       {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
 
+      <MerchantCreds admin={admin} store={store} />
+
       <div className="flex gap-2">
         <button onClick={save} disabled={busy || uploading || cleaning || covBusy || vidBusy}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">
@@ -1720,6 +1722,65 @@ function StoreModal({ admin, store, onClose, onSaved }) {
         <button onClick={onClose} className="rounded-xl bg-ink/5 px-5 py-3 font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/70">إلغاء</button>
       </div>
     </Modal>
+  );
+}
+
+/* لوحة الأدمن: إنشاء/تعديل بيانات دخول صاحب المتجر */
+function MerchantCreds({ admin, store }) {
+  const [username, setUsername] = useState(store.merchant_username || '');
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const hasAccount = !!store.merchant_username;
+
+  async function save() {
+    if (!username.trim()) { setErr('اكتب اسم المستخدم'); return; }
+    if (!hasAccount && !password) { setErr('اكتب كلمة مرور لإنشاء الحساب'); return; }
+    setBusy(true); setErr(''); setMsg('');
+    const r = await adminSetStoreCredentials(admin.id, store.id, username.trim(), password);
+    setBusy(false);
+    if (r?.ok) {
+      setMsg(hasAccount && !password ? 'تم تحديث اسم المستخدم' : 'تم حفظ بيانات الدخول ✓');
+      setPassword('');
+      store.merchant_username = username.trim(); // reflect locally
+    } else {
+      setErr(r?.error === 'username_taken' ? 'اسم المستخدم مستخدم لمتجر آخر'
+        : r?.error === 'password_required' ? 'كلمة المرور مطلوبة لإنشاء الحساب'
+        : 'تعذّر الحفظ');
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-copper/20 bg-copper/5 p-3.5">
+      <div className="mb-2 flex items-center gap-1.5">
+        <StoreIcon className="h-4 w-4 text-copper" />
+        <span className="font-display text-sm font-bold text-ink dark:text-cream">دخول صاحب المتجر</span>
+        {hasAccount && <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-600 dark:text-green-300">مُفعّل</span>}
+      </div>
+      <p className="mb-2.5 text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+        يدخل صاحب المتجر عبر <span dir="ltr" className="font-bold">otlobha.netlify.app/merchant</span> ليدير منتجاته بنفسه.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم" dir="ltr"
+          className="rounded-lg border border-ink/10 bg-beige px-2.5 py-2 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream" style={{ textAlign: 'right' }} />
+        <div className="relative">
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type={show ? 'text' : 'password'}
+            placeholder={hasAccount ? 'كلمة مرور جديدة (اختياري)' : 'كلمة المرور'} dir="ltr"
+            className="w-full rounded-lg border border-ink/10 bg-beige px-2.5 py-2 pl-8 text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream" style={{ textAlign: 'right' }} />
+          <button type="button" onClick={() => setShow((s) => !s)} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink/30 dark:text-cream/30">
+            {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+      {err && <div className="mt-2 text-[12px] font-bold text-red-600 dark:text-red-300">{err}</div>}
+      {msg && <div className="mt-2 text-[12px] font-bold text-green-600 dark:text-green-300">{msg}</div>}
+      <button onClick={save} disabled={busy}
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-copper/90 py-2 text-sm font-bold text-cream hover:bg-copper disabled:opacity-60">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {hasAccount ? 'تحديث الدخول' : 'إنشاء حساب الدخول'}
+      </button>
+    </div>
   );
 }
 

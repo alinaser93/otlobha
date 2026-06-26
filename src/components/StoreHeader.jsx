@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Heart, ChevronRight, Phone, BadgeCheck } from 'lucide-react';
-import { useFollows, Stars } from './StoresSection.jsx';
+import { Star, Heart, ChevronRight, Phone, BadgeCheck, Users } from 'lucide-react';
+import { Stars } from './StoresSection.jsx';
+import { RatingModal } from './StoreRating.jsx';
 
 const CAT_EMOJI = {
   بقالة: '🛒', مخبز: '🥖', مطعم: '🍽️', خضار: '🥬',
@@ -15,11 +17,16 @@ const CAT_GRAD = {
 const emojiFor = (c) => CAT_EMOJI[c] || '🏪';
 const gradFor = (c) => CAT_GRAD[c] || 'from-brand-600 to-brand-900';
 
-export default function StoreHeader({ store, count = 0, onBack }) {
-  const [follows, toggleFollow] = useFollows();
+export default function StoreHeader({ store, count = 0, onBack, account = null, onRequireLogin, onRated, followIds = [], onToggleFollow }) {
+  const [rateOpen, setRateOpen] = useState(false);
   if (!store) return null;
-  const followed = follows.includes(store.id);
+  const followed = followIds.includes(store.id);
   const phone = (store.phone || '').replace(/[^\d]/g, '');
+
+  function openRate() {
+    if (account?.id) setRateOpen(true);
+    else onRequireLogin?.();
+  }
 
   return (
     <motion.div
@@ -48,14 +55,24 @@ export default function StoreHeader({ store, count = 0, onBack }) {
           <ChevronRight className="h-4 w-4" /> كل المتاجر
         </button>
 
-        {/* follow */}
-        <button onClick={() => toggleFollow(store.id)}
-          className={`absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold backdrop-blur transition ${
-            followed ? 'bg-red-500 text-white' : 'bg-white/90 text-ink hover:bg-white'
-          }`}>
-          <Heart className={`h-4 w-4 ${followed ? 'fill-white' : ''}`} /> {followed ? 'متابَع' : 'متابعة'}
-        </button>
+        {/* follow + rate */}
+        <div className="absolute left-4 top-4 flex items-center gap-2">
+          <button onClick={openRate}
+            className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1.5 text-sm font-bold text-ink shadow-soft transition hover:bg-amber-300">
+            <Star className="h-4 w-4 fill-ink" /> قيّم
+          </button>
+          <button onClick={() => onToggleFollow?.(store.id)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold backdrop-blur transition ${
+              followed ? 'bg-red-500 text-white' : 'bg-white/90 text-ink hover:bg-white'
+            }`}>
+            <Heart className={`h-4 w-4 ${followed ? 'fill-white' : ''}`} /> {followed ? 'متابَع' : 'متابعة'}
+          </button>
+        </div>
       </div>
+
+      {rateOpen && (
+        <RatingModal store={store} account={account} onClose={() => setRateOpen(false)} onRated={onRated} />
+      )}
 
       {/* identity row */}
       <div className="relative flex items-start gap-4 px-5 pb-5 pt-0 sm:px-7">
@@ -84,6 +101,11 @@ export default function StoreHeader({ store, count = 0, onBack }) {
               {emojiFor(store.category)} {store.category}
             </span>
             <span className="text-xs font-bold text-ink/45 dark:text-cream/45">{count} منتج</span>
+            {store.followersCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-ink/45 dark:text-cream/45">
+                <Users className="h-3.5 w-3.5" /> {store.followersCount} متابِع
+              </span>
+            )}
           </div>
 
           {store.tagline && <p className="mt-2 font-body text-sm leading-relaxed text-ink/55 dark:text-cream/55">{store.tagline}</p>}

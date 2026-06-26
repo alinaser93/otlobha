@@ -5,17 +5,23 @@ import { fadeUp, viewportOnce } from '../lib/motion.js';
 import ProductCard from './ProductCard.jsx';
 import ProductModal from './ProductModal.jsx';
 import StoreHeader from './StoreHeader.jsx';
+import { StoreReviews } from './StoreRating.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore }) {
+export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore, account = null, onRequireLogin, followIds = [], onToggleFollow }) {
   const [cat, setCat] = useState('الكل');
   const [selected, setSelected] = useState(null);
+  const [ratingOverride, setRatingOverride] = useState(null);
+  const [reviewsKey, setReviewsKey] = useState(0);
   const didDeepLink = useRef(false);
   // categories may be plain strings (fallback) or objects { name, image, emoji }
   const cats = (categories || []).map((c) => (typeof c === 'string' ? { name: c, image: null, emoji: null } : c));
   const byStore = storeFilter ? products.filter((p) => p.storeId === storeFilter) : products;
   const list = cat === 'الكل' ? byStore : byStore.filter((p) => p.tag === cat);
+
+  // reset live rating override when switching stores
+  useEffect(() => { setRatingOverride(null); }, [store?.id]);
 
   // open a shared product / category once the live catalog has loaded
   useEffect(() => {
@@ -40,7 +46,17 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         {store && (
           <div className="mb-9">
-            <StoreHeader store={store} count={byStore.length} onBack={onClearStore} />
+            <StoreHeader
+              store={ratingOverride ? { ...store, rating: ratingOverride.rating, ratingCount: ratingOverride.ratingCount } : store}
+              count={byStore.length}
+              onBack={onClearStore}
+              account={account}
+              onRequireLogin={onRequireLogin}
+              onRated={(r) => { setRatingOverride(r); setReviewsKey((k) => k + 1); }}
+              followIds={followIds}
+              onToggleFollow={onToggleFollow}
+            />
+            <StoreReviews storeId={store.id} refreshKey={reviewsKey} />
           </div>
         )}
 

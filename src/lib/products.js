@@ -125,6 +125,27 @@ export const adminReorderStores = (adminId, ids) =>
 export const adminSetProductStore = (adminId, productId, storeId) =>
   rpc('admin_set_product_store', { p_admin_id: adminId, p_id: productId, p_store_id: storeId });
 
+/* ───────────────────────── store ratings (customer) ───────────────────────── */
+export const storeRate = (accountId, storeId, stars, comment) =>
+  rpc('store_rate', { p_account_id: accountId, p_store_id: storeId, p_stars: stars, p_comment: comment ?? null });
+
+export const storeMyRating = (accountId, storeId) =>
+  rpc('store_my_rating', { p_account_id: accountId, p_store_id: storeId });
+
+export const storeRatingsList = (storeId, limit = 20) =>
+  rpc('store_ratings_list', { p_store_id: storeId, p_limit: limit });
+
+/* ───────────────────────── store follows (customer) ───────────────────────── */
+export const storeToggleFollow = (accountId, storeId) =>
+  rpc('store_toggle_follow', { p_account_id: accountId, p_store_id: storeId });
+
+export const storeMyFollows = (accountId) =>
+  rpc('store_my_follows', { p_account_id: accountId });
+
+/* ───────────────────────── merchant credentials (admin) ───────────────────────── */
+export const adminSetStoreCredentials = (adminId, storeId, username, password) =>
+  rpc('admin_set_store_credentials', { p_admin_id: adminId, p_store_id: storeId, p_username: username, p_password: password });
+
 /* ───────────────────────── bundles (admin) ───────────────────────── */
 export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
 
@@ -268,6 +289,7 @@ export async function fetchStoreCatalog() {
       phone: s.phone || '',
       rating: Number(s.rating) || 0,
       ratingCount: s.rating_count || 0,
+      followersCount: s.followers_count || 0,
       featured: !!s.featured,
     }));
 

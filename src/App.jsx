@@ -15,7 +15,7 @@ import AccountDrawer from './components/AccountDrawer.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
-import { fetchStoreCatalog } from './lib/products.js';
+import { fetchStoreCatalog, storeMyFollows, storeToggleFollow } from './lib/products.js';
 import { WHATSAPP_NUMBER } from './config.js';
 
 /* ── slim promo bar ── */
@@ -74,6 +74,7 @@ export default function App() {
   const [bundles, setBundles] = useState(BUNDLES);
   const [stores, setStores] = useState([]);
   const [activeStore, setActiveStore] = useState(null);
+  const [followIds, setFollowIds] = useState([]);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -155,6 +156,34 @@ export default function App() {
     // eslint-disable-next-line
   }, [stores]);
 
+  // sync the customer's followed stores from their account (cross-device)
+  useEffect(() => {
+    if (!account?.id) { setFollowIds([]); return; }
+    let alive = true;
+    storeMyFollows(account.id).then((r) => {
+      if (alive && r?.ok && Array.isArray(r.store_ids)) setFollowIds(r.store_ids);
+    });
+    return () => { alive = false; };
+  }, [account]);
+
+  const toggleFollow = useCallback(async (storeId) => {
+    if (!account?.id) { setAuthOpen(true); return; }
+    const wasFollowing = followIds.includes(storeId);
+    setFollowIds((prev) => (wasFollowing ? prev.filter((x) => x !== storeId) : [...prev, storeId])); // optimistic
+    const r = await storeToggleFollow(account.id, storeId);
+    if (r?.ok) {
+      setFollowIds((prev) => {
+        const has = prev.includes(storeId);
+        if (r.following && !has) return [...prev, storeId];
+        if (!r.following && has) return prev.filter((x) => x !== storeId);
+        return prev;
+      });
+      setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, followersCount: r.followers } : s)));
+    } else {
+      setFollowIds((prev) => (wasFollowing ? [...prev, storeId] : prev.filter((x) => x !== storeId))); // revert
+    }
+  }, [account, followIds]);
+
   // ── theme (dark / light) ──
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   useEffect(() => {
@@ -234,6 +263,8 @@ export default function App() {
         <StoresSection
           stores={stores}
           activeStore={activeStore}
+          followIds={followIds}
+          onToggleFollow={toggleFollow}
           onSelect={(id) => {
             setActiveStore(id);
             if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
@@ -250,6 +281,10 @@ export default function App() {
           storeFilter={activeStore}
           store={activeStore ? (stores.find((s) => s.id === activeStore) || null) : null}
           onClearStore={() => setActiveStore(null)}
+          account={account}
+          onRequireLogin={() => setAuthOpen(true)}
+          followIds={followIds}
+          onToggleFollow={toggleFollow}
         />
         <FreshnessPromise />
       </main>

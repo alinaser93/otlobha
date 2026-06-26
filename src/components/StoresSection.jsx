@@ -103,6 +103,9 @@ function StoreCard({ s, active, onSelect, followed, onFollow, index }) {
           {s.tagline
             ? <p className="mt-0.5 truncate font-body text-xs text-ink/50 dark:text-cream/50">{s.tagline}</p>
             : <p className="mt-0.5 truncate font-body text-xs text-ink/40 dark:text-cream/40">متجر في سوق السماوة</p>}
+          {s.followersCount > 0 && (
+            <p className="mt-1 font-body text-[11px] font-bold text-copper dark:text-copper-light">❤️ {s.followersCount} متابِع</p>
+          )}
         </div>
       </div>
 
@@ -113,8 +116,7 @@ function StoreCard({ s, active, onSelect, followed, onFollow, index }) {
   );
 }
 
-export default function StoresSection({ stores = [], activeStore = null, onSelect }) {
-  const [follows, toggleFollow] = useFollows();
+export default function StoresSection({ stores = [], activeStore = null, onSelect, followIds = [], onToggleFollow }) {
   if (!stores.length) return null;
 
   return (
@@ -138,7 +140,7 @@ export default function StoresSection({ stores = [], activeStore = null, onSelec
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {stores.map((s, i) => (
             <StoreCard key={s.id} s={s} index={i} active={activeStore === s.id} onSelect={onSelect}
-              followed={follows.includes(s.id)} onFollow={toggleFollow} />
+              followed={followIds.includes(s.id)} onFollow={onToggleFollow} />
           ))}
         </div>
       </div>
