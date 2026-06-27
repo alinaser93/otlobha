@@ -9,7 +9,8 @@ export default function PushToggle({ partyType, partyId }) {
 
   useEffect(() => {
     if (!pushSupported()) { setStatus('unsupported'); return; }
-    pushStatus().then(setStatus);
+    pushStatus(partyType).then(setStatus);
+    /* eslint-disable-next-line */
   }, []);
 
   async function enable() {
@@ -20,7 +21,7 @@ export default function PushToggle({ partyType, partyId }) {
   }
   async function disable() {
     setBusy(true);
-    await disablePush();
+    await disablePush(partyType);
     setBusy(false);
     setStatus('granted-off');
   }

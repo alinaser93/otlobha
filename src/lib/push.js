@@ -32,15 +32,21 @@ async function rpc(fn, args) {
   try { const { data } = await supabase.rpc(fn, args); return data; } catch (e) { return null; }
 }
 
-// الحالة الحالية: 'unsupported' | 'denied' | 'default' | 'granted-on' | 'granted-off'
-export async function pushStatus() {
+// الحالة الحالية لدور معيّن: 'unsupported' | 'denied' | 'default' | 'granted-on' | 'granted-off'
+export async function pushStatus(partyType) {
   if (!pushSupported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
   if (Notification.permission === 'default') return 'default';
   try {
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');
     const sub = reg ? await reg.pushManager.getSubscription() : null;
-    return sub ? 'granted-on' : 'granted-off';
+    if (!sub) return 'granted-off';
+    // مُفعّل فقط إذا كان لهذا الجهاز صفّ من هذا الدور بالقاعدة
+    if (partyType) {
+      const r = await rpc('has_push_subscription', { p_endpoint: sub.endpoint, p_party_type: partyType });
+      return r?.exists ? 'granted-on' : 'granted-off';
+    }
+    return 'granted-on';
   } catch (e) { return 'granted-off'; }
 }
 
@@ -68,16 +74,15 @@ export async function enablePush(partyType, partyId) {
   return { ok: true };
 }
 
-// إيقاف الإشعارات: إلغاء الاشتراك + حذفه من الخادم
-export async function disablePush() {
+// إيقاف إشعارات دور معيّن: يحذف صفّ هذا الدور فقط (يبقي بقية الأدوار على نفس الجهاز)
+export async function disablePush(partyType) {
   if (!pushSupported()) return { ok: false };
   try {
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');
     const sub = reg ? await reg.pushManager.getSubscription() : null;
     if (sub) {
-      const ep = sub.endpoint;
-      await sub.unsubscribe();
-      await rpc('delete_push_subscription', { p_endpoint: ep });
+      await rpc('delete_push_subscription', { p_endpoint: sub.endpoint, p_party_type: partyType || null });
+      // نبقي اشتراك المتصفّح حتى تستمر بقية الأدوار باستقبال الإشعارات
     }
     return { ok: true };
   } catch (e) { return { ok: false }; }

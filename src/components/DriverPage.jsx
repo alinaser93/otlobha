@@ -10,7 +10,7 @@ import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
-  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady,
+  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady, driverOrderStores,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import PushToggle from './PushToggle.jsx';
