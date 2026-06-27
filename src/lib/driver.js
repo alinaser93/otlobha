@@ -35,6 +35,8 @@ export const driverLogin = (pass) => rpc('driver_login', { p_pass: pass });
 export const driverListOrders = (driverId) => rpc('driver_list_orders', { p_driver_id: driverId });
 export const driverUpdateDelivery = (driverId, orderId, status) =>
   rpc('driver_update_delivery', { p_driver_id: driverId, p_order_id: orderId, p_status: status });
+export const driverOrdersReady = (driverId) => rpc('driver_orders_ready', { p_driver_id: driverId });
+export const driverOrderStores = (orderId) => rpc('driver_order_stores', { p_order_id: orderId });
 export const driverUpdateLocation = (driverId, orderId, lat, lng) =>
   rpc('driver_update_location', { p_driver_id: driverId, p_order_id: orderId, p_lat: lat, p_lng: lng });
 
@@ -47,3 +49,6 @@ export const driverUpdateProfile = (driverId, f) =>
     p_birthdate: f.birthdate ?? null, p_gender: f.gender ?? null,
     p_vehicle: f.vehicle ?? null, p_avatar_url: f.avatar_url ?? null,
   });
+
+// driver wallet (earnings + cash owed to admin)
+export const driverWallet = (driverId) => rpc('driver_wallet', { p_driver_id: driverId });

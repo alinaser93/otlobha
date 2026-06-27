@@ -58,6 +58,11 @@ export async function suggestPrice({ name, category, unit }) {
   return postAI({ task: 'price', name, category, unit }, 'فشل اقتراح السعر');
 }
 
+// AI bundle generation: pass available products → returns a suggested bundle
+export async function generateBundle(products, hint) {
+  return postAI({ task: 'bundle', products, hint }, 'فشل توليد الباقة');
+}
+
 async function postAI(payload, failMsg) {
   let res;
   try {

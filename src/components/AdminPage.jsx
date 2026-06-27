@@ -3,10 +3,15 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import {
   Lock, LogOut, RefreshCw, Loader2, Package, Clock, MapPin, Phone,
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
-  ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon,
+  ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing, Home, Tag,
 } from 'lucide-react';
+import { useOrderChime } from '../lib/alerts.js';
+import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
+import { sendCampaign } from '../lib/push.js';
+import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
@@ -20,6 +25,7 @@ import {
   adminListAccounts, adminUpdateAccount, adminResetAccountPin, adminSetAccountPoints, adminRemoveAccount,
   adminListDriversExt, adminListAdminsExt, adminResetDriverPass, adminResetAdminPass,
   adminSetDriverActive, adminSetAdminActive,
+  adminCreateCampaign, adminListCampaigns, adminCustomerSubCount,
 } from '../lib/admin.js';
 import {
   adminListProducts, adminAddProduct, adminUpdateProduct, adminRemoveProduct,
@@ -27,12 +33,15 @@ import {
   adminListCategories, adminAddCategory, adminUpdateCategory, adminRemoveCategory,
   adminReorderCategories,
   adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
-  adminSetBundleActive, adminReorderBundles,
+  adminSetBundleActive, adminReorderBundles, adminSetBundleSeason,
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
+  adminSetStoreCommission, adminCommissionReport,
+  adminFinanceReport, adminSettleMerchant, adminSettleDriver,
+  getSettings, adminUpdateSettings,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
-import { extractProductsFromImage, generateProductDescription } from '../lib/ai.js';
+import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
 import { cleanProductImage } from '../lib/bgremove.js';
 
 const STATUS = {
@@ -155,6 +164,9 @@ function Dashboard({ admin, onOut }) {
   const [showProducts, setShowProducts] = useState(false);
   const [showCats, setShowCats] = useState(false);
   const [showStores, setShowStores] = useState(false);
+  const [showEarnings, setShowEarnings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [section, setSection] = useState('orders'); // orders | catalog | stores | finance | people | settings | profile
   const [showBundles, setShowBundles] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [me, setMe] = useState(null);
@@ -207,6 +219,7 @@ function Dashboard({ admin, onOut }) {
     for (const o of orders) c[o.status] = (c[o.status] || 0) + 1;
     return c;
   }, [orders]);
+  const alert = useOrderChime(counts.new || 0);
 
   const shown = useMemo(
     () => (filter === 'all' ? orders : orders.filter((o) => o.status === filter)),
@@ -245,6 +258,7 @@ function Dashboard({ admin, onOut }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} primed={alert.primed} />
             <button onClick={() => setDark((d) => !d)} aria-label="تبديل الوضع"
               className="grid h-9 w-9 place-items-center rounded-xl bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/80 dark:hover:bg-white/10">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -264,6 +278,20 @@ function Dashboard({ admin, onOut }) {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
+        {/* section navigation */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
+            <button key={k} onClick={() => setSection(k)}
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${section === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+
+        {section === 'orders' && (<>
+        {alert.newCount > 0 && (
+          <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setFilter('new'); }} />
+        )}
         {/* stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Stat icon={Clock} label="طلبات اليوم" value={stats?.today_orders ?? '—'} accent="text-amber-700 dark:text-amber-300" />
@@ -326,162 +354,95 @@ function Dashboard({ admin, onOut }) {
             {shown.map((o) => <OrderCard key={o.id} o={o} onStatus={setStatus} drivers={drivers} onAssign={assignDriver} />)}
           </div>
         )}
+        </>)}
 
-        {/* users manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowUsers((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> المستخدمون</span>
-            <ChevronDown className={`h-5 w-5 transition ${showUsers ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showUsers && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <UsersManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* products manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowProducts((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Package className="h-4 w-4 text-copper" /> إدارة المنتجات</span>
-            <ChevronDown className={`h-5 w-5 transition ${showProducts ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showProducts && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <ProductsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* categories manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowCats((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Layers className="h-4 w-4 text-copper" /> إدارة الأقسام</span>
-            <ChevronDown className={`h-5 w-5 transition ${showCats ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showCats && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <CategoriesManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* bundles manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowBundles((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Boxes className="h-4 w-4 text-copper" /> إدارة الباقات</span>
-            <ChevronDown className={`h-5 w-5 transition ${showBundles ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showBundles && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <BundlesManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* stores manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowStores((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><StoreIcon className="h-4 w-4 text-copper" /> إدارة المتاجر</span>
-            <ChevronDown className={`h-5 w-5 transition ${showStores ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showStores && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <StoresManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* my profile */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowProfile((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> ملفّي الشخصي</span>
-            <ChevronDown className={`h-5 w-5 transition ${showProfile ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showProfile && me && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <div className="px-4 pb-4">
-                  <ProfileForm
-                    initial={me}
-                    show={{ phone: true, email: true, birthdate: true, gender: true }}
-                    uploadPrefix="admin"
-                    uploadId={admin.id}
-                    onAvatarChange={async (url) => {
-                      const r = await adminUpdateProfile(admin.id, { avatar_url: url });
-                      if (r?.ok) setMe(r.profile);
-                      return { error: r?.ok ? undefined : (r?.msg || 'تعذّر الحفظ') };
-                    }}
-                    onSave={async (vals) => {
-                      const r = await adminUpdateProfile(admin.id, {
-                        name: vals.name.trim(), phone: vals.phone.trim() || null,
-                        email: vals.email.trim() || null, birthdate: vals.birthdate || null, gender: vals.gender || null,
-                      });
-                      if (r?.ok) setMe(r.profile);
-                      return { error: r?.ok ? undefined : (r?.msg || 'تعذّر الحفظ') };
-                    }}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* drivers manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button onClick={() => setShowDrivers((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold">
-            <span className="flex items-center gap-2"><Truck className="h-4 w-4 text-copper" /> إدارة المندوبين</span>
-            <ChevronDown className={`h-5 w-5 transition ${showDrivers ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showDrivers && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <DriversManager admin={admin} onChange={load} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* admins manager */}
-        <div className="rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
-          <button
-            onClick={() => setShowAdmins((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 font-display font-bold"
-          >
-            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-copper" /> إدارة المشرفين</span>
-            <ChevronDown className={`h-5 w-5 transition ${showAdmins ? 'rotate-180' : ''}`} />
-          </button>
-          <AnimatePresence>
-            {showAdmins && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <AdminsManager admin={admin} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {section === 'catalog' && <SectionCard><CatalogSection admin={admin} /></SectionCard>}
+        {section === 'stores' && <SectionCard><StoresManager admin={admin} /></SectionCard>}
+        {section === 'finance' && <SectionCard><EarningsManager admin={admin} /></SectionCard>}
+        {section === 'people' && <SectionCard><PeopleSection admin={admin} onChange={load} /></SectionCard>}
+        {section === 'settings' && <SectionCard><SettingsManager admin={admin} /></SectionCard>}
+        {section === 'campaigns' && <SectionCard><CampaignsManager admin={admin} /></SectionCard>}
+        {section === 'profile' && (
+          <SectionCard>
+            <div className="p-4">
+              {me ? (
+                <ProfileForm
+                  initial={me}
+                  show={{ phone: true, email: true }}
+                  uploadPrefix="admin"
+                  uploadId={admin.id}
+                  title="ملفّي الشخصي"
+                  onAvatarChange={async (url) => {
+                    const r = await adminUpdateProfile(admin.id, { avatar_url: url });
+                    if (r?.ok) setMe(r.profile);
+                    return { error: r?.ok ? undefined : 'تعذّر الحفظ' };
+                  }}
+                  onSave={async (vals) => {
+                    const r = await adminUpdateProfile(admin.id, {
+                      name: (vals.name || '').trim(), phone: (vals.phone || '').trim() || null, email: (vals.email || '').trim() || null,
+                    });
+                    if (r?.ok) { setMe(r.profile); return {}; }
+                    return { error: 'تعذّر الحفظ' };
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center gap-2 py-10 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>
+              )}
+            </div>
+          </SectionCard>
+        )}
 
         <div className="pb-6 pt-2 text-center text-xs text-ink/35 dark:text-cream/30">اطلبها — لوحة الإدارة</div>
       </main>
     </div>
   );
 }
+
+// a card container for an admin section
+function SectionCard({ children }) {
+  return <div className="overflow-hidden rounded-2xl border border-ink/10 bg-cream dark:border-white/10 dark:bg-night-800">{children}</div>;
+}
+
+// sub-tabs used inside grouped admin sections
+function SubTabs({ value, onChange, tabs }) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto border-b border-ink/5 px-4 py-3 no-scrollbar dark:border-white/5">
+      {tabs.map(([k, label, Icon]) => (
+        <button key={k} onClick={() => onChange(k)}
+          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${value === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+          <Icon className="h-4 w-4" /> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// الكتالوج: المنتجات + الأقسام + الباقات
+function CatalogSection({ admin }) {
+  const [t, setT] = useState('products');
+  return (
+    <div>
+      <SubTabs value={t} onChange={setT} tabs={[['products', 'المنتجات', Package], ['categories', 'الأقسام', Layers], ['bundles', 'الباقات', Boxes]]} />
+      {t === 'products' && <ProductsManager admin={admin} />}
+      {t === 'categories' && <CategoriesManager admin={admin} />}
+      {t === 'bundles' && <BundlesManager admin={admin} />}
+    </div>
+  );
+}
+
+// المستخدمون: الزبائن + المندوبون + المشرفون
+function PeopleSection({ admin, onChange }) {
+  const [t, setT] = useState('customers');
+  return (
+    <div>
+      <SubTabs value={t} onChange={setT} tabs={[['customers', 'الزبائن', Users], ['drivers', 'المندوبون', Truck], ['admins', 'المشرفون', KeyRound]]} />
+      {t === 'customers' && <UsersManager admin={admin} />}
+      {t === 'drivers' && <DriversManager admin={admin} onChange={onChange} />}
+      {t === 'admins' && <AdminsManager admin={admin} />}
+    </div>
+  );
+}
+
 
 function Stat({ icon: Icon, label, value, suffix, accent }) {
   return (
@@ -1435,6 +1396,488 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
 /* ════════════════════════════ Stores ════════════════════════════ */
 const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
 
+function CampaignsManager({ admin }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [destType, setDestType] = useState('home'); // home | category | store | product | custom
+  const [destValue, setDestValue] = useState(''); // selected name/id (or custom path)
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // {type:'ok'|'err', text}
+  const [subCount, setSubCount] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cats, setCats] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [products, setProducts] = useState([]);
+
+  // build destination path from picker
+  const url = useMemo(() => {
+    if (destType === 'home') return '';
+    if (destType === 'custom') return destValue.trim();
+    if (!destValue) return '';
+    if (destType === 'category') return `/c/${destValue}`;
+    if (destType === 'store') return `/s/${destValue}`;
+    if (destType === 'product') return `/p/${destValue}`;
+    return '';
+  }, [destType, destValue]);
+
+  async function refresh() {
+    const [c, s] = await Promise.all([adminListCampaigns(admin.id), adminCustomerSubCount(admin.id)]);
+    if (c?.ok) setCampaigns(c.campaigns || []);
+    if (s?.ok) setSubCount(s.count);
+    setLoading(false);
+  }
+  useEffect(() => {
+    refresh();
+    adminListCategories(admin.id).then((r) => { if (Array.isArray(r)) setCats(r); });
+    adminListStores(admin.id).then((r) => { if (Array.isArray(r)) setStores(r); });
+    adminListProducts(admin.id).then((r) => { if (Array.isArray(r)) setProducts(r); });
+    /* eslint-disable-next-line */
+  }, []);
+
+  async function send() {
+    if (!title.trim() || !body.trim()) { setMsg({ type: 'err', text: 'اكتب العنوان والنص.' }); return; }
+    if (!window.confirm(`إرسال الإشعار لكل الزبائن المشتركين${subCount != null ? ` (${subCount})` : ''}؟`)) return;
+    setBusy(true); setMsg(null);
+    const c = await adminCreateCampaign(admin.id, title.trim(), body.trim(), url.trim() || null);
+    if (!c?.ok) { setBusy(false); setMsg({ type: 'err', text: 'تعذّر إنشاء الحملة.' }); return; }
+    const r = await sendCampaign(c.id, admin.id);
+    setBusy(false);
+    if (r?.ok) {
+      setMsg({ type: 'ok', text: `تم الإرسال إلى ${r.sent} جهاز ✅` });
+      setTitle(''); setBody(''); setDestType('home'); setDestValue('');
+      refresh();
+    } else {
+      setMsg({ type: 'err', text: r?.error === 'no_vapid_key' ? 'مفتاح الإشعارات غير مضبوط في Netlify.' : 'تعذّر الإرسال. حاول ثانية.' });
+      refresh();
+    }
+  }
+
+  const inp = 'w-full rounded-xl border border-ink/10 bg-cream px-3 py-2.5 font-body text-ink outline-none transition focus:border-copper focus:ring-2 focus:ring-copper/20 dark:border-white/10 dark:bg-night-800 dark:text-cream';
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="flex items-center gap-2"><BellRing className="h-5 w-5 text-copper" /><h2 className="font-display text-lg font-black text-ink dark:text-cream">إشعارات الإعلانات والعروض</h2></div>
+        <p className="mt-1 text-xs text-ink/50 dark:text-cream/50">
+          أرسل إشعاراً لكل الزبائن الذين فعّلوا الإشعارات{subCount != null && <span className="font-bold text-copper"> · {subCount} مشترك</span>}.
+        </p>
+      </div>
+
+      {/* composer */}
+      <div className="space-y-3 rounded-2xl bg-ink/[0.02] p-4 ring-1 ring-ink/5 dark:bg-white/[0.02] dark:ring-white/5">
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">العنوان</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={50} className={inp} placeholder="مثلاً: 🎉 خصم ٢٠٪ اليوم فقط!" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">النص</label>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={120} rows={2} className={inp} placeholder="مثلاً: على كل الخضار والفواكه الطازجة — اطلب الآن قبل ما يخلص!" />
+        </div>
+
+        {/* destination picker */}
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">عند الضغط على الإشعار يفتح…</label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[['home', 'الرئيسية', Home], ['category', 'فئة', Boxes], ['store', 'متجر', StoreIcon], ['product', 'منتج', Tag]].map(([k, label, Icon]) => (
+              <button key={k} type="button" onClick={() => { setDestType(k); setDestValue(''); }}
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-bold transition ${destType === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+
+          {destType === 'category' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر الفئة —</option>
+              {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          )}
+          {destType === 'store' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر المتجر —</option>
+              {stores.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          )}
+          {destType === 'product' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر المنتج —</option>
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price} د.ع` : ''}</option>)}
+            </select>
+          )}
+          {url && (
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-ink/45 dark:text-cream/45">
+              <Link2 className="h-3 w-3" /> الوجهة: <span dir="ltr" className="font-mono">{url}</span>
+            </p>
+          )}
+        </div>
+
+        {/* live preview */}
+        {(title || body) && (
+          <div className="rounded-xl border border-ink/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-night-900">
+            <div className="flex items-start gap-2.5">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-700 text-cream">🛒</div>
+              <div className="min-w-0">
+                <div className="truncate font-display text-sm font-black text-ink dark:text-cream">{title || 'اطلبها'}</div>
+                <div className="line-clamp-2 text-xs text-ink/60 dark:text-cream/60">{body || 'نصّ الإشعار يظهر هنا'}</div>
+                <div className="mt-0.5 text-[10px] text-ink/35 dark:text-cream/35">اطلبها · الآن</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {msg && (
+          <div className={`rounded-xl px-3 py-2 text-sm font-bold ${msg.type === 'ok' ? 'bg-green-500/10 text-green-700 dark:text-green-300' : 'bg-red-500/10 text-red-600 dark:text-red-300'}`}>{msg.text}</div>
+        )}
+
+        <button onClick={send} disabled={busy}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-cream shadow-soft transition hover:bg-copper-dark active:scale-[.99] disabled:opacity-60">
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <BellRing className="h-5 w-5" />}
+          إرسال لكل الزبائن
+        </button>
+      </div>
+
+      {/* history */}
+      <div>
+        <h3 className="mb-2 font-display text-sm font-black text-ink dark:text-cream">سجلّ الحملات</h3>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-ink/40 dark:text-cream/40"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحميل…</div>
+        ) : campaigns.length === 0 ? (
+          <div className="rounded-xl bg-ink/[0.02] py-8 text-center text-sm text-ink/40 dark:bg-white/[0.02] dark:text-cream/40">لا توجد حملات بعد.</div>
+        ) : (
+          <div className="space-y-2">
+            {campaigns.map((c) => (
+              <div key={c.id} className="rounded-xl border border-ink/8 bg-cream p-3 dark:border-white/8 dark:bg-night-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-display text-sm font-black text-ink dark:text-cream">{c.title}</div>
+                    <div className="line-clamp-2 text-xs text-ink/55 dark:text-cream/55">{c.body}</div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-green-500/10 px-2 py-1 text-[11px] font-bold text-green-700 dark:text-green-300">{c.sent_count} 📨</span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-ink/35 dark:text-cream/35">
+                  <span>{new Date(c.created_at).toLocaleString('en-GB')}</span>
+                  {c.url && <span className="truncate" dir="ltr">· {c.url}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsManager({ admin }) {
+  const [s, setS] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getSettings().then((r) => { setS(r || {}); setLoading(false); });
+  }, []);
+
+  const set = (k) => (e) => { setS((prev) => ({ ...prev, [k]: e.target.value })); setSaved(false); };
+
+  async function save() {
+    setSaving(true); setSaved(false);
+    const payload = {};
+    for (const k of ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct']) {
+      payload[k] = Math.max(0, parseFloat(s[k]) || 0);
+    }
+    payload.whatsapp_number = (s.whatsapp_number || '').replace(/[^\d]/g, '');
+    const r = await adminUpdateSettings(admin.id, payload);
+    setSaving(false);
+    if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
+  }
+
+  if (loading) return <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
+
+  const fieldInp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm font-bold text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
+  const Field = ({ label, k, hint, suffix = 'د.ع' }) => (
+    <div>
+      <label className="mb-1 block text-[12px] font-bold text-ink/60 dark:text-cream/60">{label}</label>
+      <div className="relative">
+        <input type="number" dir="ltr" inputMode="numeric" value={s[k] ?? ''} onChange={set(k)} className={fieldInp + ' pl-12'} />
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-ink/40 dark:text-cream/40">{suffix}</span>
+      </div>
+      {hint && <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 p-4">
+      {/* delivery */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Truck className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">رسوم التوصيل (يدفعها الزبون)</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="الأجور الأساسية" k="delivery_fee" hint="لطلب من متجر واحد" />
+          <Field label="زيادة لكل متجر إضافي" k="delivery_extra_store" hint="يُضاف لكل متجر بعد الأول" />
+          <Field label="الحد الأقصى للتوصيل" k="delivery_fee_cap" hint="مهما تعدّدت المتاجر" />
+          <Field label="توصيل مجاني فوق" k="free_delivery_over" hint="0 = تعطيل المجاني" />
+        </div>
+      </div>
+
+      {/* driver */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Bike className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">أجور المندوب (يستحقّها المندوب)</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="أجرة التوصيلة" k="driver_fee_base" hint="لكل توصيلة (متجر واحد)" />
+          <Field label="زيادة لكل متجر إضافي" k="driver_fee_per_extra_store" hint="يُضاف لأجرة المندوب" />
+        </div>
+      </div>
+
+      {/* commission */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">العمولة</h3></div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="العمولة الافتراضية" k="default_commission_pct" hint="للمتاجر الجديدة (تقدر تغيّرها لكل متجر)" suffix="%" />
+        </div>
+      </div>
+
+      {/* whatsapp */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><MessageCircle className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">رقم واتساب الاستلام</h3></div>
+        <input type="tel" dir="ltr" value={s.whatsapp_number ?? ''} onChange={set('whatsapp_number')} className={fieldInp} placeholder="9647XXXXXXXXX" />
+        <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">رمز الدولة + الرقم بدون «+» أو صفر (العراق: 964 ثم الرقم). يستقبل الطلبات والاستفسارات.</p>
+      </div>
+
+      {/* device push notifications */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><BellRing className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">إشعارات الجهاز</h3></div>
+        <p className="mb-2 text-[11px] text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات الجديدة على جهازك حتى لو التطبيق مسكّر.</p>
+        <PushToggle partyType="admin" partyId={admin.id} />
+      </div>
+
+      <InstallButton variant="card" />
+
+      {/* live preview */}
+      <LivePreview s={s} />
+
+      <button onClick={save} disabled={saving}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display font-bold text-cream shadow-soft transition disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-copper hover:bg-copper-dark'}`}>
+        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : saved ? <Check className="h-5 w-5" /> : <Save className="h-5 w-5" />}
+        {saved ? 'تم الحفظ ✓' : 'حفظ الإعدادات'}
+      </button>
+      <p className="text-center text-[11px] leading-relaxed text-ink/45 dark:text-cream/45">
+        💡 تُطبَّق فوراً على كل التطبيق. أجور المندوب تُحتسب على الطلبات الجديدة المُسلّمة.
+      </p>
+    </div>
+  );
+}
+
+// معاينة حيّة: تحسب مثالاً واقعياً من القيم الحالية أثناء التعديل
+function LivePreview({ s }) {
+  const n = (k) => Math.max(0, parseFloat(s[k]) || 0);
+  const free = n('free_delivery_over');
+  const calc = (total, stores) => {
+    if (free > 0 && total >= free) return 0;
+    return Math.min(n('delivery_fee') + Math.max(0, stores - 1) * n('delivery_extra_store'), n('delivery_fee_cap'));
+  };
+  const driverFee = (stores) => n('driver_fee_base') + Math.max(0, stores - 1) * n('driver_fee_per_extra_store');
+  const examples = [
+    { label: 'طلب 25,000 من متجر واحد', total: 25000, stores: 1 },
+    { label: 'طلب 50,000 من متجرين', total: 50000, stores: 2 },
+    { label: `طلب ${fmt(free || 100000)} (حدّ المجاني)`, total: free || 100000, stores: 1 },
+  ];
+  return (
+    <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
+      <div className="mb-2 flex items-center gap-2"><Eye className="h-4 w-4 text-brand-700 dark:text-brand-300" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">معاينة حيّة (تتغيّر مع الأرقام)</h3></div>
+      <div className="space-y-2">
+        {examples.map((ex, i) => {
+          const d = calc(ex.total, ex.stores);
+          const f = driverFee(ex.stores);
+          return (
+            <div key={i} className="rounded-xl bg-cream p-2.5 text-xs dark:bg-night-900">
+              <p className="mb-1 font-bold text-ink/70 dark:text-cream/70">{ex.label}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                <span className="text-ink/55 dark:text-cream/55">التوصيل: <b className={d === 0 ? 'text-green-600 dark:text-green-400' : 'text-ink dark:text-cream'}>{d === 0 ? 'مجاني' : fmt(d) + ' د.ع'}</b></span>
+                <span className="text-ink/55 dark:text-cream/55">أجرة المندوب: <b className="text-copper dark:text-copper-light">{fmt(f)} د.ع</b></span>
+                <span className="text-ink/55 dark:text-cream/55">يدفع الزبون: <b className="text-ink dark:text-cream">{fmt(ex.total + d)} د.ع</b></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EarningsManager({ admin }) {
+  const [range, setRange] = useState('all');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('merchants'); // merchants | drivers
+
+  const sinceFor = (r) => {
+    const now = new Date();
+    if (r === 'today') { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.toISOString(); }
+    if (r === 'week') return new Date(now.getTime() - 7 * 86400000).toISOString();
+    if (r === 'month') return new Date(now.getTime() - 30 * 86400000).toISOString();
+    return null;
+  };
+
+  async function load(r) {
+    setLoading(true);
+    const res = await adminFinanceReport(admin.id, sinceFor(r));
+    setData(res?.ok ? res : { ok: false, merchants: [], drivers: [], total_commission: 0, total_delivery: 0, total_driver_fees: 0, net: 0 });
+    setLoading(false);
+  }
+  useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range]);
+
+  async function settleMerchant(m, amount, method) {
+    const r = await adminSettleMerchant(admin.id, m.id, amount, method);
+    if (r?.ok) load(range);
+  }
+  async function settleDriver(d, amount, method) {
+    const r = await adminSettleDriver(admin.id, d.id, amount, method);
+    if (r?.ok) load(range);
+  }
+
+  const merchants = data?.merchants || [];
+  const drivers = data?.drivers || [];
+
+  return (
+    <div className="space-y-4 p-4">
+      {/* range filter */}
+      <div className="flex flex-wrap gap-2">
+        {[['today', 'اليوم'], ['week', 'آخر أسبوع'], ['month', 'آخر شهر'], ['all', 'الكل']].map(([k, label]) => (
+          <button key={k} onClick={() => setRange(k)}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-bold transition ${range === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ الحساب…</div>
+      ) : (
+        <>
+          {/* net profit hero */}
+          <div className="rounded-3xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-cream shadow-card">
+            <div className="flex items-center gap-1.5 text-cream/80"><Wallet className="h-4 w-4" /> <span className="text-sm font-bold">صافي ربح اطلبها</span></div>
+            <p className="mt-1 font-display text-4xl font-black">{fmt(data?.net || 0)} <span className="text-lg">د.ع</span></p>
+            <p className="mt-1 text-xs text-cream/70">العمولات + التوصيل − أجور المندوبين · من {data?.orders_count || 0} طلب مُسلّم</p>
+          </div>
+
+          {/* breakdown cards */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-green-500/10 p-3 ring-1 ring-green-500/20">
+              <div className="text-[11px] font-bold text-green-700/80 dark:text-green-300/80">العمولات</div>
+              <div className="mt-0.5 font-display text-lg font-black text-green-700 dark:text-green-300">{fmt(data?.total_commission || 0)}</div>
+            </div>
+            <div className="rounded-2xl bg-copper/10 p-3 ring-1 ring-copper/20">
+              <div className="text-[11px] font-bold text-copper-dark dark:text-copper-light">التوصيل</div>
+              <div className="mt-0.5 font-display text-lg font-black text-copper dark:text-copper-light">{fmt(data?.total_delivery || 0)}</div>
+            </div>
+            <div className="rounded-2xl bg-red-500/10 p-3 ring-1 ring-red-500/20">
+              <div className="text-[11px] font-bold text-red-600/80 dark:text-red-300/80">أجور المندوبين</div>
+              <div className="mt-0.5 font-display text-lg font-black text-red-600 dark:text-red-300">−{fmt(data?.total_driver_fees || 0)}</div>
+            </div>
+          </div>
+
+          {/* merchants / drivers toggle */}
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-ink/5 p-1 dark:bg-white/5">
+            {[['merchants', 'تسويات التجار'], ['drivers', 'تسويات المندوبين']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)}
+                className={`rounded-lg py-2 text-sm font-bold transition ${view === k ? 'bg-copper text-cream shadow-seal' : 'text-ink/60 dark:text-cream/60'}`}>{l}</button>
+            ))}
+          </div>
+
+          {view === 'merchants' ? (
+            merchants.length === 0 ? (
+              <Empty text="لا توجد مستحقّات للتجار في هذه الفترة." />
+            ) : (
+              <div className="space-y-2">
+                {merchants.map((m) => (
+                  <SettleRow key={m.id} title={m.name} tag={`عمولة ${m.pct}%`}
+                    rows={[['قيمة البضاعة', m.goods], ['عمولتك', -m.commission], ['مستحقّ المتجر', m.due]]}
+                    paid={m.paid} pending={m.pending}
+                    onSettle={(amt, method) => settleMerchant(m, amt, method)}
+                    settleLabel="تسوية مع التاجر" />
+                ))}
+              </div>
+            )
+          ) : (
+            drivers.length === 0 ? (
+              <Empty text="لا توجد مستحقّات للمندوبين في هذه الفترة." />
+            ) : (
+              <div className="space-y-2">
+                {drivers.map((d) => (
+                  <SettleRow key={d.id} title={d.name} tag={`${d.deliveries} توصيلة`}
+                    rows={[['حصّل نقداً', d.collected], ['أجرته', -d.earned], ['يسلّمه للإدارة', d.owes]]}
+                    paid={d.paid} pending={d.remaining}
+                    onSettle={(amt, method) => settleDriver(d, amt, method)}
+                    settleLabel="تأكيد استلام النقد" pendingLabel="المتبقّي عليه" />
+                ))}
+              </div>
+            )
+          )}
+
+          <p className="px-1 text-[11px] leading-relaxed text-ink/40 dark:text-cream/40">
+            💡 تُحسب من الطلبات المُسلّمة فقط. «تسوية التاجر» = دفعت له مستحقّاته. «استلام النقد» = استلمت من المندوب ما يخصّ الإدارة.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Empty({ text }) {
+  return <div className="rounded-2xl border border-dashed border-ink/15 py-10 text-center text-sm text-ink/40 dark:border-white/15 dark:text-cream/40">{text}</div>;
+}
+
+// a settlement row with expandable amount/method picker
+function SettleRow({ title, tag, rows, paid, pending, onSettle, settleLabel, pendingLabel = 'قيد التحصيل' }) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(pending || 0));
+  const [method, setMethod] = useState('cash');
+  return (
+    <div className="rounded-2xl bg-cream p-3.5 ring-1 ring-brand-900/5 dark:bg-night-900 dark:ring-white/10">
+      <div className="flex items-center justify-between">
+        <span className="font-display font-bold text-ink dark:text-cream">{title}</span>
+        <span className="rounded-full bg-copper/15 px-2 py-0.5 text-[11px] font-bold text-copper-dark dark:text-copper-light">{tag}</span>
+      </div>
+      <div className="mt-2 space-y-1 rounded-xl bg-beige/60 p-2.5 text-xs dark:bg-night-800/60">
+        {rows.map(([label, val], i) => (
+          <div key={i} className="flex justify-between">
+            <span className="text-ink/55 dark:text-cream/55">{label}</span>
+            <span className={`font-bold ${val < 0 ? 'text-red-500' : 'text-ink dark:text-cream'}`}>{val < 0 ? '− ' : ''}{fmt(Math.abs(val))} د.ع</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs">
+        <span className="text-green-600 dark:text-green-400">سُوّي: <b>{fmt(paid)}</b></span>
+        <span className="text-copper dark:text-copper-light">{pendingLabel}: <b>{fmt(pending)}</b></span>
+      </div>
+
+      {pending > 0 && (open ? (
+        <div className="mt-2.5 rounded-xl bg-ink/5 p-2.5 dark:bg-white/5">
+          <div className="flex items-center gap-2">
+            <input type="number" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)}
+              className="w-28 rounded-lg border border-ink/10 bg-beige px-2 py-1.5 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+            <div className="flex gap-1">
+              {[['cash', 'نقد'], ['rafidain', 'رافدين']].map(([k, l]) => (
+                <button key={k} onClick={() => setMethod(k)}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${method === k ? 'bg-copper text-cream' : 'bg-ink/10 text-ink/60 dark:bg-white/10 dark:text-cream/60'}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-ink/10 py-2 text-xs font-bold text-ink/60 dark:bg-white/10 dark:text-cream/60">إلغاء</button>
+            <button onClick={() => { onSettle(Math.max(0, parseInt(amount, 10) || 0), method); setOpen(false); }}
+              className="flex-[2] rounded-lg bg-green-600 py-2 text-xs font-bold text-white hover:bg-green-700">تأكيد التسوية</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => { setAmount(String(pending)); setOpen(true); }}
+          className="mt-2.5 w-full rounded-xl bg-copper py-2.5 text-sm font-bold text-cream shadow-soft hover:bg-copper-dark">{settleLabel}</button>
+      ))}
+    </div>
+  );
+}
+
 function StoresManager({ admin }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1556,6 +1999,7 @@ function StoreModal({ admin, store, onClose, onSaved }) {
   const [tagline, setTagline] = useState(store.tagline || '');
   const [phone, setPhone] = useState(store.phone || '');
   const [rating, setRating] = useState(store.rating != null ? String(store.rating) : '');
+  const [commission, setCommission] = useState(store.commission_pct != null ? String(store.commission_pct) : '15');
   const [logo, setLogo] = useState(store.logo || '');
   const [cover, setCover] = useState(store.cover || '');
   const [coverVideo, setCoverVideo] = useState(store.cover_video || store.coverVideo || '');
@@ -1624,6 +2068,8 @@ function StoreModal({ admin, store, onClose, onSaved }) {
       rating: rating === '' ? null : Math.min(5, Math.max(0, parseFloat(rating) || 0)),
       logo, cover, coverVideo,
     });
+    // save commission rate (best-effort, separate RPC)
+    await adminSetStoreCommission(admin.id, store.id, commission === '' ? 15 : Math.min(100, Math.max(0, parseFloat(commission) || 0)));
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr(r?.error === 'exists' ? 'الاسم مستخدم لمتجر آخر' : 'تعذّر الحفظ');
@@ -1696,6 +2142,9 @@ function StoreModal({ admin, store, onClose, onSaved }) {
         </Lbl>
         <Lbl label="التقييم (0-5)">
           <input type="number" step="0.1" min="0" max="5" dir="ltr" className={inp} value={rating} onChange={(e) => setRating(e.target.value)} placeholder="مثلاً: 4.5" />
+        </Lbl>
+        <Lbl label="نسبة عمولتك % (ربحك من المتجر)">
+          <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={commission} onChange={(e) => setCommission(e.target.value)} placeholder="15" />
         </Lbl>
         <Lbl label="هاتف المتجر (اختياري)" full>
           <input dir="ltr" className={inp} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXXX" />
@@ -1911,23 +2360,34 @@ function IngredientRow({ ing, onChange, onRemove }) {
     if (!res?.error) onChange({ ...ing, image: res.url });
   }
   return (
-    <div className="flex items-center gap-2">
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <button type="button" onClick={() => fileRef.current?.click()} title="صورة المكوّن"
-        className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
-        {uploading
-          ? <Loader2 className="h-4 w-4 animate-spin text-copper" />
-          : ing.image
-            ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
-            : <span>{ing.emoji || '🛒'}</span>}
-      </button>
-      <input className={inp + ' flex-1'} value={ing.name} onChange={(e) => onChange({ ...ing, name: e.target.value })} placeholder="اسم المكوّن" />
-      <input className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
-        value={ing.emoji} onChange={(e) => onChange({ ...ing, emoji: e.target.value })} placeholder="🍆" />
-      <button type="button" onClick={onRemove}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
-        <Trash2 className="h-4 w-4" />
-      </button>
+    <div className="rounded-xl border border-ink/10 bg-beige/50 p-2 dark:border-white/10 dark:bg-night-900/50">
+      <div className="flex items-center gap-2">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
+        <button type="button" onClick={() => fileRef.current?.click()} title="صورة المكوّن"
+          className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white text-lg ring-1 ring-ink/10 dark:ring-white/10">
+          {uploading
+            ? <Loader2 className="h-4 w-4 animate-spin text-copper" />
+            : ing.image
+              ? <img src={ing.image} alt="" className="h-full w-full object-contain p-0.5 mix-blend-multiply" />
+              : <span>{ing.emoji || '🛒'}</span>}
+        </button>
+        <input className={inp + ' flex-1'} value={ing.name} onChange={(e) => onChange({ ...ing, name: e.target.value })} placeholder="اسم المكوّن" />
+        <input className="w-12 shrink-0 rounded-xl border border-ink/10 bg-beige px-1 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900"
+          value={ing.emoji} onChange={(e) => onChange({ ...ing, emoji: e.target.value })} placeholder="🍆" />
+        <button type="button" onClick={onRemove}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-ink/40 dark:text-cream/40">الكمية</span>
+          <input type="number" min="1" dir="ltr" value={ing.qty ?? 1} onChange={(e) => onChange({ ...ing, qty: e.target.value })}
+            className="h-9 w-full rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+        </div>
+        <input value={ing.unit || ''} onChange={(e) => onChange({ ...ing, unit: e.target.value })} placeholder="الوحدة (كيلو/علبة..)"
+          className="h-9 rounded-lg border border-ink/10 bg-beige px-2 text-sm dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+      </div>
     </div>
   );
 }
@@ -1942,11 +2402,15 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     accent: bundle?.accent || '#0F5132',
   });
   const [image, setImage] = useState(bundle?.image || '');
+  const [season, setSeason] = useState(bundle?.season || '');
   const [ingredients, setIngredients] = useState(
     Array.isArray(bundle?.ingredients) && bundle.ingredients.length
-      ? bundle.ingredients.map((x) => ({ name: x?.name || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
+      ? bundle.ingredients.map((x) => ({ name: x?.name || '', qty: x?.qty ?? 1, unit: x?.unit || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
       : []
   );
+  const [aiProducts, setAiProducts] = useState([]);
+  const [aiBusy, setAiBusy] = useState(false);
+  useEffect(() => { adminListProducts(admin.id).then((r) => { if (Array.isArray(r?.products)) setAiProducts(r.products); }); /* eslint-disable-next-line */ }, []);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -1964,14 +2428,32 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     setImage(res.url);
   }
 
-  function addIngredient() { setIngredients((l) => [...l, { name: '', emoji: '🛒', image: '' }]); }
+  function addIngredient() { setIngredients((l) => [...l, { name: '', qty: 1, unit: '', emoji: '🛒', image: '' }]); }
   function updateIngredient(i, next) { setIngredients((l) => l.map((x, idx) => (idx === i ? next : x))); }
   function removeIngredient(i) { setIngredients((l) => l.filter((_, idx) => idx !== i)); }
+
+  async function generateAI() {
+    setErr('');
+    if (aiProducts.length < 2) { setErr('لا توجد منتجات كافية لتوليد باقة.'); return; }
+    setAiBusy(true);
+    const r = await generateBundle(aiProducts.map((p) => ({ name: p.name, price: p.price, unit: p.unit })));
+    setAiBusy(false);
+    if (!r?.ok || !r.bundle) { setErr(r?.error || 'تعذّر توليد الباقة.'); return; }
+    const byName = new Map(aiProducts.map((p) => [p.name, p]));
+    const ing = (r.bundle.ingredients || []).map((x) => {
+      const p = byName.get(x.name);
+      return { name: x.name, qty: x.qty, unit: x.unit || (p?.unit || ''), emoji: p?.emoji || '🛒', image: p?.image || '' };
+    });
+    const full = ing.reduce((s, x) => s + ((byName.get(x.name)?.price || 0) * (x.qty || 0)), 0);
+    const price = Math.max(0, Math.round(full * (1 - (r.bundle.discount_pct || 10) / 100)));
+    setIngredients(ing);
+    setF((prev) => ({ ...prev, name: r.bundle.name || prev.name, kicker: r.bundle.kicker || prev.kicker, description: r.bundle.description || prev.description, old_price: full || prev.old_price, price: price || full }));
+  }
 
   async function save() {
     if (!f.name.trim()) { setErr('اكتب اسم الباقة'); return; }
     const cleanIngredients = ingredients
-      .map((x) => ({ name: (x.name || '').trim(), emoji: (x.emoji || '').trim() || '🛒', image: (x.image || '').trim() || null }))
+      .map((x) => ({ name: (x.name || '').trim(), qty: Math.max(1, parseInt(x.qty, 10) || 1), unit: (x.unit || '').trim(), emoji: (x.emoji || '').trim() || '🛒', image: (x.image || '').trim() || null }))
       .filter((x) => x.name);
     setBusy(true); setErr('');
     const fields = {
@@ -1987,6 +2469,10 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     const r = bundle
       ? await adminUpdateBundle(admin.id, bundle.id, fields)
       : await adminAddBundle(admin.id, fields);
+    if (r?.ok) {
+      const id = bundle ? bundle.id : r.bundle?.id;
+      if (id) await adminSetBundleSeason(admin.id, id, season || '');
+    }
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr('تعذّر الحفظ، حاول مرّة ثانية.');
@@ -2027,6 +2513,16 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
         <Lbl label="الوصف" full>
           <textarea className={inp} rows={2} value={f.description} onChange={set('description')} placeholder="وصف قصير للباقة" />
         </Lbl>
+        <Lbl label="وسم موسمي (يبرز الباقة)" full>
+          <div className="flex flex-wrap gap-1.5">
+            {['', 'رمضان', 'عيد', 'الصيف', 'الشتاء', 'العودة للمدارس', 'عاشوراء'].map((s) => (
+              <button key={s || 'none'} type="button" onClick={() => setSeason(s)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${season === s ? 'bg-copper text-cream shadow-seal' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+                {s === '' ? 'بدون' : s}
+              </button>
+            ))}
+          </div>
+        </Lbl>
         <Lbl label="السعر (د.ع)">
           <input type="number" inputMode="numeric" className={inp} value={f.price} onChange={set('price')} placeholder="0" dir="ltr" />
         </Lbl>
@@ -2043,13 +2539,20 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
       <div className="rounded-xl border border-ink/10 dark:border-white/10 bg-beige/60 dark:bg-night-900/60 p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-bold text-ink/60 dark:text-cream/60">المكوّنات ({ingredients.length})</span>
-          <button type="button" onClick={addIngredient}
-            className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark dark:text-copper-light hover:bg-copper/25">
-            <Plus className="h-3.5 w-3.5" /> أضف مكوّن
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={generateAI} disabled={aiBusy}
+              className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 px-2.5 py-1.5 text-[12px] font-bold text-white hover:opacity-90 disabled:opacity-60">
+              {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} توليد بالذكاء
+            </button>
+            <button type="button" onClick={addIngredient}
+              className="flex items-center gap-1 rounded-lg bg-copper/15 px-2.5 py-1.5 text-[12px] font-bold text-copper-dark dark:text-copper-light hover:bg-copper/25">
+              <Plus className="h-3.5 w-3.5" /> أضف مكوّن
+            </button>
+          </div>
         </div>
+        {aiBusy && <p className="mb-2 flex items-center gap-1.5 text-[12px] font-bold text-indigo-600 dark:text-indigo-300"><Sparkles className="h-3.5 w-3.5 animate-pulse" /> الذكاء يكوّن باقة من المنتجات…</p>}
         {ingredients.length === 0 ? (
-          <p className="py-2 text-center text-[12px] text-ink/40 dark:text-cream/40">أضِف مكوّنات الباقة (تظهر كدوائر على الكرت).</p>
+          <p className="py-2 text-center text-[12px] text-ink/40 dark:text-cream/40">أضِف مكوّنات الباقة، أو دع الذكاء يقترحها.</p>
         ) : (
           <div className="space-y-2">
             {ingredients.map((ing, i) => (

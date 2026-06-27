@@ -13,10 +13,11 @@ import CheckoutModal from './components/CheckoutModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
 import { useAuth } from './lib/auth.jsx';
+import { listMyOrders } from './lib/orders.js';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
-import { fetchStoreCatalog, storeMyFollows, storeToggleFollow } from './lib/products.js';
-import { WHATSAPP_NUMBER } from './config.js';
+import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
+import { SETTINGS, applySettings } from './config.js';
 
 /* ── slim promo bar ── */
 function TopBar() {
@@ -68,7 +69,14 @@ function FreshnessPromise() {
 }
 
 export default function App() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => {
+    try { const raw = localStorage.getItem('otlobha-cart'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
+  // keep the cart across reloads
+  useEffect(() => {
+    try { localStorage.setItem('otlobha-cart', JSON.stringify(items)); } catch { /* ignore quota */ }
+  }, [items]);
+  const [myActiveOrder, setMyActiveOrder] = useState(null);
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);
   const [bundles, setBundles] = useState(BUNDLES);
@@ -83,6 +91,18 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
   const { account } = useAuth();
+
+  // load the customer's most recent active order for the cart mini-tracker
+  useEffect(() => {
+    if (!account?.id) { setMyActiveOrder(null); return; }
+    let alive = true;
+    listMyOrders(account.id).then((res) => {
+      if (!alive || !res?.ok) return;
+      const active = (res.orders || []).filter((o) => o.status !== 'done' && o.status !== 'cancelled');
+      setMyActiveOrder(active[0] || null);
+    });
+    return () => { alive = false; };
+  }, [account?.id, cartOpen]);
 
   // open account if signed in, otherwise prompt sign-in
   const openAccount = useCallback(() => {
@@ -131,8 +151,10 @@ export default function App() {
   // load the live catalog (products + categories) from the database. Falls back
   // to the bundled catalog if Supabase is off or the request fails, so the
   // store always renders instantly and never goes blank.
+  const [, setSettingsTick] = useState(0);
   useEffect(() => {
     let alive = true;
+    getSettings().then((s) => { if (alive && s) { applySettings(s); setSettingsTick((t) => t + 1); } });
     fetchStoreCatalog().then((res) => {
       if (!alive || !res) return;
       if (Array.isArray(res.products) && res.products.length) setProducts(res.products);
@@ -203,12 +225,26 @@ export default function App() {
       if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + 1 } : i));
       // bundles carry an `emojis` array; products carry a single `emoji`
       const image = p.emojis ? (p.images?.[0] ?? p.image) : p.image;
-      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: 1 }];
+      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: 1, storeId: p.storeId ?? null }];
     });
     setBump(true);
     setTimeout(() => setBump(false), 520);
     setToast(p.name);
     setTimeout(() => setToast(null), 1800);
+  }, []);
+
+  // cart line controls
+  const incItem = useCallback((key) => {
+    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)));
+  }, []);
+  const decItem = useCallback((key) => {
+    setItems((prev) => prev.flatMap((i) => {
+      if (i.key !== key) return [i];
+      return i.qty <= 1 ? [] : [{ ...i, qty: i.qty - 1 }];
+    }));
+  }, []);
+  const removeItem = useCallback((key) => {
+    setItems((prev) => prev.filter((i) => i.key !== key));
   }, []);
 
   // (removed the intrusive auto-popup; rewards now live in the account panel)
@@ -245,6 +281,15 @@ export default function App() {
     setCartOpen(true);
   }, [products, bundles]);
 
+  // homepage shows the 5 best-selling bundles across Otlobha; a store page shows that store's bundles
+  const shownBundles = useMemo(() => {
+    if (activeStore) return bundles.filter((b) => b.storeId === activeStore);
+    return [...bundles].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 5);
+  }, [bundles, activeStore]);
+  const bundleHeading = activeStore
+    ? { kicker: 'باقات المتجر', title: 'باقات مختارة', subtitle: 'وفّر أكثر مع باقات هذا المتجر — مكوّنات كاملة بسعر مميّز.' }
+    : { kicker: 'الأكثر طلباً · وفّر أكثر', title: 'أفضل ٥ باقات في اطلبها', subtitle: 'الباقات الأكثر مبيعاً — مكوّنات وصفة كاملة بسعر أوفر من شرائها مفردة.' };
+
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
       <TopBar />
@@ -270,7 +315,7 @@ export default function App() {
             if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
           }}
         />
-        <BundleSection bundles={bundles} onAdd={addItem} fly={fly} />
+        <BundleSection bundles={shownBundles} onAdd={addItem} fly={fly} title={bundleHeading.title} subtitle={bundleHeading.subtitle} kicker={bundleHeading.kicker} />
         <ProductGrid
           products={products}
           categories={categories}
@@ -303,7 +348,7 @@ export default function App() {
 
       {/* floating WhatsApp customer-service button — bottom-right */}
       <motion.a
-        href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('مرحباً، لديّ استفسار 🙏')}`}
+        href={`https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent('مرحباً، لديّ استفسار 🙏')}`}
         target="_blank"
         rel="noreferrer"
         whileTap={{ scale: 0.92 }}
@@ -323,6 +368,10 @@ export default function App() {
         onClose={() => setCartOpen(false)}
         items={items}
         total={total}
+        onInc={incItem}
+        onDec={decItem}
+        onRemove={removeItem}
+        lastOrder={myActiveOrder}
         onRefer={() => {
           setCartOpen(false);
           openAccount();

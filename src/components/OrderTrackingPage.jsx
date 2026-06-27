@@ -2,11 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardCheck, Package, Truck, MapPin, CheckCircle2, Loader2,
-  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper,
+  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { WHATSAPP_NUMBER, SHOP_NAME } from '../config.js';
-import { getOrderByToken } from '../lib/orders.js';
+import { SETTINGS, SHOP_NAME } from '../config.js';
+import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
+import { celebrateSound, primeAudio } from '../lib/alerts.js';
+import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
 import LiveRouteMap from './LiveRouteMap.jsx';
 
 const STEPS = [
@@ -43,6 +46,7 @@ const digits = (p) => (p || '').replace(/[^\d]/g, '');
 export default function OrderTrackingPage() {
   const id = getOrderId();
   const [order, setOrder] = useState(null);
+  const [ready, setReady] = useState(null); // {ready_count, store_count}
   const [state, setState] = useState('loading'); // loading | ok | notfound | error
   const [celebrate, setCelebrate] = useState(null); // label of newly-reached step
   const prevStep = useRef(null);
@@ -50,6 +54,7 @@ export default function OrderTrackingPage() {
   const fetchOrder = useCallback(async (silent) => {
     if (!id) { setState('notfound'); return; }
     const res = await getOrderByToken(id);
+    orderReadyByToken(id).then((r) => { if (r) setReady(r); });
     if (res?.ok && res.order) {
       setOrder(res.order);
       setState('ok');
@@ -59,6 +64,7 @@ export default function OrderTrackingPage() {
         const label = STEPS[s]?.label;
         if (label) {
           setCelebrate(label);
+          celebrateSound();
           setTimeout(() => setCelebrate(null), 4000);
         }
       }
@@ -69,6 +75,17 @@ export default function OrderTrackingPage() {
   }, [id]);
 
   useEffect(() => { fetchOrder(false); }, [fetchOrder]);
+
+  // prime audio on first user interaction so the celebration sound can play
+  useEffect(() => {
+    const once = () => primeAudio();
+    window.addEventListener('pointerdown', once, { once: true });
+    window.addEventListener('touchstart', once, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', once);
+      window.removeEventListener('touchstart', once);
+    };
+  }, []);
 
   // silent live sync every 6s (status + driver location) — no visible spinner
   useEffect(() => {
@@ -103,7 +120,7 @@ export default function OrderTrackingPage() {
   const step = currentStep(order);
   const cancelled = step === -1;
   const items = Array.isArray(order.items) ? order.items : [];
-  const wa = digits(WHATSAPP_NUMBER);
+  const wa = digits(SETTINGS.whatsapp_number);
   const hasMap = order.driver_lat && order.driver_lng;
   const driverPt = hasMap ? { lat: order.driver_lat, lng: order.driver_lng } : null;
   // customer location is stored in location_url as ...?q=LAT,LNG
@@ -151,6 +168,14 @@ export default function OrderTrackingPage() {
       </AnimatePresence>
 
       <main className="mx-auto -mt-4 max-w-lg space-y-4 px-4">
+        {step >= 0 && step < 4 && (
+          <div className="rounded-3xl bg-cream p-4 shadow-card dark:bg-night-800">
+            <div className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><BellRing className="h-4 w-4 text-copper" /> تنبيهات وصول الطلب</div>
+            <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتعرف لحظة تجهيز طلبك ووصول المندوب — حتى لو سكّرت الصفحة.</p>
+            <PushToggle partyType="customer" partyId={id} />
+            <div className="mt-2"><InstallButton /></div>
+          </div>
+        )}
         {cancelled ? (
           <div className="rounded-3xl bg-cream p-6 text-center shadow-card dark:bg-night-800">
             <XCircle className="mx-auto h-12 w-12 text-red-500" />
@@ -161,6 +186,11 @@ export default function OrderTrackingPage() {
           /* status timeline */
           <div className="rounded-3xl bg-cream p-5 shadow-card dark:bg-night-800">
             <div className="mb-4 font-display text-lg font-extrabold">حالة الطلب</div>
+            {ready && ready.store_count > 0 && ready.ready_count >= ready.store_count && step >= 0 && step <= 1 && (
+              <div className="mb-4 flex items-center gap-2 rounded-2xl bg-green-500/12 px-4 py-3 font-display text-sm font-black text-green-700 ring-1 ring-green-500/20 dark:text-green-300">
+                <PackageCheck className="h-5 w-5 shrink-0" /> تم تجهيز طلبك ✅ — بانتظار المندوب لاستلامه
+              </div>
+            )}
             <div className="space-y-0">
               {STEPS.map((s, i) => {
                 const done = i < step;
@@ -277,10 +307,18 @@ export default function OrderTrackingPage() {
             ))}
           </div>
           <div className="mt-3 space-y-1.5 border-t border-ink/10 pt-3 text-sm dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <span className="text-ink/50 dark:text-cream/50">التوصيل</span>
-              <span className="font-bold text-brand-600 dark:text-brand-300">مجاني ✓</span>
-            </div>
+            {(() => {
+              const sub = order.subtotal != null ? order.subtotal : items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0);
+              const delivery = Math.max(0, (order.total || 0) - sub);
+              return (
+                <div className="flex items-center justify-between">
+                  <span className="text-ink/50 dark:text-cream/50">التوصيل</span>
+                  {delivery > 0
+                    ? <span className="font-bold text-ink dark:text-cream">{fmt(delivery)} د.ع</span>
+                    : <span className="font-bold text-brand-600 dark:text-brand-300">مجاني ✓</span>}
+                </div>
+              );
+            })()}
             <div className="flex items-center justify-between font-display text-lg font-black">
               <span>المجموع</span>
               <span>{fmt(order.total || 0)} <span className="text-sm">د.ع</span></span>

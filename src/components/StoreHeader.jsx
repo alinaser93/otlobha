@@ -17,6 +17,8 @@ const CAT_GRAD = {
 const emojiFor = (c) => CAT_EMOJI[c] || '🏪';
 const gradFor = (c) => CAT_GRAD[c] || 'from-brand-600 to-brand-900';
 
+import ShareButton from './ShareButton.jsx';
+
 export default function StoreHeader({ store, count = 0, onBack, account = null, onRequireLogin, onRated, followIds = [], onToggleFollow }) {
   const [rateOpen, setRateOpen] = useState(false);
   if (!store) return null;
@@ -55,7 +57,7 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
           <ChevronRight className="h-4 w-4" /> كل المتاجر
         </button>
 
-        {/* follow + rate */}
+        {/* follow + rate + share */}
         <div className="absolute left-4 top-4 flex items-center gap-2">
           <button onClick={openRate}
             className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1.5 text-sm font-bold text-ink shadow-soft transition hover:bg-amber-300">
@@ -67,6 +69,8 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
             }`}>
             <Heart className={`h-4 w-4 ${followed ? 'fill-white' : ''}`} /> {followed ? 'متابَع' : 'متابعة'}
           </button>
+          <ShareButton variant="icon" path={`/s/${store.name}`} title={store.name}
+            text={`${store.name} — ${store.tagline || 'متجر في اطلبها'} 🛒`} />
         </div>
       </div>
 

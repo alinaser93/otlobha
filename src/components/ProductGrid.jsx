@@ -1,3 +1,4 @@
+import ShareButton from './ShareButton.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBasket } from 'lucide-react';
@@ -115,6 +116,12 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
               );
             })}
           </div>
+          {cat !== 'الكل' && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <ShareButton variant="ghost" path={`/c/${cat}`} title={`${cat} — اطلبها`}
+                text={`شوف قسم ${cat} في اطلبها 🛒`} label={`شارك قسم «${cat}»`} />
+            </div>
+          )}
         </motion.div>
 
         {list.length === 0 ? (

@@ -3,15 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { createOrder } from '../lib/orders.js';
+import { notifyNewOrder } from '../lib/push.js';
 import { useAuth } from '../lib/auth.jsx';
 import {
-  WHATSAPP_NUMBER,
+  SETTINGS,
   SHOP_NAME,
   CITY,
   AREAS,
   PAYMENT_METHODS,
-  DELIVERY_FEE,
-  FREE_DELIVERY_OVER,
+  calcDelivery,
 } from '../config.js';
 
 const STORAGE_KEY = 'otlobha-customer';
@@ -63,8 +63,8 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
     };
   }, [open]);
 
-  const delivery =
-    FREE_DELIVERY_OVER > 0 && total >= FREE_DELIVERY_OVER ? 0 : DELIVERY_FEE;
+  const storeCount = Math.max(1, new Set((items || []).map((it) => it.storeId).filter(Boolean)).size || 1);
+  const delivery = calcDelivery(total, storeCount);
   const grand = total + delivery;
 
   const set = (k, v) => {
@@ -129,7 +129,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       `💰 *الإجمالي: ${fmt(grand)} د.ع*`,
     ].filter(Boolean);
 
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join('\n'))}`;
+    const url = `https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent(parts.join('\n'))}`;
     window.open(url, '_blank');
 
     // Save the order to the database + grant loyalty points (registered users).
@@ -145,12 +145,14 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       notes: form.notes,
       payment: pm?.label || form.payment,
       location: geo ? `https://maps.google.com/?q=${geo.lat},${geo.lng}` : null,
-      items: items.map((it) => ({ name: it.name, qty: it.qty, price: it.price })),
+      items: items.map((it) => ({ name: it.name, qty: it.qty, price: it.price, storeId: it.storeId ?? null })),
       subtotal: total,
       total: grand,
     }).then((res) => {
       // refresh the cached account so new points show next time the drawer opens
       if (res?.ok) reload?.();
+      // notify the merchant(s) + admin via push (fire-and-forget)
+      if (res?.ok && res.order?.id) notifyNewOrder(res.order.id);
       // take the customer to the professional tracking page
       if (res?.ok && res.order?.id) {
         window.location.href = '/order/' + res.order.id;
@@ -349,7 +351,12 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                   </div>
                 ))}
                 <div className="mb-1.5 flex items-center justify-between font-body text-sm">
-                  <span className="text-ink/70 dark:text-cream/70">التوصيل</span>
+                  <span className="text-ink/70 dark:text-cream/70">
+                    التوصيل
+                    {storeCount > 1 && delivery > 0 && (
+                      <span className="text-xs text-ink/40 dark:text-cream/40"> ({storeCount} متاجر)</span>
+                    )}
+                  </span>
                   <span className="font-display font-bold text-brand-700 dark:text-brand-400">
                     {delivery > 0 ? `${fmt(delivery)} د.ع` : 'مجاني ✓'}
                   </span>

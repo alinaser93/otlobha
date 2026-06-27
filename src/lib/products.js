@@ -100,6 +100,8 @@ export const adminAddStore = (adminId, f = {}) =>
     p_cover_video: f.coverVideo ?? null,
   });
 
+export const adminSetStoreLocation = (adminId, storeId, lat, lng) =>
+  rpc('admin_set_store_location', { p_admin_id: adminId, p_store_id: storeId, p_lat: lat, p_lng: lng });
 export const adminUpdateStore = (adminId, id, f = {}) =>
   rpc('admin_update_store', {
     p_admin_id: adminId,
@@ -146,6 +148,36 @@ export const storeMyFollows = (accountId) =>
 export const adminSetStoreCredentials = (adminId, storeId, username, password) =>
   rpc('admin_set_store_credentials', { p_admin_id: adminId, p_store_id: storeId, p_username: username, p_password: password });
 
+/* ───────────────────────── commission / earnings (admin) ───────────────────────── */
+export const adminSetStoreCommission = (adminId, storeId, pct) =>
+  rpc('admin_set_store_commission', { p_admin_id: adminId, p_store_id: storeId, p_pct: pct });
+
+export const adminCommissionReport = (adminId, since = null) =>
+  rpc('admin_commission_report', { p_admin_id: adminId, p_since: since });
+
+/* ───────────────────────── app settings (admin control panel) ───────────────────────── */
+export const getSettings = () => rpc('get_settings', {});
+export const adminUpdateSettings = (adminId, s = {}) =>
+  rpc('admin_update_settings', {
+    p_admin_id: adminId,
+    p_delivery_fee: s.delivery_fee ?? null,
+    p_delivery_extra_store: s.delivery_extra_store ?? null,
+    p_delivery_fee_cap: s.delivery_fee_cap ?? null,
+    p_free_delivery_over: s.free_delivery_over ?? null,
+    p_driver_fee_base: s.driver_fee_base ?? null,
+    p_driver_fee_per_extra_store: s.driver_fee_per_extra_store ?? null,
+    p_default_commission_pct: s.default_commission_pct ?? null,
+    p_whatsapp_number: s.whatsapp_number ?? null,
+  });
+
+/* ───────────────────────── finance (admin) ───────────────────────── */
+export const adminFinanceReport = (adminId, since = null) =>
+  rpc('admin_finance_report', { p_admin_id: adminId, p_since: since });
+export const adminSettleMerchant = (adminId, storeId, amount, method, note = null) =>
+  rpc('admin_settle_merchant', { p_admin_id: adminId, p_store_id: storeId, p_amount: amount, p_method: method, p_note: note });
+export const adminSettleDriver = (adminId, driverId, amount, method, note = null) =>
+  rpc('admin_settle_driver', { p_admin_id: adminId, p_driver_id: driverId, p_amount: amount, p_method: method, p_note: note });
+
 /* ───────────────────────── bundles (admin) ───────────────────────── */
 export const adminListBundles = (adminId) => rpc('admin_list_bundles', { p_admin_id: adminId });
 
@@ -187,6 +219,9 @@ export const adminSetBundleActive = (adminId, id, active) =>
 
 export const adminReorderBundles = (adminId, ids) =>
   rpc('admin_reorder_bundles', { p_admin_id: adminId, p_ids: ids });
+
+export const adminSetBundleSeason = (adminId, id, season) =>
+  rpc('admin_set_bundle_season', { p_admin_id: adminId, p_id: id, p_season: season });
 
 /* ───────────────────────── store (public read) ─────────────────────────
    Reads active products + categories for the storefront. Returns null when
@@ -268,13 +303,20 @@ export async function fetchStoreCatalog() {
         name: r.name,
         kicker: r.kicker || '',
         desc: r.description || '',
-        items: ing.map((x) => x?.name || ''),
+        // show quantity + unit inline when present (e.g. "طماطم × 5 كيلو")
+        items: ing.map((x) => {
+          const nm = x?.name || '';
+          return x?.qty ? `${nm} × ${x.qty}${x.unit ? ' ' + x.unit : ''}` : nm;
+        }),
         emojis: ing.map((x) => x?.emoji || '🛒'),
         images: ing.map((x) => x?.image || null),
         image: r.image || null,
         price: r.price,
         old: r.old_price ?? null,
         accent: r.accent || '#0F5132',
+        storeId: r.store_id || null,
+        season: r.season || null,
+        sold: soldMap[r.name] || 0,
       };
     });
 

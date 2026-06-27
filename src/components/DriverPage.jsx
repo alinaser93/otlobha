@@ -3,15 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Lock, LogOut, RefreshCw, Loader2, Phone, MessageCircle,
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
+  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
-  driverGetMe, driverUpdateProfile,
+  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady, driverOrderStores,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
+import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
+import { notifyCustomerStatus } from '../lib/push.js';
+import { useOrderChime } from '../lib/alerts.js';
+import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
 // delivery workflow steps (in order)
 const STEPS = [
@@ -113,6 +119,7 @@ function Login({ onIn }) {
 /* ───────────── Board ───────────── */
 function Board({ driver, onOut }) {
   const [orders, setOrders] = useState([]);
+  const [readyMap, setReadyMap] = useState({}); // orderId -> {ready_count, store_count}
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active'); // active | done
   const [showProfile, setShowProfile] = useState(false);
@@ -134,15 +141,25 @@ function Board({ driver, onOut }) {
     setLoading(true);
     const res = await driverListOrders(driver.id);
     setOrders(Array.isArray(res?.orders) ? res.orders : []);
+    fetchReady();
     setLoading(false);
+  }
+  async function fetchReady() {
+    const r = await driverOrdersReady(driver.id);
+    if (Array.isArray(r)) {
+      const m = {};
+      for (const x of r) m[x.order_id] = { ready_count: x.ready_count, store_count: x.store_count };
+      setReadyMap(m);
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  // silent live sync every 8s
+  // silent live sync every 5s (orders + readiness)
   useEffect(() => {
     const t = setInterval(async () => {
       const res = await driverListOrders(driver.id);
       if (Array.isArray(res?.orders)) setOrders(res.orders);
+      fetchReady();
     }, 5000);
     return () => clearInterval(t);
     /* eslint-disable-next-line */
@@ -150,13 +167,27 @@ function Board({ driver, onOut }) {
 
   const active = useMemo(() => orders.filter((o) => o.delivery_status !== 'delivered'), [orders]);
   const done = useMemo(() => orders.filter((o) => o.delivery_status === 'delivered'), [orders]);
+  const assignedCount = useMemo(() => orders.filter((o) => o.delivery_status === 'assigned').length, [orders]);
+  const alert = useOrderChime(assignedCount);
+  // count of orders fully ready but not yet picked up — rings when one becomes ready
+  const readyToPickup = useMemo(
+    () => active.filter((o) => {
+      const r = readyMap[o.id];
+      return r && r.store_count > 0 && r.ready_count >= r.store_count && o.delivery_status === 'assigned';
+    }).length,
+    [active, readyMap]
+  );
+  const readyAlert = useOrderChime(readyToPickup);
   const shown = tab === 'active' ? active : done;
 
   async function advance(orderId, current) {
     const next = NEXT[current];
     if (!next) return;
     const res = await driverUpdateDelivery(driver.id, orderId, next);
-    if (res?.ok) setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, delivery_status: next, status: res.order?.status || o.status } : o)));
+    if (res?.ok) {
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, delivery_status: next, status: res.order?.status || o.status } : o)));
+      if (next === 'on_way' || next === 'arrived' || next === 'delivered') notifyCustomerStatus(orderId, next);
+    }
   }
 
   return (
@@ -173,6 +204,7 @@ function Board({ driver, onOut }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <AlertBell muted={alert.muted} onToggle={alert.toggleMute} hasNew={alert.hasNew} primed={alert.primed} />
             <button onClick={() => setDark((d) => !d)} aria-label="تبديل الوضع"
               className="grid h-9 w-9 place-items-center rounded-xl bg-ink/5 text-ink/70 hover:bg-ink/10 dark:bg-white/5 dark:text-cream/80 dark:hover:bg-white/10">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -192,25 +224,69 @@ function Board({ driver, onOut }) {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-        {/* tabs */}
-        <div className="flex gap-2">
-          <button onClick={() => setTab('active')}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'active' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
-            النشطة ({active.length})
+        {alert.newCount > 0 && (
+          <NewOrderBanner count={alert.newCount} onAck={() => { alert.acknowledge(); setTab('active'); }} />
+        )}
+        {readyAlert.newCount > 0 && (
+          <button onClick={() => { readyAlert.acknowledge(); setTab('active'); }}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-l from-green-600 to-emerald-500 px-4 py-3 text-white shadow-seal ring-1 ring-white/20">
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/30" />
+                <PackageCheck className="relative h-5 w-5" />
+              </span>
+              <span className="text-right">
+                <span className="block font-display text-base font-black leading-tight">طلب جاهز للاستلام!</span>
+                <span className="block font-body text-[11px] text-white/80">المتجر جهّز الطلب — توجّه لاستلامه</span>
+              </span>
+            </span>
+            <Check className="h-5 w-5" />
           </button>
-          <button onClick={() => setTab('done')}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${tab === 'done' ? 'bg-copper text-ink dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
-            المُسلّمة ({done.length})
-          </button>
+        )}
+        {/* daily summary */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-copper dark:text-copper-light">{active.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">طلب نشط</div>
+          </div>
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-green-600 dark:text-green-400">{done.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">مُسلّم</div>
+          </div>
+          <div className="rounded-2xl bg-cream p-3 text-center shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+            <div className="font-display text-2xl font-black text-ink dark:text-cream">{active.length + done.length}</div>
+            <div className="text-[11px] text-ink/50 dark:text-cream/50">الإجمالي</div>
+          </div>
         </div>
 
-        {loading ? (
+        {/* tabs */}
+        <div className="flex gap-2">
+          {[['active', 'النشطة', Package, active.length], ['done', 'المُسلّمة', CheckCircle2, done.length], ['wallet', 'محفظتي', Wallet, null]].map(([k, label, Icon, count]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold transition ${tab === k ? 'bg-copper text-ink shadow-soft dark:text-cream' : 'bg-ink/5 dark:bg-white/5 text-ink/65 dark:text-cream/70 hover:bg-ink/10 dark:hover:bg-white/10'}`}>
+              <Icon className="h-4 w-4" /> {label}{count != null ? ` (${count})` : ''}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'wallet' ? (
+          <DriverWallet driverId={driver.id} />
+        ) : loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>
         ) : shown.length === 0 ? (
           <div className="py-16 text-center text-ink/40 dark:text-cream/40">{tab === 'active' ? 'لا توجد طلبات نشطة الآن.' : 'لا توجد طلبات مُسلّمة بعد.'}</div>
         ) : (
-          <div className="space-y-3">{shown.map((o) => <DeliveryCard key={o.id} o={o} onAdvance={advance} driverId={driver.id} />)}</div>
+          <div className="space-y-3">{shown.map((o) => <DeliveryCard key={o.id} o={o} ready={readyMap[o.id]} onAdvance={advance} driverId={driver.id} />)}</div>
         )}
+
+        {/* device push notifications */}
+        <div className="mt-4 rounded-2xl bg-copper/[0.06] p-3.5 ring-1 ring-copper/15">
+          <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><Radio className="h-4 w-4 text-copper" /> إشعارات الطلبات</span>
+          <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات المُسندة إليك على جهازك حتى لو التطبيق مسكّر.</p>
+          <PushToggle partyType="driver" partyId={driver.id} />
+        </div>
+
+        <div className="mt-3"><InstallButton variant="card" /></div>
 
         {/* my profile */}
         <div className="mt-4 rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
@@ -255,7 +331,72 @@ function Board({ driver, onOut }) {
 }
 
 /* ───────────── Delivery card ───────────── */
-function DeliveryCard({ o, onAdvance, driverId }) {
+function DriverWallet({ driverId }) {
+  const [w, setW] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let on = true;
+    driverWallet(driverId).then((r) => { if (on) { setW(r?.ok ? r : null); setLoading(false); } });
+    return () => { on = false; };
+  }, [driverId]);
+
+  if (loading) return <div className="flex items-center justify-center gap-2 py-16 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ تحميل المحفظة…</div>;
+  if (!w) return <div className="py-16 text-center text-ink/40 dark:text-cream/40">تعذّر تحميل المحفظة.</div>;
+
+  const list = w.deliveries_list || [];
+  return (
+    <div className="space-y-4">
+      {/* hero: earnings */}
+      <div className="rounded-3xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-cream shadow-card">
+        <div className="flex items-center gap-2 text-cream/80"><TrendingUp className="h-4 w-4" /> <span className="text-sm font-bold">أرباحك من التوصيل</span></div>
+        <p className="mt-1 font-display text-4xl font-black">{fmt(w.earned)} <span className="text-lg">د.ع</span></p>
+        <p className="mt-1 text-sm text-cream/70">من {w.deliveries} توصيلة مُسلّمة</p>
+      </div>
+
+      {/* cash flow */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-cream p-3.5 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+          <div className="flex items-center gap-1.5 text-ink/55 dark:text-cream/55"><Banknote className="h-4 w-4" /> <span className="text-[11px]">حصّلته نقداً</span></div>
+          <p className="mt-1 font-display text-xl font-black text-ink dark:text-cream">{fmt(w.collected)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">دينار (بضاعة + توصيل)</p>
+        </div>
+        <div className="rounded-2xl bg-copper/10 p-3.5 shadow-soft ring-1 ring-copper/30">
+          <div className="flex items-center gap-1.5 text-copper-dark dark:text-copper-light"><Wallet className="h-4 w-4" /> <span className="text-[11px] font-bold">تسلّمه للإدارة</span></div>
+          <p className="mt-1 font-display text-xl font-black text-copper dark:text-copper-light">{fmt(w.remaining)}</p>
+          <p className="text-[10px] text-ink/40 dark:text-cream/40">المتبقّي بعد أجرتك</p>
+        </div>
+      </div>
+      <p className="rounded-xl bg-beige/60 px-3 py-2 text-center text-[11px] text-ink/50 dark:bg-night-900/60 dark:text-cream/50">
+        💡 أجرتك: <b>١٥٠٠ د.ع</b> لكل توصيلة + <b>٥٠٠ د.ع</b> لكل محل إضافي بنفس الطلب.
+      </p>
+
+      {/* per-delivery breakdown */}
+      <div className="flex items-center gap-2"><Package className="h-4 w-4 text-ink/50 dark:text-cream/50" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">تفاصيل التوصيلات ({list.length})</h3></div>
+      {list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-12 text-center text-sm text-ink/45 dark:border-white/15 dark:text-cream/45">لا توجد توصيلات مُسلّمة بعد.</div>
+      ) : (
+        <div className="space-y-2">
+          {list.map((d) => (
+            <div key={d.id} className="flex items-center justify-between rounded-2xl bg-cream p-3 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+              <div>
+                <p className="font-display font-bold text-ink dark:text-cream">طلب #{d.order_no || '—'}</p>
+                <p className="flex items-center gap-1 text-[11px] text-ink/45 dark:text-cream/45">
+                  <StoreIcon className="h-3 w-3" /> {d.stores || 1} محل · {new Date(d.created_at).toLocaleDateString('en-GB')}
+                </p>
+              </div>
+              <div className="text-left">
+                <p className="font-display font-black text-green-600 dark:text-green-400">+{fmt(d.fee)} د.ع</p>
+                <p className="text-[10px] text-ink/40 dark:text-cream/40">حصّل {fmt(d.total)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliveryCard({ o, ready, onAdvance, driverId }) {
   const items = Array.isArray(o.items) ? o.items : [];
   const cur = o.delivery_status || 'assigned';
   const wa = digits(o.customer_phone);
@@ -263,7 +404,14 @@ function DeliveryCard({ o, onAdvance, driverId }) {
   const lastSent = useRef(0);
   const watchId = useRef(null);
   const [geoState, setGeoState] = useState('off'); // off | locating | live | denied | error
+  const [stores, setStores] = useState([]); // pickup stores with locations
   const shouldShare = cur === 'on_way' || cur === 'arrived';
+
+  useEffect(() => {
+    let alive = true;
+    driverOrderStores(o.id).then((r) => { if (alive && Array.isArray(r)) setStores(r); });
+    return () => { alive = false; };
+  }, [o.id]);
 
   function sendPos(pos, force) {
     const now = Date.now();
@@ -344,7 +492,40 @@ function DeliveryCard({ o, onAdvance, driverId }) {
         <div className="font-display text-lg font-black text-green-600 dark:text-green-300">{fmt(o.total || 0)} <span className="text-xs">د.ع</span></div>
       </div>
 
-      {/* progress steps */}
+      {/* readiness from the store(s) */}
+      {ready && ready.store_count > 0 && cur === 'assigned' && (
+        ready.ready_count >= ready.store_count ? (
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-green-500/12 px-3 py-2 font-display text-sm font-black text-green-700 ring-1 ring-green-500/20 dark:text-green-300">
+            <PackageCheck className="h-4 w-4" /> جاهز للاستلام — توجّه للمتجر
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-amber-500/12 px-3 py-2 font-display text-sm font-bold text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-300">
+            <Clock3 className="h-4 w-4" /> قيد التجهيز {ready.store_count > 1 ? `(${ready.ready_count}/${ready.store_count} متجر جاهز)` : '— انتظر إشعار الجاهزية'}
+          </div>
+        )
+      )}
+
+      {/* pickup store(s) — navigate to grab the goods */}
+      {stores.length > 0 && cur !== 'delivered' && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-ink/[0.03] p-2 dark:bg-white/[0.03]">
+          <div className="px-1 text-[11px] font-bold text-ink/45 dark:text-cream/45">{stores.length > 1 ? 'الاستلام من المتاجر:' : 'الاستلام من المتجر:'}</div>
+          {stores.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-cream px-2.5 py-1.5 dark:bg-night-900/60">
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-ink/80 dark:text-cream/80">
+                <StoreIcon className="h-3.5 w-3.5 shrink-0 text-copper" /> <span className="truncate">{s.name}</span>
+              </span>
+              {s.lat && s.lng ? (
+                <a href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noreferrer"
+                  className="flex shrink-0 items-center gap-1 rounded-lg bg-brand-700 px-2.5 py-1 text-[11px] font-bold text-cream transition hover:bg-brand-800">
+                  <Navigation className="h-3 w-3" /> الخريطة
+                </a>
+              ) : (
+                <span className="shrink-0 rounded-lg bg-ink/5 px-2 py-1 text-[10px] text-ink/40 dark:bg-white/5 dark:text-cream/40">لا موقع</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-1">
         {STEPS.map(([k, label], i) => {
           const isCur = i === curIdx;

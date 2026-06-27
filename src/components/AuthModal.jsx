@@ -98,7 +98,7 @@ export default function AuthModal({ open, onClose }) {
   const phoneField = (
     <label className="block">
       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">رقم الهاتف</span>
-      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
+      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-beige px-3 focus-within:border-copper focus-within:ring-2 focus-within:ring-copper/20 dark:border-white/10 dark:bg-night-900">
         <Phone className="h-5 w-5 text-ink/40 dark:text-cream/40" />
         <input
           type="tel"
@@ -120,7 +120,7 @@ export default function AuthModal({ open, onClose }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-ink/25 p-4 backdrop-blur-[2px] dark:bg-black/40"
+          className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-ink/60 p-4 backdrop-blur-sm dark:bg-black/70"
         >
           <motion.div
             initial={{ scale: 0.94, opacity: 0, y: 20 }}
@@ -128,25 +128,26 @@ export default function AuthModal({ open, onClose }) {
             exit={{ scale: 0.94, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 24, stiffness: 280 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-white/30 bg-cream/20 shadow-card ring-1 ring-inset ring-white/20 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-night-900/40 dark:ring-white/10"
+            className="relative my-auto w-full max-w-md overflow-hidden rounded-[28px] bg-cream shadow-2xl ring-1 ring-black/5 dark:bg-night-800 dark:ring-white/10"
             dir="rtl"
           >
-            {/* header */}
-            <div className="relative bg-brand-900/70 px-6 pb-6 pt-6 text-center backdrop-blur-md dark:bg-night-900/55">
-              {/* subtle inner highlight line for glass depth */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-white/15" />
+            {/* header — rich solid gradient */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 px-6 pb-7 pt-7 text-center">
+              {/* decorative glow */}
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="pointer-events-none absolute -left-12 bottom-0 h-28 w-28 rounded-full bg-copper/20 blur-2xl" />
               <button
                 onClick={onClose}
-                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-cream/15 text-cream hover:bg-cream/25"
+                className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-cream backdrop-blur-md transition hover:bg-white/25"
                 aria-label="إغلاق"
               >
                 <X className="h-5 w-5" />
               </button>
-              <img src="/icons/icon-192.png" alt={SHOP_NAME} className="mx-auto mb-3 h-14 w-14 rounded-full" />
-              <h2 className="font-display text-2xl font-extrabold text-cream">
+              <img src="/icons/icon-192.png" alt={SHOP_NAME} className="relative mx-auto mb-3 h-16 w-16 rounded-2xl shadow-lg ring-2 ring-white/30" />
+              <h2 className="relative font-display text-2xl font-extrabold text-cream">
                 {done ? 'أهلاً بك! 🎉' : mode === 'signup' ? 'حساب جديد' : 'تسجيل الدخول'}
               </h2>
-              <p className="mt-1 font-body text-sm text-cream/70">
+              <p className="relative mt-1 font-body text-sm text-cream/80">
                 {done
                   ? 'تم بنجاح — يبقى حسابك مفتوحاً على جهازك'
                   : mode === 'signup'
@@ -197,7 +198,7 @@ export default function AuthModal({ open, onClose }) {
                   {mode === 'signup' && (
                     <label className="block">
                       <span className="mb-1.5 block font-body text-sm font-bold text-ink dark:text-cream">الاسم الكامل</span>
-                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-3 focus-within:border-copper dark:border-white/15 dark:bg-white/10">
+                      <div className="flex items-center gap-2 rounded-2xl border-2 border-ink/10 bg-beige px-3 focus-within:border-copper focus-within:ring-2 focus-within:ring-copper/20 dark:border-white/10 dark:bg-night-900">
                         <User className="h-5 w-5 text-ink/40 dark:text-cream/40" />
                         <input
                           value={f.name}
@@ -217,7 +218,7 @@ export default function AuthModal({ open, onClose }) {
                       <select
                         value={f.area}
                         onChange={(e) => set('area', e.target.value)}
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-white/10 dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-beige px-4 py-3.5 font-body text-ink outline-none focus:border-copper focus:ring-2 focus:ring-copper/20 dark:border-white/15 dark:bg-night-900 dark:text-cream"
                       >
                         <option value="">المنطقة داخل {CITY} *</option>
                         {AREAS.map((a) => (
@@ -230,7 +231,7 @@ export default function AuthModal({ open, onClose }) {
                         value={f.address}
                         onChange={(e) => set('address', e.target.value)}
                         placeholder="العنوان (أقرب نقطة دالة)"
-                        className="w-full rounded-2xl border-2 border-ink/10 bg-white/55 backdrop-blur-sm px-4 py-3.5 font-body text-ink outline-none focus:border-copper dark:border-white/15 dark:bg-white/10 dark:text-cream"
+                        className="w-full rounded-2xl border-2 border-ink/10 bg-beige px-4 py-3.5 font-body text-ink outline-none focus:border-copper focus:ring-2 focus:ring-copper/20 dark:border-white/15 dark:bg-night-900 dark:text-cream"
                       />
                       <label className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-copper/40 bg-copper/5 px-4 py-3">
                         <Gift className="h-5 w-5 shrink-0 text-copper" />
@@ -260,9 +261,12 @@ export default function AuthModal({ open, onClose }) {
                   </button>
 
                   {mode === 'signup' && (
-                    <p className="text-center font-body text-xs text-ink/50 dark:text-cream/50">
-                      بإنشائك الحساب تحصل على {POINTS.welcome.toLocaleString('en')} نقطة ترحيبية 🎁
-                    </p>
+                    <div className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-copper/15 to-amber-400/15 px-4 py-3 ring-1 ring-copper/20">
+                      <Gift className="h-5 w-5 shrink-0 text-copper" />
+                      <p className="text-center font-body text-sm font-bold text-copper-dark dark:text-copper-light">
+                        احصل على {POINTS.welcome.toLocaleString('en')} نقطة ترحيبية فور التسجيل 🎁
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

@@ -20,7 +20,7 @@ exports.handler = async function (event) {
   const price = body.price;
   const style = String(body.style || '').trim();
   const current = String(body.current || '').trim();
-  if (!name) return json(400, { ok: false, error: 'no_name' });
+  if (!name && task !== 'bundle') return json(400, { ok: false, error: 'no_name' });
 
   const BADGES = ['جديد', 'الأكثر مبيعاً', 'عرض خاص', 'محدود'];
 
@@ -39,6 +39,29 @@ exports.handler = async function (event) {
 - المنتج: ${name}${category ? `\n- القسم: ${category}` : ''}${unit ? `\n- وحدة البيع: ${unit}` : ''}
 أعطِ رقماً صحيحاً واقعياً (بدون فواصل) وملاحظة قصيرة جداً. اعلم أن الأسعار تختلف، فهذا تقدير استرشادي.
 أرجِع JSON فقط بلا شرح: {"price":0,"note":"..."}`;
+  } else if (task === 'bundle') {
+    maxTokens = 700;
+    const products = Array.isArray(body.products) ? body.products : [];
+    if (products.length < 2) return json(400, { ok: false, error: 'few_products' });
+    const list = products.slice(0, 60).map((p) => {
+      const nm = String(p.name || '').trim();
+      const un = String(p.unit || '').trim();
+      const pr = parseInt(p.price, 10) || 0;
+      return `- ${nm}${un ? ` (الوحدة: ${un})` : ''}${pr ? ` — ${pr} دينار` : ''}`;
+    }).join('\n');
+    const hint = String(body.hint || '').trim();
+    prompt = `أنت خبير في تجميع السلال (الباقات) لبقالة عراقية اسمها «اطلبها» في مدينة السماوة.
+هذه المنتجات المتوفّرة في المتجر:
+${list}
+
+اختر مجموعة منسجمة (من 4 إلى 7 منتجات) تشكّل باقة مفيدة وجذّابة للزبون${hint ? ` (فكرة الباقة: ${hint})` : ' (مثل: سلة طبخ أسبوعية، سلة فطور، احتياجات وجبة معيّنة...)'}.
+لكل منتج اختر كمية مناسبة ووحدتها المنطقية.
+أرجِع JSON فقط بلا أي شرح أو علامات:
+{"name":"اسم جذّاب للباقة","kicker":"سطر تشويقي قصير","description":"وصف من جملة إلى جملتين يشهّي الزبون","discount_pct":10,"ingredients":[{"name":"اسم المنتج كما ورد تماماً","qty":3,"unit":"علبة"}]}
+القواعد:
+- استخدم أسماء المنتجات **كما وردت أعلاه تماماً** (لا تخترع منتجات غير موجودة).
+- discount_pct رقم بين 5 و 20.
+- الكميات أرقام صحيحة معقولة، والوحدات مثل: كيلو، علبة، باقة، قطعة، حبة.`;
   } else {
     // description (optionally refine an existing one by style)
     let refine = '';
@@ -90,6 +113,31 @@ exports.handler = async function (event) {
     .map((b) => b.text)
     .join('\n')
     .trim();
+
+  if (task === 'bundle') {
+    const obj = extractJson(text);
+    if (!obj || !Array.isArray(obj.ingredients)) return json(200, { ok: false, error: 'تعذّر توليد الباقة، حاول مجدداً.' });
+    const avail = new Map((Array.isArray(body.products) ? body.products : []).map((p) => [String(p.name || '').trim(), p]));
+    const ingredients = obj.ingredients
+      .map((x) => ({
+        name: String(x?.name || '').trim(),
+        qty: Math.max(1, parseInt(x?.qty, 10) || 1),
+        unit: String(x?.unit || '').trim(),
+      }))
+      .filter((x) => x.name && avail.has(x.name));
+    if (ingredients.length < 2) return json(200, { ok: false, error: 'تعذّر تكوين باقة من المنتجات المتوفّرة.' });
+    const discount_pct = Math.min(20, Math.max(0, parseInt(obj.discount_pct, 10) || 10));
+    return json(200, {
+      ok: true,
+      bundle: {
+        name: String(obj.name || 'باقة مختارة').trim(),
+        kicker: String(obj.kicker || '').trim(),
+        description: String(obj.description || '').trim(),
+        discount_pct,
+        ingredients,
+      },
+    });
+  }
 
   if (task === 'badge') {
     const obj = extractJson(text);
