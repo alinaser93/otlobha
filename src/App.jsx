@@ -4,11 +4,8 @@ import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle } from 'lucide-rea
 
 import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
-<<<<<<< HEAD
 import PromoCarousel from './components/PromoCarousel.jsx';
 import CategoryStrip from './components/CategoryStrip.jsx';
-=======
->>>>>>> 0120d639143901234688077cae05ad67290c2d96
 import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';

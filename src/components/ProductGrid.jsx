@@ -120,10 +120,7 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
               );
             })}
           </div>
-<<<<<<< HEAD
           )}
-=======
->>>>>>> 0120d639143901234688077cae05ad67290c2d96
           {cat !== 'الكل' && (
             <div className="mt-2 flex items-center gap-1.5">
               <ShareButton variant="ghost" path={`/c/${cat}`} title={`${cat} — اطلبها`}
