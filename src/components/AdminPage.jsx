@@ -5,9 +5,10 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing,
 } from 'lucide-react';
 import { useOrderChime } from '../lib/alerts.js';
+import PushToggle from './PushToggle.jsx';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -1464,6 +1465,13 @@ function SettingsManager({ admin }) {
         <div className="mb-2 flex items-center gap-2"><MessageCircle className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">رقم واتساب الاستلام</h3></div>
         <input type="tel" dir="ltr" value={s.whatsapp_number ?? ''} onChange={set('whatsapp_number')} className={fieldInp} placeholder="9647XXXXXXXXX" />
         <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">رمز الدولة + الرقم بدون «+» أو صفر (العراق: 964 ثم الرقم). يستقبل الطلبات والاستفسارات.</p>
+      </div>
+
+      {/* device push notifications */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><BellRing className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">إشعارات الجهاز</h3></div>
+        <p className="mb-2 text-[11px] text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات الجديدة على جهازك حتى لو التطبيق مسكّر.</p>
+        <PushToggle partyType="admin" partyId={admin.id} />
       </div>
 
       {/* live preview */}

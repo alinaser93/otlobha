@@ -5,7 +5,7 @@ import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
   ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
-  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation,
+  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation, BellRing,
 } from 'lucide-react';
 import {
   getMerchantSession, setMerchantSession, clearMerchantSession,
@@ -23,6 +23,7 @@ import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/s
 import { cleanProductImage } from '../lib/bgremove.js';
 import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage, generateBundle } from '../lib/ai.js';
 import CategoryPicker from './CategoryPicker.jsx';
+import PushToggle from './PushToggle.jsx';
 import { useOrderChime } from '../lib/alerts.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
@@ -554,6 +555,13 @@ function StoreEditor({ token, store, onSaved }) {
           <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">وصف قصير للمتجر</label>
           <input value={tagline} onChange={(e) => setTagline(e.target.value)} className={inp} placeholder="مثلاً: أطيب خبز طازج في السماوة" />
         </div>
+      </div>
+
+      {/* device push notifications */}
+      <div className="rounded-2xl bg-copper/[0.06] p-3.5 ring-1 ring-copper/15">
+        <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><BellRing className="h-4 w-4 text-copper" /> إشعارات الطلبات الجديدة</span>
+        <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات على جهازك حتى لو التطبيق مسكّر.</p>
+        <PushToggle partyType="merchant" partyId={store.id} />
       </div>
 
       {/* store location for driver navigation */}

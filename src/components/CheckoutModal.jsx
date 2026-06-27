@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { createOrder } from '../lib/orders.js';
+import { notifyNewOrder } from '../lib/push.js';
 import { useAuth } from '../lib/auth.jsx';
 import {
   SETTINGS,
@@ -150,6 +151,8 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
     }).then((res) => {
       // refresh the cached account so new points show next time the drawer opens
       if (res?.ok) reload?.();
+      // notify the merchant(s) + admin via push (fire-and-forget)
+      if (res?.ok && res.order?.id) notifyNewOrder(res.order.id);
       // take the customer to the professional tracking page
       if (res?.ok && res.order?.id) {
         window.location.href = '/order/' + res.order.id;

@@ -13,6 +13,7 @@ import {
   driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
+import PushToggle from './PushToggle.jsx';
 import { useOrderChime } from '../lib/alerts.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
@@ -272,6 +273,13 @@ function Board({ driver, onOut }) {
         ) : (
           <div className="space-y-3">{shown.map((o) => <DeliveryCard key={o.id} o={o} ready={readyMap[o.id]} onAdvance={advance} driverId={driver.id} />)}</div>
         )}
+
+        {/* device push notifications */}
+        <div className="mt-4 rounded-2xl bg-copper/[0.06] p-3.5 ring-1 ring-copper/15">
+          <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><Radio className="h-4 w-4 text-copper" /> إشعارات الطلبات</span>
+          <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات المُسندة إليك على جهازك حتى لو التطبيق مسكّر.</p>
+          <PushToggle partyType="driver" partyId={driver.id} />
+        </div>
 
         {/* my profile */}
         <div className="mt-4 rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">
