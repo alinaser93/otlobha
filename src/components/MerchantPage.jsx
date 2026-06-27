@@ -5,7 +5,7 @@ import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
   ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
-  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation, BellRing,
+  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation, BellRing, QrCode,
 } from 'lucide-react';
 import {
   getMerchantSession, setMerchantSession, clearMerchantSession,
@@ -25,6 +25,7 @@ import { generateProductDescription, suggestBadge, suggestPrice, extractProducts
 import CategoryPicker from './CategoryPicker.jsx';
 import PushToggle from './PushToggle.jsx';
 import InstallButton from './InstallButton.jsx';
+import QRModal from './QRModal.jsx';
 import { notifyCustomerStatus } from '../lib/push.js';
 import { useOrderChime } from '../lib/alerts.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
@@ -456,6 +457,7 @@ function StoreEditor({ token, store, onSaved }) {
   const [lat, setLat] = useState(store.lat ?? null);
   const [lng, setLng] = useState(store.lng ?? null);
   const [geoBusy, setGeoBusy] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [geoMsg, setGeoMsg] = useState('');
   const logoRef = useRef(null); const coverRef = useRef(null); const videoRef = useRef(null);
 
@@ -567,6 +569,18 @@ function StoreEditor({ token, store, onSaved }) {
       </div>
 
       <InstallButton variant="card" />
+
+      <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
+        <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><QrCode className="h-4 w-4 text-copper" /> رمز QR لمتجرك</span>
+        <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">اطبعه وعلّقه في محلّك — الزبون يمسحه فيفتح متجرك مباشرة.</p>
+        <button type="button" onClick={() => setQrOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 py-3 font-display font-bold text-cream shadow-soft transition hover:bg-brand-800 active:scale-[.99]">
+          <QrCode className="h-5 w-5" /> اعرض رمز QR
+        </button>
+      </div>
+      {qrOpen && (
+        <QRModal path={`/s/${store.name}`} title={store.name} subtitle={store.tagline || 'متجر في اطلبها'} onClose={() => setQrOpen(false)} />
+      )}
 
       {/* store location for driver navigation */}
       <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">

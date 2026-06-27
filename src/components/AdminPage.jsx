@@ -1429,9 +1429,9 @@ function CampaignsManager({ admin }) {
   }
   useEffect(() => {
     refresh();
-    adminListCategories(admin.id).then((r) => { if (Array.isArray(r)) setCats(r); });
-    adminListStores(admin.id).then((r) => { if (Array.isArray(r)) setStores(r); });
-    adminListProducts(admin.id).then((r) => { if (Array.isArray(r)) setProducts(r); });
+    adminListCategories(admin.id).then((r) => { if (Array.isArray(r?.categories)) setCats(r.categories); });
+    adminListStores(admin.id).then((r) => { if (Array.isArray(r?.stores)) setStores(r.stores); });
+    adminListProducts(admin.id).then((r) => { if (Array.isArray(r?.products)) setProducts(r.products); });
     /* eslint-disable-next-line */
   }, []);
 
