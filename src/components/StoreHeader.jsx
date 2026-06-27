@@ -19,6 +19,7 @@ const gradFor = (c) => CAT_GRAD[c] || 'from-brand-600 to-brand-900';
 
 import ShareButton from './ShareButton.jsx';
 import QRModal from './QRModal.jsx';
+import { storeStatus } from '../lib/storeHours.js';
 
 export default function StoreHeader({ store, count = 0, onBack, account = null, onRequireLogin, onRated, followIds = [], onToggleFollow }) {
   const [rateOpen, setRateOpen] = useState(false);
@@ -26,6 +27,7 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
   if (!store) return null;
   const followed = followIds.includes(store.id);
   const phone = (store.phone || '').replace(/[^\d]/g, '');
+  const st = storeStatus(store);
 
   function openRate() {
     if (account?.id) setRateOpen(true);
@@ -112,6 +114,11 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-ink/5 px-2 py-0.5 text-xs font-bold text-ink/60 dark:bg-white/10 dark:text-cream/60">
               {emojiFor(store.category)} {store.category}
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${st.open ? 'bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-red-500/15 text-red-600 dark:text-red-300'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${st.open ? 'bg-green-500' : 'bg-red-500'}`} />
+              {st.open ? 'مفتوح الآن' : 'مغلق'}
+              {st.open && !st.unknown && st.todayLabel && <span className="font-normal opacity-70"> · {st.todayLabel}</span>}
             </span>
             <span className="text-xs font-bold text-ink/45 dark:text-cream/45">{count} منتج</span>
             {store.followersCount > 0 && (

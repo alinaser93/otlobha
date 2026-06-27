@@ -333,6 +333,10 @@ export async function fetchStoreCatalog() {
       ratingCount: s.rating_count || 0,
       followersCount: s.followers_count || 0,
       featured: !!s.featured,
+      lat: s.lat != null ? Number(s.lat) : null,
+      lng: s.lng != null ? Number(s.lng) : null,
+      hours: s.hours || null,
+      manualClosed: !!s.manual_closed,
     }));
 
     return { products, categories, bundles, stores };

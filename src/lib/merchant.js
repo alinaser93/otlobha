@@ -42,6 +42,20 @@ export const merchantUpdateStore = (token, f = {}) =>
 
 // products (store-scoped)
 export const merchantSetLocation = (token, lat, lng) => rpc('merchant_set_location', { p_token: token, p_lat: lat, p_lng: lng });
+
+// store opening hours (self) — hours is jsonb { "0":{closed,open,close}, ... }
+export const merchantSetHours = (token, hours, manualClosed) =>
+  rpc('merchant_set_hours', { p_token: token, p_hours: hours ?? null, p_manual_closed: manualClosed ?? null });
+
+// read the store's current hours via the public (anon-readable) stores table
+export async function fetchStoreHours(storeId) {
+  if (!supabaseEnabled || !supabase || !storeId) return null;
+  try {
+    const { data, error } = await supabase.from('stores').select('hours,manual_closed').eq('id', storeId).single();
+    if (error || !data) return null;
+    return { hours: data.hours || null, manualClosed: !!data.manual_closed };
+  } catch { return null; }
+}
 export const merchantListProducts = (token) => rpc('merchant_list_products', { p_token: token });
 
 export const merchantListOrders = (token) => rpc('merchant_list_orders', { p_token: token });
