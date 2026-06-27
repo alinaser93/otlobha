@@ -10,8 +10,11 @@ import { StoreReviews } from './StoreRating.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore, account = null, onRequireLogin, followIds = [], onToggleFollow }) {
-  const [cat, setCat] = useState('الكل');
+export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore, account = null, onRequireLogin, followIds = [], onToggleFollow, cat: catProp, onCat, hideChips = false }) {
+  // category can be controlled by the parent (sticky strip) or kept locally
+  const [catLocal, setCatLocal] = useState('الكل');
+  const cat = catProp !== undefined ? catProp : catLocal;
+  const setCat = onCat || setCatLocal;
   const [selected, setSelected] = useState(null);
   const [ratingOverride, setRatingOverride] = useState(null);
   const [reviewsKey, setReviewsKey] = useState(0);
@@ -80,14 +83,15 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
         >
           {!store && (
             <div>
-              <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">مختار لك اليوم</span>
-              <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">الأكثر طلباً</h2>
+              <span className="font-body text-sm font-bold tracking-widest text-copper dark:text-copper-light">{cat === 'الكل' ? 'مختار لك اليوم' : 'تصفّح القسم'}</span>
+              <h2 className="mt-2 font-display text-4xl font-black text-ink dark:text-cream sm:text-5xl">{cat === 'الكل' ? 'الأكثر طلباً' : cat}</h2>
             </div>
           )}
           {store && (
             <h3 className="font-display text-2xl font-black text-ink dark:text-cream">تصفّح حسب القسم</h3>
           )}
 
+          {!hideChips && (
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => {
               const active = cat === c.name;
@@ -116,6 +120,7 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
               );
             })}
           </div>
+          )}
           {cat !== 'الكل' && (
             <div className="mt-2 flex items-center gap-1.5">
               <ShareButton variant="ghost" path={`/c/${cat}`} title={`${cat} — اطلبها`}

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle } from 'lucide-react';
+import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle, Search, Sparkles } from 'lucide-react';
 
 import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
+import PromoCarousel from './components/PromoCarousel.jsx';
+import CategoryStrip from './components/CategoryStrip.jsx';
 import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';
@@ -12,6 +14,7 @@ import CartDrawer from './components/CartDrawer.jsx';
 import CheckoutModal from './components/CheckoutModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
 import AccountDrawer from './components/AccountDrawer.jsx';
+import SearchModal from './components/SearchModal.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { listMyOrders } from './lib/orders.js';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
@@ -82,12 +85,14 @@ export default function App() {
   const [bundles, setBundles] = useState(BUNDLES);
   const [stores, setStores] = useState([]);
   const [activeStore, setActiveStore] = useState(null);
+  const [cat, setCat] = useState('الكل');
   const [followIds, setFollowIds] = useState([]);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const { cartRef, fly } = useFlyToCart();
   const { account } = useAuth();
@@ -232,13 +237,14 @@ export default function App() {
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   const count = items.reduce((s, i) => s + i.qty, 0);
 
-  const addItem = useCallback((p) => {
+  const addItem = useCallback((p, qty = 1) => {
+    const n = Math.max(1, qty | 0);
     setItems((prev) => {
       const found = prev.find((i) => i.key === p.id);
-      if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + 1 } : i));
+      if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + n } : i));
       // bundles carry an `emojis` array; products carry a single `emoji`
       const image = p.emojis ? (p.images?.[0] ?? p.image) : p.image;
-      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: 1, storeId: p.storeId ?? null }];
+      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: n, storeId: p.storeId ?? null }];
     });
     setBump(true);
     setTimeout(() => setBump(false), 520);
@@ -303,6 +309,32 @@ export default function App() {
     ? { kicker: 'باقات المتجر', title: 'باقات مختارة', subtitle: 'وفّر أكثر مع باقات هذا المتجر — مكوّنات كاملة بسعر مميّز.' }
     : { kicker: 'الأكثر طلباً · وفّر أكثر', title: 'أفضل ٥ باقات في اطلبها', subtitle: 'الباقات الأكثر مبيعاً — مكوّنات وصفة كاملة بسعر أوفر من شرائها مفردة.' };
 
+  // entering / leaving a store resets the product filter so we never land on an empty category
+  useEffect(() => { setCat('الكل'); }, [activeStore]);
+
+  // smooth-scroll to the products grid, accounting for the sticky header + category strip
+  const scrollToProducts = useCallback(() => {
+    const el = document.getElementById('products');
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - 120;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }, []);
+
+  // sticky-strip tap: pick a category on the homepage, then glide down to the grid
+  const pickCategory = useCallback((name) => {
+    setActiveStore(null);
+    setCat(name);
+    setTimeout(scrollToProducts, 60);
+  }, [scrollToProducts]);
+
+  // promo-carousel CTA router
+  const onPromo = useCallback((action) => {
+    if (action === 'rewards') { openAccount(); return; }
+    const id = action === 'bundles' ? 'bundles' : action === 'stores' ? 'stores' : 'products';
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  }, [openAccount]);
+
+
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
       <TopBar />
@@ -312,12 +344,34 @@ export default function App() {
         cartRef={cartRef}
         onCart={() => setCartOpen(true)}
         onAccount={openAccount}
+        onSearch={() => setSearchOpen(true)}
         dark={dark}
         onToggleTheme={() => setDark((d) => !d)}
       />
 
       <main>
         <Hero onShop={() => document.getElementById('stores')?.scrollIntoView({ behavior: 'smooth' })} />
+
+        {/* prominent search entry (opens the smart search + AI assistant) */}
+        <div className="bg-beige pt-5 dark:bg-night">
+          <div className="mx-auto max-w-7xl px-4 sm:px-8">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-right shadow-soft ring-1 ring-ink/10 transition hover:ring-copper/40 dark:bg-night-800 dark:ring-white/10"
+            >
+              <Search className="h-5 w-5 shrink-0 text-copper" />
+              <span className="flex-1 font-body text-[15px] text-ink/45 dark:text-cream/45">دور على منتج، متجر، أو اكتب وصفة…</span>
+              <span className="hidden items-center gap-1 rounded-full bg-brand-800/10 px-2.5 py-1 font-body text-[11px] font-bold text-brand-800 dark:bg-white/10 dark:text-cream sm:flex">
+                <Sparkles className="h-3.5 w-3.5" /> مساعد ذكي
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <PromoCarousel onAction={onPromo} />
+        {!activeStore && (
+          <CategoryStrip categories={categories} active={cat} onPick={pickCategory} />
+        )}
         <StoresSection
           stores={stores}
           activeStore={activeStore}
@@ -334,6 +388,9 @@ export default function App() {
           categories={categories}
           onAdd={addItem}
           fly={fly}
+          cat={cat}
+          onCat={setCat}
+          hideChips={!activeStore}
           openProductId={deepLink?.type === 'product' ? deepLink.id : null}
           initialCat={deepLink?.type === 'category' ? deepLink.name : null}
           storeFilter={activeStore}
@@ -404,6 +461,18 @@ export default function App() {
       />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <AccountDrawer open={accountOpen} onClose={() => setAccountOpen(false)} onReorder={reorder} />
+      <SearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        products={products}
+        stores={stores}
+        categories={categories}
+        bundles={bundles}
+        onAddProduct={addItem}
+        onSelectStore={(id) => { setSearchOpen(false); setActiveStore(id); setTimeout(scrollToProducts, 80); }}
+        onPickCategory={(name) => { setSearchOpen(false); pickCategory(name); }}
+        onOpenBundle={(b) => { setSearchOpen(false); setDeepBundle(b); }}
+      />
       {deepBundle && <BundleDetailModal b={deepBundle} onAdd={addItem} onClose={() => setDeepBundle(null)} />}
 
       {/* add-to-cart toast */}

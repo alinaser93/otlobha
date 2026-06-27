@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
-import { ShoppingCart, Menu, X, MapPin, Sun, Moon, User, ChevronLeft } from 'lucide-react';
+import { ShoppingCart, Menu, X, MapPin, Sun, Moon, User, ChevronLeft, Search } from 'lucide-react';
 import InstallButton from './InstallButton.jsx';
 import PushToggle from './PushToggle.jsx';
 import { useAuth } from '../lib/auth.jsx';
@@ -31,7 +31,7 @@ function ThemeToggle({ dark, onToggle }) {
   );
 }
 
-export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggleTheme, onAccount }) {
+export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggleTheme, onAccount, onSearch }) {
   const { account } = useAuth();
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
@@ -83,6 +83,14 @@ export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggl
           <div className="hidden items-center gap-1.5 rounded-full bg-cream/10 px-3 py-1.5 text-[12px] text-cream/80 sm:flex">
             <MapPin className="h-3.5 w-3.5 text-copper-light" /> السماوة
           </div>
+
+          <button
+            onClick={onSearch}
+            className="grid h-11 w-11 place-items-center rounded-full bg-cream/10 text-cream transition hover:bg-cream/20"
+            aria-label="بحث"
+          >
+            <Search className="h-5 w-5" />
+          </button>
 
           <button
             onClick={onAccount}
