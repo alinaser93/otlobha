@@ -5,7 +5,7 @@ import {
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
-  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing,
+  Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing, Home, Tag,
 } from 'lucide-react';
 import { useOrderChime } from '../lib/alerts.js';
 import PushToggle from './PushToggle.jsx';
@@ -1399,12 +1399,27 @@ const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواك�
 function CampaignsManager({ admin }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [url, setUrl] = useState('');
+  const [destType, setDestType] = useState('home'); // home | category | store | product | custom
+  const [destValue, setDestValue] = useState(''); // selected name/id (or custom path)
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // {type:'ok'|'err', text}
   const [subCount, setSubCount] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cats, setCats] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [products, setProducts] = useState([]);
+
+  // build destination path from picker
+  const url = useMemo(() => {
+    if (destType === 'home') return '';
+    if (destType === 'custom') return destValue.trim();
+    if (!destValue) return '';
+    if (destType === 'category') return `/c/${destValue}`;
+    if (destType === 'store') return `/s/${destValue}`;
+    if (destType === 'product') return `/p/${destValue}`;
+    return '';
+  }, [destType, destValue]);
 
   async function refresh() {
     const [c, s] = await Promise.all([adminListCampaigns(admin.id), adminCustomerSubCount(admin.id)]);
@@ -1412,7 +1427,13 @@ function CampaignsManager({ admin }) {
     if (s?.ok) setSubCount(s.count);
     setLoading(false);
   }
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    refresh();
+    adminListCategories(admin.id).then((r) => { if (Array.isArray(r?.categories)) setCats(r.categories); });
+    adminListStores(admin.id).then((r) => { if (Array.isArray(r?.stores)) setStores(r.stores); });
+    adminListProducts(admin.id).then((r) => { if (Array.isArray(r?.products)) setProducts(r.products); });
+    /* eslint-disable-next-line */
+  }, []);
 
   async function send() {
     if (!title.trim() || !body.trim()) { setMsg({ type: 'err', text: 'اكتب العنوان والنص.' }); return; }
@@ -1424,7 +1445,7 @@ function CampaignsManager({ admin }) {
     setBusy(false);
     if (r?.ok) {
       setMsg({ type: 'ok', text: `تم الإرسال إلى ${r.sent} جهاز ✅` });
-      setTitle(''); setBody(''); setUrl('');
+      setTitle(''); setBody(''); setDestType('home'); setDestValue('');
       refresh();
     } else {
       setMsg({ type: 'err', text: r?.error === 'no_vapid_key' ? 'مفتاح الإشعارات غير مضبوط في Netlify.' : 'تعذّر الإرسال. حاول ثانية.' });
@@ -1453,10 +1474,42 @@ function CampaignsManager({ admin }) {
           <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">النص</label>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={120} rows={2} className={inp} placeholder="مثلاً: على كل الخضار والفواكه الطازجة — اطلب الآن قبل ما يخلص!" />
         </div>
+
+        {/* destination picker */}
         <div>
-          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">رابط الوجهة (اختياري)</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} className={inp} placeholder="/ أو /c/فواكه أو /s/اطلبها" dir="ltr" />
-          <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">عند الضغط على الإشعار يفتح هذا الرابط. اتركه فارغاً للصفحة الرئيسية.</p>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">عند الضغط على الإشعار يفتح…</label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[['home', 'الرئيسية', Home], ['category', 'فئة', Boxes], ['store', 'متجر', StoreIcon], ['product', 'منتج', Tag]].map(([k, label, Icon]) => (
+              <button key={k} type="button" onClick={() => { setDestType(k); setDestValue(''); }}
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-bold transition ${destType === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+
+          {destType === 'category' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر الفئة —</option>
+              {cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          )}
+          {destType === 'store' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر المتجر —</option>
+              {stores.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          )}
+          {destType === 'product' && (
+            <select value={destValue} onChange={(e) => setDestValue(e.target.value)} className={`mt-2 ${inp}`}>
+              <option value="">— اختر المنتج —</option>
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.price ? ` — ${p.price} د.ع` : ''}</option>)}
+            </select>
+          )}
+          {url && (
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-ink/45 dark:text-cream/45">
+              <Link2 className="h-3 w-3" /> الوجهة: <span dir="ltr" className="font-mono">{url}</span>
+            </p>
+          )}
         </div>
 
         {/* live preview */}

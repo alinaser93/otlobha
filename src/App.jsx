@@ -4,7 +4,9 @@ import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle } from 'lucide-rea
 
 import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
-import BundleSection from './components/BundleSection.jsx';
+import PromoCarousel from './components/PromoCarousel.jsx';
+import CategoryStrip from './components/CategoryStrip.jsx';
+import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';
 import Footer from './components/Footer.jsx';
@@ -82,6 +84,7 @@ export default function App() {
   const [bundles, setBundles] = useState(BUNDLES);
   const [stores, setStores] = useState([]);
   const [activeStore, setActiveStore] = useState(null);
+  const [cat, setCat] = useState('الكل');
   const [followIds, setFollowIds] = useState([]);
   const [bump, setBump] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -144,6 +147,9 @@ export default function App() {
       m = path.match(/^\/s\/([^/?#]+)/);
       if (m) return { type: 'store', name: decodeURIComponent(m[1]) };
       if (sp.get('s')) return { type: 'store', name: sp.get('s') };
+      m = path.match(/^\/b\/([^/?#]+)/);
+      if (m) return { type: 'bundle', id: decodeURIComponent(m[1]) };
+      if (sp.get('b')) return { type: 'bundle', id: sp.get('b') };
     } catch (e) {}
     return null;
   }, []);
@@ -177,6 +183,16 @@ export default function App() {
     }
     // eslint-disable-next-line
   }, [stores]);
+
+  // if arriving via a bundle share link (/b/{id}), open that bundle's details once loaded
+  const [deepBundle, setDeepBundle] = useState(null);
+  useEffect(() => {
+    if (deepLink?.type === 'bundle' && bundles.length) {
+      const b = bundles.find((x) => String(x.id) === String(deepLink.id));
+      if (b) setDeepBundle(b);
+    }
+    // eslint-disable-next-line
+  }, [bundles]);
 
   // sync the customer's followed stores from their account (cross-device)
   useEffect(() => {
@@ -290,6 +306,32 @@ export default function App() {
     ? { kicker: 'باقات المتجر', title: 'باقات مختارة', subtitle: 'وفّر أكثر مع باقات هذا المتجر — مكوّنات كاملة بسعر مميّز.' }
     : { kicker: 'الأكثر طلباً · وفّر أكثر', title: 'أفضل ٥ باقات في اطلبها', subtitle: 'الباقات الأكثر مبيعاً — مكوّنات وصفة كاملة بسعر أوفر من شرائها مفردة.' };
 
+  // entering / leaving a store resets the product filter so we never land on an empty category
+  useEffect(() => { setCat('الكل'); }, [activeStore]);
+
+  // smooth-scroll to the products grid, accounting for the sticky header + category strip
+  const scrollToProducts = useCallback(() => {
+    const el = document.getElementById('products');
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - 120;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }, []);
+
+  // sticky-strip tap: pick a category on the homepage, then glide down to the grid
+  const pickCategory = useCallback((name) => {
+    setActiveStore(null);
+    setCat(name);
+    setTimeout(scrollToProducts, 60);
+  }, [scrollToProducts]);
+
+  // promo-carousel CTA router
+  const onPromo = useCallback((action) => {
+    if (action === 'rewards') { openAccount(); return; }
+    const id = action === 'bundles' ? 'bundles' : action === 'stores' ? 'stores' : 'products';
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  }, [openAccount]);
+
+
   return (
     <div className="min-h-screen bg-beige dark:bg-night">
       <TopBar />
@@ -305,6 +347,10 @@ export default function App() {
 
       <main>
         <Hero onShop={() => document.getElementById('stores')?.scrollIntoView({ behavior: 'smooth' })} />
+        <PromoCarousel onAction={onPromo} />
+        {!activeStore && (
+          <CategoryStrip categories={categories} active={cat} onPick={pickCategory} />
+        )}
         <StoresSection
           stores={stores}
           activeStore={activeStore}
@@ -321,6 +367,9 @@ export default function App() {
           categories={categories}
           onAdd={addItem}
           fly={fly}
+          cat={cat}
+          onCat={setCat}
+          hideChips={!activeStore}
           openProductId={deepLink?.type === 'product' ? deepLink.id : null}
           initialCat={deepLink?.type === 'category' ? deepLink.name : null}
           storeFilter={activeStore}
@@ -391,6 +440,7 @@ export default function App() {
       />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <AccountDrawer open={accountOpen} onClose={() => setAccountOpen(false)} onReorder={reorder} />
+      {deepBundle && <BundleDetailModal b={deepBundle} onAdd={addItem} onClose={() => setDeepBundle(null)} />}
 
       {/* add-to-cart toast */}
       <AnimatePresence>

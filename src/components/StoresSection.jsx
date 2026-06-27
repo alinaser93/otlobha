@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Heart } from 'lucide-react';
+import ShareButton from './ShareButton.jsx';
 import { fadeUp, viewportOnce } from '../lib/motion.js';
 
 const CAT_EMOJI = {
@@ -83,6 +84,12 @@ function StoreCard({ s, active, onSelect, followed, onFollow, index }) {
           title={followed ? 'إلغاء المتابعة' : 'متابعة'}
         >
           <Heart className={`h-4 w-4 ${followed ? 'fill-white' : ''}`} />
+        </span>
+
+        <span className="absolute left-3 top-14" onClick={(e) => e.stopPropagation()}>
+          <ShareButton variant="icon" path={`/s/${s.name}`} title={s.name}
+            text={`${s.name} — ${s.tagline || 'متجر في اطلبها'} 🛒`}
+            className="grid h-9 w-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur transition hover:bg-black/50" />
         </span>
 
         <span className="absolute bottom-2 left-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-black text-ink shadow">

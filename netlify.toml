@@ -16,6 +16,27 @@
   to = "/.netlify/functions/generate-description"
   status = 200
 
+# rich link previews (Open Graph) for shared deep-links — MUST come before the SPA catch-all
+[[redirects]]
+  from = "/s/*"
+  to = "/.netlify/functions/og-preview?type=store&key=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/p/*"
+  to = "/.netlify/functions/og-preview?type=product&key=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/c/*"
+  to = "/.netlify/functions/og-preview?type=category&key=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/b/*"
+  to = "/.netlify/functions/og-preview?type=bundle&key=:splat"
+  status = 200
+
 # SPA fallback — let client-side routes like /admin load index.html
 [[redirects]]
   from = "/*"

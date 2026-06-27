@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Heart, ChevronRight, Phone, BadgeCheck, Users } from 'lucide-react';
+import { Star, Heart, ChevronRight, Phone, BadgeCheck, Users, QrCode } from 'lucide-react';
 import { Stars } from './StoresSection.jsx';
 import { RatingModal } from './StoreRating.jsx';
 
@@ -17,8 +17,12 @@ const CAT_GRAD = {
 const emojiFor = (c) => CAT_EMOJI[c] || '🏪';
 const gradFor = (c) => CAT_GRAD[c] || 'from-brand-600 to-brand-900';
 
+import ShareButton from './ShareButton.jsx';
+import QRModal from './QRModal.jsx';
+
 export default function StoreHeader({ store, count = 0, onBack, account = null, onRequireLogin, onRated, followIds = [], onToggleFollow }) {
   const [rateOpen, setRateOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   if (!store) return null;
   const followed = followIds.includes(store.id);
   const phone = (store.phone || '').replace(/[^\d]/g, '');
@@ -55,7 +59,7 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
           <ChevronRight className="h-4 w-4" /> كل المتاجر
         </button>
 
-        {/* follow + rate */}
+        {/* follow + rate + share */}
         <div className="absolute left-4 top-4 flex items-center gap-2">
           <button onClick={openRate}
             className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1.5 text-sm font-bold text-ink shadow-soft transition hover:bg-amber-300">
@@ -67,11 +71,20 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
             }`}>
             <Heart className={`h-4 w-4 ${followed ? 'fill-white' : ''}`} /> {followed ? 'متابَع' : 'متابعة'}
           </button>
+          <ShareButton variant="icon" path={`/s/${store.name}`} title={store.name}
+            text={`${store.name} — ${store.tagline || 'متجر في اطلبها'} 🛒`} />
+          <button onClick={() => setQrOpen(true)} aria-label="رمز QR" title="رمز QR"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-ink shadow-soft transition hover:bg-white">
+            <QrCode className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
       {rateOpen && (
         <RatingModal store={store} account={account} onClose={() => setRateOpen(false)} onRated={onRated} />
+      )}
+      {qrOpen && (
+        <QRModal path={`/s/${store.name}`} title={store.name} subtitle={store.tagline || 'متجر في اطلبها'} onClose={() => setQrOpen(false)} />
       )}
 
       {/* identity row */}
