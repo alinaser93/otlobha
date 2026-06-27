@@ -389,7 +389,14 @@ function DeliveryCard({ o, ready, onAdvance, driverId }) {
   const lastSent = useRef(0);
   const watchId = useRef(null);
   const [geoState, setGeoState] = useState('off'); // off | locating | live | denied | error
+  const [stores, setStores] = useState([]); // pickup stores with locations
   const shouldShare = cur === 'on_way' || cur === 'arrived';
+
+  useEffect(() => {
+    let alive = true;
+    driverOrderStores(o.id).then((r) => { if (alive && Array.isArray(r)) setStores(r); });
+    return () => { alive = false; };
+  }, [o.id]);
 
   function sendPos(pos, force) {
     const now = Date.now();
@@ -483,7 +490,27 @@ function DeliveryCard({ o, ready, onAdvance, driverId }) {
         )
       )}
 
-      {/* progress steps */}
+      {/* pickup store(s) — navigate to grab the goods */}
+      {stores.length > 0 && cur !== 'delivered' && (
+        <div className="mt-2 space-y-1.5 rounded-xl bg-ink/[0.03] p-2 dark:bg-white/[0.03]">
+          <div className="px-1 text-[11px] font-bold text-ink/45 dark:text-cream/45">{stores.length > 1 ? 'الاستلام من المتاجر:' : 'الاستلام من المتجر:'}</div>
+          {stores.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-cream px-2.5 py-1.5 dark:bg-night-900/60">
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-ink/80 dark:text-cream/80">
+                <StoreIcon className="h-3.5 w-3.5 shrink-0 text-copper" /> <span className="truncate">{s.name}</span>
+              </span>
+              {s.lat && s.lng ? (
+                <a href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noreferrer"
+                  className="flex shrink-0 items-center gap-1 rounded-lg bg-brand-700 px-2.5 py-1 text-[11px] font-bold text-cream transition hover:bg-brand-800">
+                  <Navigation className="h-3 w-3" /> الخريطة
+                </a>
+              ) : (
+                <span className="shrink-0 rounded-lg bg-ink/5 px-2 py-1 text-[10px] text-ink/40 dark:bg-white/5 dark:text-cream/40">لا موقع</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-1">
         {STEPS.map(([k, label], i) => {
           const isCur = i === curIdx;

@@ -100,6 +100,8 @@ export const adminAddStore = (adminId, f = {}) =>
     p_cover_video: f.coverVideo ?? null,
   });
 
+export const adminSetStoreLocation = (adminId, storeId, lat, lng) =>
+  rpc('admin_set_store_location', { p_admin_id: adminId, p_store_id: storeId, p_lat: lat, p_lng: lng });
 export const adminUpdateStore = (adminId, id, f = {}) =>
   rpc('admin_update_store', {
     p_admin_id: adminId,

@@ -41,6 +41,7 @@ export const merchantUpdateStore = (token, f = {}) =>
   });
 
 // products (store-scoped)
+export const merchantSetLocation = (token, lat, lng) => rpc('merchant_set_location', { p_token: token, p_lat: lat, p_lng: lng });
 export const merchantListProducts = (token) => rpc('merchant_list_products', { p_token: token });
 
 export const merchantListOrders = (token) => rpc('merchant_list_orders', { p_token: token });

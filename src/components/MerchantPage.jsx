@@ -5,13 +5,13 @@ import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
   ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
-  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck,
+  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation,
 } from 'lucide-react';
 import {
   getMerchantSession, setMerchantSession, clearMerchantSession,
   merchantLogin, merchantMe, merchantLogout,
   merchantListProducts, merchantAddProduct, merchantUpdateProduct,
-  merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore,
+  merchantRemoveProduct, merchantSetProductActive, merchantUpdateStore, merchantSetLocation,
   merchantListOrders, merchantSetItemQty, merchantMarkReady, merchantUnmarkReady,
   merchantListBundles, merchantAddBundle, merchantUpdateBundle,
   merchantRemoveBundle, merchantSetBundleActive,
@@ -450,7 +450,30 @@ function StoreEditor({ token, store, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState(false);
+  const [lat, setLat] = useState(store.lat ?? null);
+  const [lng, setLng] = useState(store.lng ?? null);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState('');
   const logoRef = useRef(null); const coverRef = useRef(null); const videoRef = useRef(null);
+
+  function captureLocation() {
+    if (!('geolocation' in navigator)) { setGeoMsg('جهازك لا يدعم تحديد الموقع'); return; }
+    setGeoBusy(true); setGeoMsg('');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const la = pos.coords.latitude, ln = pos.coords.longitude;
+        const r = await merchantSetLocation(token, la, ln);
+        setGeoBusy(false);
+        if (r?.ok) { setLat(la); setLng(ln); setGeoMsg('تم حفظ الموقع ✓'); setTimeout(() => setGeoMsg(''), 2500); }
+        else setGeoMsg('تعذّر حفظ الموقع، حاول ثانية');
+      },
+      (e) => {
+        setGeoBusy(false);
+        setGeoMsg(e && e.code === 1 ? 'رُفض إذن الموقع — فعّله من إعدادات المتصفّح' : 'تعذّر تحديد الموقع، حاول ثانية');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 
   async function onLogo(e) {
     const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
@@ -531,6 +554,27 @@ function StoreEditor({ token, store, onSaved }) {
           <label className="mb-1 block text-[11px] font-bold text-ink/50 dark:text-cream/50">وصف قصير للمتجر</label>
           <input value={tagline} onChange={(e) => setTagline(e.target.value)} className={inp} placeholder="مثلاً: أطيب خبز طازج في السماوة" />
         </div>
+      </div>
+
+      {/* store location for driver navigation */}
+      <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
+        <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><MapPin className="h-4 w-4 text-copper" /> موقع المتجر على الخريطة</span>
+        <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">يساعد المندوب يوصل متجرك بسرعة. كن داخل المتجر واضغط الزر مرّة واحدة.</p>
+        <button onClick={captureLocation} disabled={geoBusy}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 py-3 font-display font-bold text-cream shadow-soft transition hover:bg-brand-800 active:scale-[.99] disabled:opacity-60">
+          {geoBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Navigation className="h-5 w-5" />}
+          {lat && lng ? 'تحديث موقعي الحالي' : 'استخدم موقعي الحالي'}
+        </button>
+        {lat && lng && (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-green-500/10 px-3 py-2 ring-1 ring-green-500/20">
+            <span className="flex items-center gap-1 text-xs font-bold text-green-700 dark:text-green-300"><Check className="h-3.5 w-3.5" /> الموقع محفوظ</span>
+            <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1 rounded-lg bg-white/70 px-2.5 py-1 text-[11px] font-bold text-brand-800 dark:bg-white/10 dark:text-brand-300">
+              <MapPin className="h-3 w-3" /> معاينة على الخريطة
+            </a>
+          </div>
+        )}
+        {geoMsg && <p className="mt-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-300">{geoMsg}</p>}
       </div>
 
       {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}

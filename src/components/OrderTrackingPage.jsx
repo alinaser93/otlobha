@@ -7,6 +7,7 @@ import {
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, SHOP_NAME } from '../config.js';
 import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
+import { celebrateSound, primeAudio } from '../lib/alerts.js';
 import LiveRouteMap from './LiveRouteMap.jsx';
 
 const STEPS = [
@@ -61,6 +62,7 @@ export default function OrderTrackingPage() {
         const label = STEPS[s]?.label;
         if (label) {
           setCelebrate(label);
+          celebrateSound();
           setTimeout(() => setCelebrate(null), 4000);
         }
       }
@@ -71,6 +73,17 @@ export default function OrderTrackingPage() {
   }, [id]);
 
   useEffect(() => { fetchOrder(false); }, [fetchOrder]);
+
+  // prime audio on first user interaction so the celebration sound can play
+  useEffect(() => {
+    const once = () => primeAudio();
+    window.addEventListener('pointerdown', once, { once: true });
+    window.addEventListener('touchstart', once, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', once);
+      window.removeEventListener('touchstart', once);
+    };
+  }, []);
 
   // silent live sync every 6s (status + driver location) — no visible spinner
   useEffect(() => {

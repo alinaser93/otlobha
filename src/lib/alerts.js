@@ -36,6 +36,31 @@ export function chime() {
 
 const MUTE_KEY = 'otlobha-alert-mute';
 
+// يهيّئ الصوت (يُستدعى داخل تفاعل المستخدم)
+export function primeAudio() { getCtx(); }
+
+// 🎉 صوت احتفالي سعيد (أربيدجو صاعد) — لتقدّم حالة طلب الزبون
+export function celebrateSound() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+    const t = now + i * 0.12;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.32, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.52);
+  });
+  try { navigator.vibrate && navigator.vibrate([60, 40, 90]); } catch (e) { /* no vibrate */ }
+}
+
 // count: عدد الطلبات الجديدة الحالية. يرنّ عند تجاوزها لآخر عدد «اطُّلع عليه».
 export function useOrderChime(count, opts) {
   const repeatMs = (opts && opts.repeatMs) || 5000;
