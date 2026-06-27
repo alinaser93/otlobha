@@ -24,6 +24,8 @@ import { cleanProductImage } from '../lib/bgremove.js';
 import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage, generateBundle } from '../lib/ai.js';
 import CategoryPicker from './CategoryPicker.jsx';
 import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
+import { notifyCustomerStatus } from '../lib/push.js';
 import { useOrderChime } from '../lib/alerts.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
@@ -564,6 +566,8 @@ function StoreEditor({ token, store, onSaved }) {
         <PushToggle partyType="merchant" partyId={store.id} />
       </div>
 
+      <InstallButton variant="card" />
+
       {/* store location for driver navigation */}
       <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
         <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><MapPin className="h-4 w-4 text-copper" /> موقع المتجر على الخريطة</span>
@@ -705,7 +709,10 @@ function OrdersList({ token, orders, onReload }) {
     setBusyReady(orderId);
     const r = currentlyReady ? await merchantUnmarkReady(token, orderId) : await merchantMarkReady(token, orderId);
     setBusyReady(null);
-    if (r?.ok) { await onReload?.(); }
+    if (r?.ok) {
+      if (!currentlyReady) notifyCustomerStatus(orderId, 'ready');
+      await onReload?.();
+    }
     else alert('تعذّر التحديث. حاول ثانية.');
   }
 

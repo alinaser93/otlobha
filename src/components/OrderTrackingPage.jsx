@@ -2,12 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardCheck, Package, Truck, MapPin, CheckCircle2, Loader2,
-  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck,
+  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, SHOP_NAME } from '../config.js';
 import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
 import { celebrateSound, primeAudio } from '../lib/alerts.js';
+import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
 import LiveRouteMap from './LiveRouteMap.jsx';
 
 const STEPS = [
@@ -166,6 +168,14 @@ export default function OrderTrackingPage() {
       </AnimatePresence>
 
       <main className="mx-auto -mt-4 max-w-lg space-y-4 px-4">
+        {step >= 0 && step < 4 && (
+          <div className="rounded-3xl bg-cream p-4 shadow-card dark:bg-night-800">
+            <div className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><BellRing className="h-4 w-4 text-copper" /> تنبيهات وصول الطلب</div>
+            <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتعرف لحظة تجهيز طلبك ووصول المندوب — حتى لو سكّرت الصفحة.</p>
+            <PushToggle partyType="customer" partyId={id} />
+            <div className="mt-2"><InstallButton /></div>
+          </div>
+        )}
         {cancelled ? (
           <div className="rounded-3xl bg-cream p-6 text-center shadow-card dark:bg-night-800">
             <XCircle className="mx-auto h-12 w-12 text-red-500" />

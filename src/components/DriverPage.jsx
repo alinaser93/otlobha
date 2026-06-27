@@ -14,6 +14,8 @@ import {
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
+import { notifyCustomerStatus } from '../lib/push.js';
 import { useOrderChime } from '../lib/alerts.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
@@ -182,7 +184,10 @@ function Board({ driver, onOut }) {
     const next = NEXT[current];
     if (!next) return;
     const res = await driverUpdateDelivery(driver.id, orderId, next);
-    if (res?.ok) setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, delivery_status: next, status: res.order?.status || o.status } : o)));
+    if (res?.ok) {
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, delivery_status: next, status: res.order?.status || o.status } : o)));
+      if (next === 'on_way' || next === 'arrived' || next === 'delivered') notifyCustomerStatus(orderId, next);
+    }
   }
 
   return (
@@ -280,6 +285,8 @@ function Board({ driver, onOut }) {
           <p className="mb-2.5 text-[11px] leading-snug text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات المُسندة إليك على جهازك حتى لو التطبيق مسكّر.</p>
           <PushToggle partyType="driver" partyId={driver.id} />
         </div>
+
+        <div className="mt-3"><InstallButton variant="card" /></div>
 
         {/* my profile */}
         <div className="mt-4 rounded-2xl border border-ink/10 dark:border-white/10 bg-cream dark:bg-night-800">

@@ -95,3 +95,16 @@ export function notifyNewOrder(orderId) {
     }).catch(() => {});
   } catch (e) { /* ignore */ }
 }
+
+// إشعار الزبون بتغيّر حالة طلبه (تجهّز/في الطريق/وصل/سُلّم) — fire-and-forget
+export function notifyCustomerStatus(orderId, kind) {
+  if (!orderId || !kind) return;
+  try {
+    fetch('/.netlify/functions/send-customer-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, kind }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) { /* ignore */ }
+}

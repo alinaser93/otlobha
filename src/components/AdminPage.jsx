@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useOrderChime } from '../lib/alerts.js';
 import PushToggle from './PushToggle.jsx';
+import InstallButton from './InstallButton.jsx';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -1473,6 +1474,8 @@ function SettingsManager({ admin }) {
         <p className="mb-2 text-[11px] text-ink/50 dark:text-cream/50">فعّلها لتصلك تنبيهات الطلبات الجديدة على جهازك حتى لو التطبيق مسكّر.</p>
         <PushToggle partyType="admin" partyId={admin.id} />
       </div>
+
+      <InstallButton variant="card" />
 
       {/* live preview */}
       <LivePreview s={s} />

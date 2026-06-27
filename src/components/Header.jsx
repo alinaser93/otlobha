@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
 import { ShoppingCart, Menu, X, MapPin, Sun, Moon, User, ChevronLeft } from 'lucide-react';
+import InstallButton from './InstallButton.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
 const LINKS = ['الباقات', 'الخضار', 'الفواكه', 'المؤونة', 'عروض'];
@@ -158,6 +159,7 @@ export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggl
                   <ChevronLeft className="h-5 w-5 text-cream/30 transition-all group-hover:-translate-x-1 group-hover:text-copper-light" />
                 </motion.a>
               ))}
+              <div className="mt-2 px-1"><InstallButton /></div>
             </div>
           </motion.nav>
         )}

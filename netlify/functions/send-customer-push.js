@@ -1,0 +1,69 @@
+// اطلبها — دالة Netlify ترسل إشعار Push للزبون عند تغيّر حالة طلبه.
+// تحتاج VAPID_PRIVATE_KEY (سرّي) — نفس متغيّر دالة الطلبات.
+const webpush = require('web-push');
+
+const SUPABASE_URL = 'https://tzruqvplazcwwhpmgdje.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6cnVxdnBsYXpjd3docG1nZGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODcwMTcsImV4cCI6MjA5Nzg2MzAxN30.rXfhNjLq99OyPTEVMHgSaodoldCb44UQu0e0dP6wrFE';
+const VAPID_PUBLIC_KEY = 'BIi3xXQhhq6uTDJEWBrT7c474ChXXRRZr3MeW5vYgC8w4C_Z_n_fnTRhlEcF_0fpVPXATCVfQ2KVNVunbPvyW5E';
+
+const MSG = {
+  ready:     { title: 'تم تجهيز طلبك ✅', body: 'طلبك #{n} جاهز — المندوب راح يستلمه قريباً' },
+  on_way:    { title: 'طلبك في الطريق 🚗', body: 'المندوب انطلق إليك بطلب #{n}' },
+  arrived:   { title: 'المندوب وصل! 📍', body: 'طلبك #{n} بالباب — بالعافية' },
+  delivered: { title: 'تم تسليم طلبك ✅', body: 'استلمت طلب #{n} — شكراً لك، بالعافية 🌿' },
+};
+
+function json(status, obj) {
+  return { statusCode: status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
+}
+
+exports.handler = async function (event) {
+  if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'method_not_allowed' });
+
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!priv) return json(200, { ok: false, error: 'no_vapid_key' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { ok: false, error: 'bad_json' }); }
+  const orderId = String(body.orderId || '').trim();
+  const kind = String(body.kind || '').trim();
+  if (!orderId || !MSG[kind]) return json(400, { ok: false, error: 'bad_input' });
+
+  let payload;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/push_targets_for_customer`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ p_order_id: orderId }),
+    });
+    payload = await res.json();
+  } catch (e) {
+    return json(200, { ok: false, error: 'fetch_failed' });
+  }
+
+  const targets = (payload && payload.targets) || [];
+  const order = (payload && payload.order) || {};
+  if (!targets.length) return json(200, { ok: true, sent: 0 });
+
+  webpush.setVapidDetails('mailto:support@otlobha.app', VAPID_PUBLIC_KEY, priv);
+
+  const tpl = MSG[kind];
+  const note = {
+    title: tpl.title,
+    body: tpl.body.replace('{n}', order.order_no || ''),
+    url: '/order/' + orderId,
+    tag: `status-${orderId}`,
+  };
+  const data = JSON.stringify(note);
+
+  let sent = 0;
+  await Promise.all(targets.map(async (sub) => {
+    try { await webpush.sendNotification(sub, data); sent++; } catch (e) { /* ignore */ }
+  }));
+
+  return json(200, { ok: true, sent });
+};
