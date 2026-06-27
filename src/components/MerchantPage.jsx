@@ -17,6 +17,7 @@ import {
   merchantRemoveBundle, merchantSetBundleActive,
   merchantReorderBundles, merchantSetBundleSeason,
   merchantWallet, merchantInvoices, merchantConfirmReceipt,
+  merchantSetHours, fetchStoreHours,
   fetchCategories, mapProduct,
 } from '../lib/merchant.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -28,6 +29,7 @@ import InstallButton from './InstallButton.jsx';
 import QRModal from './QRModal.jsx';
 import { notifyCustomerStatus } from '../lib/push.js';
 import { useOrderChime } from '../lib/alerts.js';
+import { defaultHours, normalizeHours, DAYS_AR } from '../lib/storeHours.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 
 const STORE_TYPES = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
@@ -438,6 +440,110 @@ function ProductForm({ token, cats, product, initial, onClose, onSaved }) {
 }
 
 /* ───────────────────────── store branding editor ───────────────────────── */
+function HoursEditor({ token, storeId }) {
+  const [hours, setHours] = useState(null);
+  const [manualClosed, setManualClosed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetchStoreHours(storeId).then((r) => {
+      if (!alive) return;
+      setHours(normalizeHours(r?.hours) || defaultHours());
+      setManualClosed(!!r?.manualClosed);
+      setLoaded(true);
+    });
+    return () => { alive = false; };
+  }, [storeId]);
+
+  const setDay = (i, patch) => setHours((h) => ({ ...h, [i]: { ...h[i], ...patch } }));
+  const applyToAll = () => setHours((h) => { const d = h[0]; const n = {}; for (let k = 0; k < 7; k++) n[k] = { ...d }; return n; });
+
+  async function toggleManual() {
+    const val = !manualClosed;
+    setManualClosed(val);
+    await merchantSetHours(token, null, val);
+    setMsg(val ? '🔴 متجرك صار «مغلق الآن» — لن يستقبل طلبات حتى تفتحه' : '🟢 متجرك يفتح حسب الساعات المحدّدة');
+    setTimeout(() => setMsg(''), 3500);
+  }
+
+  async function save() {
+    setBusy(true); setMsg('');
+    const r = await merchantSetHours(token, hours, manualClosed);
+    setBusy(false);
+    setMsg(r?.ok ? 'تم حفظ ساعات العمل ✓' : 'تعذّر الحفظ، حاول ثانية');
+    setTimeout(() => setMsg(''), 3000);
+  }
+
+  const tinp = 'rounded-lg border border-ink/10 bg-beige px-2 py-1.5 text-sm text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
+
+  return (
+    <div className="rounded-2xl bg-brand-800/5 p-3.5 ring-1 ring-brand-800/10">
+      <span className="mb-1 flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><Clock className="h-4 w-4 text-copper" /> ساعات العمل وحالة المتجر</span>
+      <p className="mb-3 text-[11px] leading-snug text-ink/50 dark:text-cream/50">حدّد متى متجرك مفتوح — الزبون يشوف «مفتوح / مغلق» مباشرة، ويگدر يفلتر «المفتوح الآن».</p>
+
+      {!loaded ? (
+        <div className="flex items-center gap-2 py-3 text-sm text-ink/50 dark:text-cream/50"><Loader2 className="h-4 w-4 animate-spin text-copper" /> يحمّل…</div>
+      ) : (
+        <>
+          {/* quick "closed now" switch */}
+          <button type="button" onClick={toggleManual}
+            className={`mb-3 flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-3 ring-1 transition ${manualClosed ? 'bg-red-500/10 ring-red-500/30' : 'bg-green-500/10 ring-green-500/25'}`}>
+            <span className="text-right">
+              <span className={`block font-display text-sm font-black ${manualClosed ? 'text-red-600 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>{manualClosed ? 'مغلق الآن مؤقتاً' : 'المتجر يعمل حسب الساعات'}</span>
+              <span className="block text-[11px] text-ink/50 dark:text-cream/50">{manualClosed ? 'اضغط لإعادة الفتح' : 'اضغط لإغلاق فوري مؤقت (مثلاً مزدحم)'}</span>
+            </span>
+            <span dir="ltr" className={`relative h-7 w-[52px] shrink-0 rounded-full transition-colors ${manualClosed ? 'bg-red-500' : 'bg-green-500'}`}>
+              <span className={`absolute top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full bg-white shadow transition-all ${manualClosed ? 'left-1' : 'left-[26px]'}`}>
+                {manualClosed ? <Ban className="h-3 w-3 text-red-500" /> : <Check className="h-3 w-3 text-green-600" />}
+              </span>
+            </span>
+          </button>
+
+          {/* weekly schedule */}
+          <div className={manualClosed ? 'pointer-events-none opacity-50' : ''}>
+            <div className="space-y-1.5">
+              {DAYS_AR.map((name, i) => {
+                const d = hours[i];
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-12 shrink-0 font-body text-[13px] font-bold text-ink/70 dark:text-cream/70">{name}</span>
+                    <button type="button" onClick={() => setDay(i, { closed: !d.closed })}
+                      className={`w-16 shrink-0 rounded-lg py-1.5 text-[12px] font-bold transition ${d.closed ? 'bg-ink/10 text-ink/50 dark:bg-white/10 dark:text-cream/50' : 'bg-green-500/15 text-green-700 dark:text-green-300'}`}>
+                      {d.closed ? 'مغلق' : 'مفتوح'}
+                    </button>
+                    {!d.closed ? (
+                      <div className="flex flex-1 items-center gap-1.5">
+                        <input type="time" dir="ltr" value={d.open} onChange={(e) => setDay(i, { open: e.target.value })} className={`${tinp} flex-1`} />
+                        <span className="text-ink/40 dark:text-cream/40">–</span>
+                        <input type="time" dir="ltr" value={d.close} onChange={(e) => setDay(i, { close: e.target.value })} className={`${tinp} flex-1`} />
+                      </div>
+                    ) : (
+                      <span className="flex-1 text-[12px] text-ink/30 dark:text-cream/30">—</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" onClick={applyToAll} className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-ink/5 px-3 py-1.5 text-[12px] font-bold text-ink/70 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/70">
+              <Copy className="h-3.5 w-3.5" /> طبّق ساعات «الأحد» على كل الأيام
+            </button>
+          </div>
+
+          {msg && <p className="mt-2.5 text-[12px] font-bold text-brand-700 dark:text-brand-300">{msg}</p>}
+
+          <button type="button" onClick={save} disabled={busy}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 py-2.5 font-display font-bold text-cream shadow-soft transition hover:bg-brand-800 disabled:opacity-60">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} حفظ ساعات العمل
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function StoreEditor({ token, store, onSaved }) {
   const [category, setCategory] = useState(store.category || '');
   const [tagline, setTagline] = useState(store.tagline || '');
@@ -602,6 +708,9 @@ function StoreEditor({ token, store, onSaved }) {
         )}
         {geoMsg && <p className="mt-1.5 text-[11px] font-bold text-amber-600 dark:text-amber-300">{geoMsg}</p>}
       </div>
+
+      {/* opening hours + open/closed status */}
+      <HoursEditor token={token} storeId={store.id} />
 
       {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
       {ok && <div className="flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2 text-sm font-bold text-green-600 dark:text-green-300"><Check className="h-4 w-4" /> تم حفظ بيانات المتجر</div>}
