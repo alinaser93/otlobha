@@ -108,3 +108,15 @@ export function notifyCustomerStatus(orderId, kind) {
     }).catch(() => {});
   } catch (e) { /* ignore */ }
 }
+
+// بثّ حملة إعلانية لكل الزبائن — يرجّع عدد المُرسَل
+export async function sendCampaign(campaignId, adminId) {
+  try {
+    const res = await fetch('/.netlify/functions/send-campaign-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaignId, adminId }),
+    });
+    return await res.json();
+  } catch (e) { return { ok: false, error: 'network' }; }
+}

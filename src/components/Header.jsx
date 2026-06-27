@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
 import { ShoppingCart, Menu, X, MapPin, Sun, Moon, User, ChevronLeft } from 'lucide-react';
 import InstallButton from './InstallButton.jsx';
+import PushToggle from './PushToggle.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
 const LINKS = ['الباقات', 'الخضار', 'الفواكه', 'المؤونة', 'عروض'];
@@ -159,7 +160,13 @@ export default function Header({ cartCount, bump, onCart, cartRef, dark, onToggl
                   <ChevronLeft className="h-5 w-5 text-cream/30 transition-all group-hover:-translate-x-1 group-hover:text-copper-light" />
                 </motion.a>
               ))}
-              <div className="mt-2 px-1"><InstallButton /></div>
+              <div className="mt-2 space-y-2 px-1">
+                <div className="rounded-2xl bg-cream/10 p-2.5">
+                  <p className="mb-2 px-1 text-center text-[11px] font-bold text-cream/70">📢 وصلك إشعار بأحدث العروض والخصومات</p>
+                  <PushToggle partyType="customer" partyId={null} />
+                </div>
+                <InstallButton />
+              </div>
             </div>
           </motion.nav>
         )}

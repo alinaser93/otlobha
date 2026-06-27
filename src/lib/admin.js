@@ -88,3 +88,9 @@ export const adminSetDriverActive = (adminId, targetId, active) =>
   rpc('admin_set_driver_active', { p_admin_id: adminId, p_target_id: targetId, p_active: active });
 export const adminSetAdminActive = (adminId, targetId, active) =>
   rpc('admin_set_admin_active', { p_admin_id: adminId, p_target_id: targetId, p_active: active });
+
+// ── حملات الإشعارات (إعلانات/عروض) ──
+export const adminCreateCampaign = (adminId, title, body, url) =>
+  rpc('admin_create_campaign', { p_admin_id: adminId, p_title: title, p_body: body, p_url: url || null });
+export const adminListCampaigns = (adminId) => rpc('admin_list_campaigns', { p_admin_id: adminId });
+export const adminCustomerSubCount = (adminId) => rpc('admin_customer_sub_count', { p_admin_id: adminId });

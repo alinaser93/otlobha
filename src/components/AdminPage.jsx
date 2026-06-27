@@ -10,6 +10,7 @@ import {
 import { useOrderChime } from '../lib/alerts.js';
 import PushToggle from './PushToggle.jsx';
 import InstallButton from './InstallButton.jsx';
+import { sendCampaign } from '../lib/push.js';
 import { NewOrderBanner, AlertBell } from './OrderAlert.jsx';
 import { fmt } from '../data/catalog.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
@@ -24,6 +25,7 @@ import {
   adminListAccounts, adminUpdateAccount, adminResetAccountPin, adminSetAccountPoints, adminRemoveAccount,
   adminListDriversExt, adminListAdminsExt, adminResetDriverPass, adminResetAdminPass,
   adminSetDriverActive, adminSetAdminActive,
+  adminCreateCampaign, adminListCampaigns, adminCustomerSubCount,
 } from '../lib/admin.js';
 import {
   adminListProducts, adminAddProduct, adminUpdateProduct, adminRemoveProduct,
@@ -278,7 +280,7 @@ function Dashboard({ admin, onOut }) {
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
         {/* section navigation */}
         <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
+          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setSection(k)}
               className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${section === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -359,6 +361,7 @@ function Dashboard({ admin, onOut }) {
         {section === 'finance' && <SectionCard><EarningsManager admin={admin} /></SectionCard>}
         {section === 'people' && <SectionCard><PeopleSection admin={admin} onChange={load} /></SectionCard>}
         {section === 'settings' && <SectionCard><SettingsManager admin={admin} /></SectionCard>}
+        {section === 'campaigns' && <SectionCard><CampaignsManager admin={admin} /></SectionCard>}
         {section === 'profile' && (
           <SectionCard>
             <div className="p-4">
@@ -1392,6 +1395,125 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
 
 /* ════════════════════════════ Stores ════════════════════════════ */
 const STORE_CATS = ['بقالة', 'مخبز', 'مطعم', 'خضار', 'فواكه', 'حلويات', 'لحوم', 'مشروبات', 'ألبان', 'أخرى'];
+
+function CampaignsManager({ admin }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // {type:'ok'|'err', text}
+  const [subCount, setSubCount] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function refresh() {
+    const [c, s] = await Promise.all([adminListCampaigns(admin.id), adminCustomerSubCount(admin.id)]);
+    if (c?.ok) setCampaigns(c.campaigns || []);
+    if (s?.ok) setSubCount(s.count);
+    setLoading(false);
+  }
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+
+  async function send() {
+    if (!title.trim() || !body.trim()) { setMsg({ type: 'err', text: 'اكتب العنوان والنص.' }); return; }
+    if (!window.confirm(`إرسال الإشعار لكل الزبائن المشتركين${subCount != null ? ` (${subCount})` : ''}؟`)) return;
+    setBusy(true); setMsg(null);
+    const c = await adminCreateCampaign(admin.id, title.trim(), body.trim(), url.trim() || null);
+    if (!c?.ok) { setBusy(false); setMsg({ type: 'err', text: 'تعذّر إنشاء الحملة.' }); return; }
+    const r = await sendCampaign(c.id, admin.id);
+    setBusy(false);
+    if (r?.ok) {
+      setMsg({ type: 'ok', text: `تم الإرسال إلى ${r.sent} جهاز ✅` });
+      setTitle(''); setBody(''); setUrl('');
+      refresh();
+    } else {
+      setMsg({ type: 'err', text: r?.error === 'no_vapid_key' ? 'مفتاح الإشعارات غير مضبوط في Netlify.' : 'تعذّر الإرسال. حاول ثانية.' });
+      refresh();
+    }
+  }
+
+  const inp = 'w-full rounded-xl border border-ink/10 bg-cream px-3 py-2.5 font-body text-ink outline-none transition focus:border-copper focus:ring-2 focus:ring-copper/20 dark:border-white/10 dark:bg-night-800 dark:text-cream';
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="flex items-center gap-2"><BellRing className="h-5 w-5 text-copper" /><h2 className="font-display text-lg font-black text-ink dark:text-cream">إشعارات الإعلانات والعروض</h2></div>
+        <p className="mt-1 text-xs text-ink/50 dark:text-cream/50">
+          أرسل إشعاراً لكل الزبائن الذين فعّلوا الإشعارات{subCount != null && <span className="font-bold text-copper"> · {subCount} مشترك</span>}.
+        </p>
+      </div>
+
+      {/* composer */}
+      <div className="space-y-3 rounded-2xl bg-ink/[0.02] p-4 ring-1 ring-ink/5 dark:bg-white/[0.02] dark:ring-white/5">
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">العنوان</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={50} className={inp} placeholder="مثلاً: 🎉 خصم ٢٠٪ اليوم فقط!" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">النص</label>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={120} rows={2} className={inp} placeholder="مثلاً: على كل الخضار والفواكه الطازجة — اطلب الآن قبل ما يخلص!" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-bold text-ink/60 dark:text-cream/60">رابط الوجهة (اختياري)</label>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} className={inp} placeholder="/ أو /c/فواكه أو /s/اطلبها" dir="ltr" />
+          <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">عند الضغط على الإشعار يفتح هذا الرابط. اتركه فارغاً للصفحة الرئيسية.</p>
+        </div>
+
+        {/* live preview */}
+        {(title || body) && (
+          <div className="rounded-xl border border-ink/10 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-night-900">
+            <div className="flex items-start gap-2.5">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-700 text-cream">🛒</div>
+              <div className="min-w-0">
+                <div className="truncate font-display text-sm font-black text-ink dark:text-cream">{title || 'اطلبها'}</div>
+                <div className="line-clamp-2 text-xs text-ink/60 dark:text-cream/60">{body || 'نصّ الإشعار يظهر هنا'}</div>
+                <div className="mt-0.5 text-[10px] text-ink/35 dark:text-cream/35">اطلبها · الآن</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {msg && (
+          <div className={`rounded-xl px-3 py-2 text-sm font-bold ${msg.type === 'ok' ? 'bg-green-500/10 text-green-700 dark:text-green-300' : 'bg-red-500/10 text-red-600 dark:text-red-300'}`}>{msg.text}</div>
+        )}
+
+        <button onClick={send} disabled={busy}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-cream shadow-soft transition hover:bg-copper-dark active:scale-[.99] disabled:opacity-60">
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <BellRing className="h-5 w-5" />}
+          إرسال لكل الزبائن
+        </button>
+      </div>
+
+      {/* history */}
+      <div>
+        <h3 className="mb-2 font-display text-sm font-black text-ink dark:text-cream">سجلّ الحملات</h3>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-ink/40 dark:text-cream/40"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحميل…</div>
+        ) : campaigns.length === 0 ? (
+          <div className="rounded-xl bg-ink/[0.02] py-8 text-center text-sm text-ink/40 dark:bg-white/[0.02] dark:text-cream/40">لا توجد حملات بعد.</div>
+        ) : (
+          <div className="space-y-2">
+            {campaigns.map((c) => (
+              <div key={c.id} className="rounded-xl border border-ink/8 bg-cream p-3 dark:border-white/8 dark:bg-night-800">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-display text-sm font-black text-ink dark:text-cream">{c.title}</div>
+                    <div className="line-clamp-2 text-xs text-ink/55 dark:text-cream/55">{c.body}</div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-green-500/10 px-2 py-1 text-[11px] font-bold text-green-700 dark:text-green-300">{c.sent_count} 📨</span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-ink/35 dark:text-cream/35">
+                  <span>{new Date(c.created_at).toLocaleString('en-GB')}</span>
+                  {c.url && <span className="truncate" dir="ltr">· {c.url}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SettingsManager({ admin }) {
   const [s, setS] = useState(null);
