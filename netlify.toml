@@ -16,6 +16,11 @@
   to = "/.netlify/functions/generate-description"
   status = 200
 
+[[redirects]]
+  from = "/api/ai-assistant"
+  to = "/.netlify/functions/ai-assistant"
+  status = 200
+
 # rich link previews (Open Graph) for shared deep-links — MUST come before the SPA catch-all
 [[redirects]]
   from = "/s/*"

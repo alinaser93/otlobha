@@ -79,3 +79,29 @@ async function postAI(payload, failMsg) {
   if (!data) return { ok: false, error: `${failMsg} (${res.status})` };
   return data;
 }
+
+// ── Smart shopping assistant ──
+// Sends the customer's free-text need + a compact catalog and gets back a
+// suggested cart ({ note, items:[{id,qty}], bundleId }). Falls back gracefully.
+export async function assistantBuildCart(query, products = [], bundles = []) {
+  const compactProducts = (products || []).slice(0, 140).map((p) => ({
+    id: p.id, name: p.name, tag: p.tag || '', price: p.price, unit: p.unit || '',
+  }));
+  const compactBundles = (bundles || []).slice(0, 25).map((b) => ({
+    id: b.id, name: b.name, items: Array.isArray(b.items) ? b.items : [],
+  }));
+  let res;
+  try {
+    res = await fetch('/api/ai-assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, products: compactProducts, bundles: compactBundles }),
+    });
+  } catch {
+    return { ok: false, error: 'تعذّر الاتصال بالخادم. تأكّد من الإنترنت.' };
+  }
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (!data) return { ok: false, error: `تعذّر تشغيل المساعد (${res.status})` };
+  return data;
+}
