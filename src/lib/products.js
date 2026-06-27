@@ -170,6 +170,15 @@ export const adminUpdateSettings = (adminId, s = {}) =>
     p_whatsapp_number: s.whatsapp_number ?? null,
   });
 
+// loyalty-points redemption settings (self-contained admin RPC)
+export const adminSetPointsSettings = (adminId, f = {}) =>
+  rpc('admin_set_points_settings', {
+    p_admin_id: adminId,
+    p_dinar_per_point: f.dinarPerPoint ?? null,
+    p_max_pct: f.maxPct ?? null,
+    p_min_order: f.minOrder ?? null,
+  });
+
 /* ───────────────────────── finance (admin) ───────────────────────── */
 export const adminFinanceReport = (adminId, since = null) =>
   rpc('admin_finance_report', { p_admin_id: adminId, p_since: since });

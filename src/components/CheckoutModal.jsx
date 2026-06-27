@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle } from 'lucide-react';
+import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle, Gift, Ticket, Wallet } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { createOrder } from '../lib/orders.js';
+import { createOrder, redeemPointsForOrder } from '../lib/orders.js';
+import { validateCoupon, applyCouponToOrder, couponError } from '../lib/coupons.js';
+import { accountWallet, redeemWalletForOrder } from '../lib/wallet.js';
 import { notifyNewOrder } from '../lib/push.js';
 import { useAuth } from '../lib/auth.jsx';
 import {
@@ -11,6 +13,7 @@ import {
   CITY,
   AREAS,
   PAYMENT_METHODS,
+  POINTS,
   calcDelivery,
 } from '../config.js';
 
@@ -30,6 +33,13 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   const [geo, setGeo] = useState(null); // { lat, lng }
   const [geoState, setGeoState] = useState('idle'); // idle | loading | done | error
   const [errors, setErrors] = useState({});
+  const [usePts, setUsePts] = useState(false); // apply loyalty points as a discount
+  const [couponInput, setCouponInput] = useState('');
+  const [coupon, setCoupon] = useState(null); // applied coupon: { ok, code, discount }
+  const [couponErr, setCouponErr] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [useWallet, setUseWallet] = useState(false); // pay with wallet credit
+  const [walletBalance, setWalletBalance] = useState(0);
 
   // prefill from the logged-in account, else from saved guest details
   useEffect(() => {
@@ -55,9 +65,18 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
     setErrors({});
   }, [open, profile]);
 
+  // load the customer's wallet balance when the sheet opens
+  useEffect(() => {
+    if (!open || !profile?.id) { setWalletBalance(0); return; }
+    let alive = true;
+    accountWallet(profile.id).then((r) => { if (alive && r?.ok) setWalletBalance(Number(r.balance) || 0); });
+    return () => { alive = false; };
+  }, [open, profile]);
+
   // lock background scroll while open
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
+    if (!open) { setUsePts(false); setCoupon(null); setCouponInput(''); setCouponErr(''); setUseWallet(false); }
     return () => {
       document.body.style.overflow = '';
     };
@@ -66,6 +85,38 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   const storeCount = Math.max(1, new Set((items || []).map((it) => it.storeId).filter(Boolean)).size || 1);
   const delivery = calcDelivery(total, storeCount);
   const grand = total + delivery;
+
+  // ── discounts (coupon applies first, then points on the remainder) ──
+  const couponDiscount = coupon?.ok ? Math.min(coupon.discount || 0, grand) : 0;
+  const afterCoupon = grand - couponDiscount;
+
+  const balance = Math.max(0, profile?.points || 0);
+  const dpp = Number(SETTINGS.points_dinar_per_point ?? POINTS.redeemDinarPerPoint) || 1;
+  const maxPct = Number(SETTINGS.points_redeem_max_pct ?? POINTS.redeemMaxPct) || 50;
+  const minOrder = Number(SETTINGS.points_redeem_min_order ?? POINTS.redeemMinOrder) || 0;
+  const cap = Math.floor((afterCoupon * maxPct) / 100);
+  const maxRedeemable = Math.min(balance, Math.floor(cap / dpp));
+  const canRedeem = !!profile && balance > 0 && afterCoupon >= minOrder && maxRedeemable > 0;
+  const redeemPoints = usePts && canRedeem ? maxRedeemable : 0;
+  const pointsDiscount = redeemPoints * dpp;
+  const grandAfter = afterCoupon - pointsDiscount;
+
+  // wallet credit pays last, on whatever remains
+  const walletAvail = Math.max(0, walletBalance || 0);
+  const walletUsed = useWallet && profile && walletAvail > 0 ? Math.min(walletAvail, grandAfter) : 0;
+  const finalTotal = grandAfter - walletUsed;
+  const totalDiscount = couponDiscount + pointsDiscount + walletUsed;
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code || !profile) return;
+    setCouponBusy(true); setCouponErr('');
+    const r = await validateCoupon(code, profile.id, grand);
+    setCouponBusy(false);
+    if (r?.ok) { setCoupon(r); setCouponErr(''); }
+    else { setCoupon(null); setCouponErr(couponError(r?.error)); }
+  }
+  function clearCoupon() { setCoupon(null); setCouponInput(''); setCouponErr(''); }
 
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -126,7 +177,10 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       ``,
       `💳 الدفع: ${pm?.label || ''}`,
       delivery > 0 ? `🚚 التوصيل: ${fmt(delivery)} د.ع` : `🚚 التوصيل: مجاني`,
-      `💰 *الإجمالي: ${fmt(grand)} د.ع*`,
+      couponDiscount > 0 ? `🎟️ كوبون ${coupon.code}: -${fmt(couponDiscount)} د.ع` : null,
+      pointsDiscount > 0 ? `🎁 خصم النقاط: -${fmt(pointsDiscount)} د.ع (${redeemPoints} نقطة)` : null,
+      walletUsed > 0 ? `👛 من المحفظة: -${fmt(walletUsed)} د.ع` : null,
+      `💰 *الإجمالي: ${fmt(finalTotal)} د.ع*`,
     ].filter(Boolean);
 
     const url = `https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent(parts.join('\n'))}`;
@@ -148,8 +202,20 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       items: items.map((it) => ({ name: it.name, qty: it.qty, price: it.price, storeId: it.storeId ?? null })),
       subtotal: total,
       total: grand,
-    }).then((res) => {
-      // refresh the cached account so new points show next time the drawer opens
+    }).then(async (res) => {
+      // apply discounts on the freshly-created order (atomic & safe): coupon first, then points
+      if (res?.ok && res.order?.id && profile?.id) {
+        if (couponDiscount > 0 && coupon?.code) {
+          try { await applyCouponToOrder(profile.id, res.order.id, coupon.code); } catch {}
+        }
+        if (redeemPoints > 0) {
+          try { await redeemPointsForOrder(profile.id, res.order.id, redeemPoints); } catch {}
+        }
+        if (walletUsed > 0) {
+          try { await redeemWalletForOrder(profile.id, res.order.id, walletUsed); } catch {}
+        }
+      }
+      // refresh the cached account so the updated points show next time the drawer opens
       if (res?.ok) reload?.();
       // notify the merchant(s) + admin via push (fire-and-forget)
       if (res?.ok && res.order?.id) notifyNewOrder(res.order.id);
@@ -338,6 +404,95 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                 </div>
               </div>
 
+              {/* coupon code (logged-in customers) */}
+              {profile && (
+                <div className="rounded-2xl bg-black/[0.03] p-4 dark:bg-white/[0.04]">
+                  {coupon?.ok ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 font-body text-sm font-bold text-green-700 dark:text-green-400">
+                        <Ticket className="h-4 w-4" /> كوبون {coupon.code} — خصم {fmt(couponDiscount)} د.ع
+                      </span>
+                      <button type="button" onClick={clearCoupon} className="text-xs font-bold text-red-600 dark:text-red-300">إزالة</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="mb-1.5 flex items-center gap-1.5 font-body text-sm font-bold text-ink dark:text-cream"><Ticket className="h-4 w-4 text-copper" /> عندك كوبون خصم؟</span>
+                      <div className="flex gap-2">
+                        <input
+                          value={couponInput}
+                          onChange={(e) => { setCouponInput(e.target.value); setCouponErr(''); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                          placeholder="اكتب الكود" dir="ltr"
+                          className="flex-1 rounded-xl border border-black/10 bg-cream px-3 py-2.5 text-center font-body font-bold uppercase tracking-wider text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-800 dark:text-cream"
+                        />
+                        <button type="button" onClick={applyCoupon} disabled={couponBusy || !couponInput.trim()}
+                          className="shrink-0 rounded-xl bg-brand-800 px-4 py-2.5 font-display text-sm font-bold text-cream transition hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-600">
+                          {couponBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'تطبيق'}
+                        </button>
+                      </div>
+                      {couponErr && <p className="mt-1.5 flex items-center gap-1 font-body text-xs text-red-500"><AlertCircle className="h-3.5 w-3.5" /> {couponErr}</p>}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* loyalty points — surfaced proactively at the moment of intent */}
+              {profile && balance > 0 && (
+                canRedeem ? (
+                  <button
+                    type="button"
+                    onClick={() => setUsePts((v) => !v)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-right ring-1 transition ${usePts ? 'bg-green-500/10 ring-green-500/30' : 'bg-copper/[0.07] ring-copper/20 hover:ring-copper/40'}`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${usePts ? 'bg-green-500 text-white' : 'bg-copper/15 text-copper'}`}><Gift className="h-5 w-5" /></span>
+                      <span className="leading-tight">
+                        <span className="block font-display text-sm font-black text-ink dark:text-cream">
+                          {usePts ? `طبّقنا خصم ${fmt(pointsDiscount)} د.ع 🎉` : `عندك ${balance.toLocaleString('en')} نقطة جاهزة`}
+                        </span>
+                        <span className="block font-body text-[11px] text-ink/55 dark:text-cream/55">
+                          {usePts ? `استخدمنا ${redeemPoints.toLocaleString('en')} نقطة — اضغط للإلغاء` : `استخدمها = خصم حتى ${fmt(maxRedeemable * dpp)} د.ع على طلبك`}
+                        </span>
+                      </span>
+                    </span>
+                    <span dir="ltr" className={`relative h-7 w-[52px] shrink-0 rounded-full transition-colors ${usePts ? 'bg-green-500' : 'bg-ink/20 dark:bg-white/20'}`}>
+                      <span className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow transition-all ${usePts ? 'left-[26px]' : 'left-1'}`} />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 rounded-2xl bg-copper/[0.07] px-4 py-3 ring-1 ring-copper/15">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-copper/15 text-copper"><Gift className="h-4 w-4" /></span>
+                    <p className="font-body text-[12px] leading-snug text-ink/60 dark:text-cream/60">
+                      عندك <b className="text-ink dark:text-cream">{balance.toLocaleString('en')}</b> نقطة — تكدر تستخدمها خصماً بطلبات فوق {fmt(minOrder)} د.ع.
+                    </p>
+                  </div>
+                )
+              )}
+
+              {/* wallet credit — pay with store balance */}
+              {profile && walletAvail > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setUseWallet((v) => !v)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-right ring-1 transition ${useWallet ? 'bg-green-500/10 ring-green-500/30' : 'bg-brand-800/[0.06] ring-brand-800/15 hover:ring-brand-700/40'}`}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${useWallet ? 'bg-green-500 text-white' : 'bg-brand-700/15 text-brand-700 dark:text-brand-300'}`}><Wallet className="h-5 w-5" /></span>
+                    <span className="leading-tight">
+                      <span className="block font-display text-sm font-black text-ink dark:text-cream">
+                        {useWallet ? `استخدمنا ${fmt(walletUsed)} د.ع من رصيدك` : `رصيدك ${fmt(walletAvail)} د.ع`}
+                      </span>
+                      <span className="block font-body text-[11px] text-ink/55 dark:text-cream/55">
+                        {useWallet ? `يتبقّى ${fmt(walletAvail - walletUsed)} د.ع — اضغط للإلغاء` : 'ادفع جزءاً أو كل الطلب من محفظتك'}
+                      </span>
+                    </span>
+                  </span>
+                  <span dir="ltr" className={`relative h-7 w-[52px] shrink-0 rounded-full transition-colors ${useWallet ? 'bg-green-500' : 'bg-ink/20 dark:bg-white/20'}`}>
+                    <span className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow transition-all ${useWallet ? 'left-[26px]' : 'left-1'}`} />
+                  </span>
+                </button>
+              )}
+
               {/* order summary */}
               <div className="rounded-2xl bg-black/[0.03] p-4 dark:bg-white/[0.04]">
                 {items.map((it) => (
@@ -361,10 +516,29 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                     {delivery > 0 ? `${fmt(delivery)} د.ع` : 'مجاني ✓'}
                   </span>
                 </div>
+                {couponDiscount > 0 && (
+                  <div className="mb-1.5 flex items-center justify-between font-body text-sm">
+                    <span className="text-green-700 dark:text-green-400">🎟️ كوبون {coupon.code}</span>
+                    <span className="font-display font-bold text-green-700 dark:text-green-400">- {fmt(couponDiscount)} د.ع</span>
+                  </div>
+                )}
+                {redeemPoints > 0 && (
+                  <div className="mb-1.5 flex items-center justify-between font-body text-sm">
+                    <span className="text-green-700 dark:text-green-400">🎁 خصم النقاط ({redeemPoints.toLocaleString('en')} نقطة)</span>
+                    <span className="font-display font-bold text-green-700 dark:text-green-400">- {fmt(pointsDiscount)} د.ع</span>
+                  </div>
+                )}
+                {walletUsed > 0 && (
+                  <div className="mb-1.5 flex items-center justify-between font-body text-sm">
+                    <span className="text-green-700 dark:text-green-400">👛 من المحفظة</span>
+                    <span className="font-display font-bold text-green-700 dark:text-green-400">- {fmt(walletUsed)} د.ع</span>
+                  </div>
+                )}
                 <div className="mt-2 flex items-center justify-between border-t border-black/10 pt-2 dark:border-white/10">
                   <span className="font-display text-lg font-black text-ink dark:text-cream">المجموع</span>
                   <span className="font-display text-xl font-black text-brand-800 dark:text-brand-400">
-                    {fmt(grand)} <span className="text-sm">د.ع</span>
+                    {totalDiscount > 0 && <span className="ml-2 align-middle text-sm font-bold text-ink/35 line-through dark:text-cream/35">{fmt(grand)}</span>}
+                    {fmt(finalTotal)} <span className="text-sm">د.ع</span>
                   </span>
                 </div>
               </div>

@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardCheck, Package, Truck, MapPin, CheckCircle2, Loader2,
-  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing,
+  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing, Star,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, SHOP_NAME } from '../config.js';
-import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
+import { getOrderByToken, orderReadyByToken, getOrderDriverRating, rateOrderDriver } from '../lib/orders.js';
 import { celebrateSound, primeAudio } from '../lib/alerts.js';
 import PushToggle from './PushToggle.jsx';
 import InstallButton from './InstallButton.jsx';
@@ -50,6 +50,10 @@ export default function OrderTrackingPage() {
   const [state, setState] = useState('loading'); // loading | ok | notfound | error
   const [celebrate, setCelebrate] = useState(null); // label of newly-reached step
   const prevStep = useRef(null);
+  const [ratingInfo, setRatingInfo] = useState(null); // { rated, can_rate, rating, comment }
+  const [myStars, setMyStars] = useState(0);
+  const [myComment, setMyComment] = useState('');
+  const [ratingBusy, setRatingBusy] = useState(false);
 
   const fetchOrder = useCallback(async (silent) => {
     if (!id) { setState('notfound'); return; }
@@ -75,6 +79,23 @@ export default function OrderTrackingPage() {
   }, [id]);
 
   useEffect(() => { fetchOrder(false); }, [fetchOrder]);
+
+  // load the driver-rating state once the order is delivered with an assigned driver
+  useEffect(() => {
+    if (!id || !order) return;
+    const delivered = order.status === 'done' || order.delivery_status === 'delivered';
+    if (delivered && order.driver && ratingInfo === null) {
+      getOrderDriverRating(id).then((r) => { if (r?.ok) setRatingInfo(r); });
+    }
+  }, [id, order, ratingInfo]);
+
+  async function submitRating() {
+    if (!myStars) return;
+    setRatingBusy(true);
+    const r = await rateOrderDriver(id, myStars, myComment);
+    setRatingBusy(false);
+    if (r?.ok) setRatingInfo({ ok: true, rated: true, rating: r.rating, comment: myComment, can_rate: false });
+  }
 
   // prime audio on first user interaction so the celebration sound can play
   useEffect(() => {
@@ -291,6 +312,40 @@ export default function OrderTrackingPage() {
               <div className="border-t border-ink/5 px-4 py-3 text-center text-xs text-ink/45 dark:border-white/5 dark:text-cream/45">
                 ستظهر خريطة موقع المندوب والمسار هنا عند انطلاقه إليك 🚚
               </div>
+            )}
+          </div>
+        )}
+
+        {/* rate the driver (after delivery) */}
+        {ratingInfo && (ratingInfo.rated || ratingInfo.can_rate) && (
+          <div className="rounded-3xl bg-cream p-5 shadow-card dark:bg-night-800">
+            {ratingInfo.rated ? (
+              <div className="text-center">
+                <div className="font-display text-base font-extrabold text-ink dark:text-cream">شكراً لتقييمك 🙏</div>
+                <div className="mt-2 flex items-center justify-center gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star key={n} className={`h-6 w-6 ${n <= ratingInfo.rating ? 'fill-amber-400 text-amber-400' : 'text-ink/20 dark:text-cream/20'}`} />
+                  ))}
+                </div>
+                {ratingInfo.comment && <p className="mt-2 text-sm text-ink/55 dark:text-cream/55">”{ratingInfo.comment}“</p>}
+              </div>
+            ) : (
+              <>
+                <div className="text-center font-display text-base font-extrabold text-ink dark:text-cream">شلون كان توصيل {order.driver.name || 'المندوب'}؟</div>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} type="button" onClick={() => setMyStars(n)} className="transition active:scale-90">
+                      <Star className={`h-9 w-9 ${n <= myStars ? 'fill-amber-400 text-amber-400' : 'text-ink/25 dark:text-cream/25'}`} />
+                    </button>
+                  ))}
+                </div>
+                <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)} rows={2} placeholder="تعليق (اختياري)…"
+                  className="mt-3 w-full rounded-xl border border-ink/10 bg-beige px-3 py-2 text-sm text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream" />
+                <button type="button" onClick={submitRating} disabled={!myStars || ratingBusy}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-cream shadow-soft transition hover:bg-copper-dark disabled:opacity-50">
+                  {ratingBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Star className="h-5 w-5" />} إرسال التقييم
+                </button>
+              </>
             )}
           </div>
         )}

@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Lock, LogOut, RefreshCw, Loader2, Phone, MessageCircle,
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
-  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3,
+  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3, Star,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
   driverLogin, driverListOrders, driverUpdateDelivery, driverUpdateLocation,
-  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady, driverOrderStores,
+  driverGetMe, driverUpdateProfile, driverWallet, driverOrdersReady, driverOrderStores, driverRatingSummary,
 } from '../lib/driver.js';
 import ProfileForm, { Avatar } from './ProfileForm.jsx';
 import PushToggle from './PushToggle.jsx';
@@ -124,9 +124,11 @@ function Board({ driver, onOut }) {
   const [tab, setTab] = useState('active'); // active | done
   const [showProfile, setShowProfile] = useState(false);
   const [me, setMe] = useState(null);
+  const [rating, setRating] = useState(null); // { rating, count }
 
   useEffect(() => {
     driverGetMe(driver.id).then((r) => { if (r?.ok) setMe(r.profile); });
+    driverRatingSummary(driver.id).then((r) => { if (r?.ok) setRating(r); });
     /* eslint-disable-next-line */
   }, []);
 
@@ -200,7 +202,12 @@ function Board({ driver, onOut }) {
               : <span className="grid h-9 w-9 place-items-center rounded-xl bg-copper/20 text-copper"><Truck className="h-5 w-5" /></span>}
             <div className="leading-tight">
               <div className="font-display text-lg font-black">مرحباً {driver.name || driver.username}</div>
-              <div className="text-[11px] text-ink/45 dark:text-cream/45">{active.length} طلب نشط</div>
+              <div className="flex items-center gap-2 text-[11px] text-ink/45 dark:text-cream/45">
+                <span>{active.length} طلب نشط</span>
+                {rating?.rating != null && (
+                  <span className="inline-flex items-center gap-0.5 font-bold text-amber-500"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {rating.rating} <span className="font-normal text-ink/40 dark:text-cream/40">({rating.count})</span></span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
