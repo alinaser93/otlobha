@@ -32,6 +32,11 @@
   to = "/.netlify/functions/og-preview?type=category&key=:splat"
   status = 200
 
+[[redirects]]
+  from = "/b/*"
+  to = "/.netlify/functions/og-preview?type=bundle&key=:splat"
+  status = 200
+
 # SPA fallback — let client-side routes like /admin load index.html
 [[redirects]]
   from = "/*"

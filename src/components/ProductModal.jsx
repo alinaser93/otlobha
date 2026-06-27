@@ -68,18 +68,19 @@ export default function ProductModal({ product, onClose, onAdd }) {
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+          animate={{ opacity: 1, backdropFilter: 'blur(6px)' }}
+          exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+          transition={{ duration: 0.28 }}
           onClick={goBack}
-          className="fixed inset-0 z-[95] flex items-end justify-center bg-ink/50 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-ink/50 sm:items-center"
           dir="rtl"
         >
           <motion.div
-            initial={{ y: '100%', opacity: 0.6, scale: 0.98 }}
+            initial={{ y: '60%', opacity: 0, scale: 0.92 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            exit={{ y: '100%', opacity: 0, scale: 0.96, transition: { duration: 0.25, ease: [0.4, 0, 1, 1] } }}
+            transition={{ type: 'spring', damping: 26, stiffness: 340, mass: 0.9 }}
             onClick={(e) => e.stopPropagation()}
             className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[2rem] bg-cream pb-28 shadow-card dark:bg-night-800 sm:rounded-[2rem]"
           >
@@ -112,7 +113,10 @@ export default function ProductModal({ product, onClose, onAdd }) {
                   {product.badge}
                 </span>
               )}
-              <div
+              <motion.div
+                initial={{ scale: 0.6, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: 'spring', damping: 14, stiffness: 220, delay: 0.12 }}
                 className="grid h-52 w-52 place-items-center overflow-hidden rounded-full text-8xl"
                 style={{
                   background: 'radial-gradient(70% 70% at 35% 30%, #ffffff 0%, #ffffff 62%, #ece5d8 100%)',
@@ -129,7 +133,7 @@ export default function ProductModal({ product, onClose, onAdd }) {
                 ) : (
                   <span style={{ filter: 'drop-shadow(0 8px 10px rgba(0,0,0,.18))' }}>{product.emoji}</span>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             {/* info */}

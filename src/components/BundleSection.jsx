@@ -1,3 +1,4 @@
+import ShareButton from './ShareButton.jsx';
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Star, X, Sparkles, Check } from 'lucide-react';
@@ -98,18 +99,28 @@ export function BundleDetailModal({ b, onAdd, onClose }) {
   const discPct = b.old && b.old > 0 ? Math.round((save / b.old) * 100) : 0;
   return (
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center" onClick={onClose}>
-        <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+      <motion.div initial={{ opacity: 0, backdropFilter: 'blur(0px)' }} animate={{ opacity: 1, backdropFilter: 'blur(6px)' }} exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+        transition={{ duration: 0.28 }}
+        className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
+        <motion.div initial={{ y: '55%', opacity: 0, scale: 0.92 }} animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: '100%', opacity: 0, scale: 0.96, transition: { duration: 0.25, ease: [0.4, 0, 1, 1] } }}
+          transition={{ type: 'spring', damping: 26, stiffness: 340, mass: 0.9 }}
           className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-cream dark:bg-night-800 sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
           {/* hero */}
           <div className="relative overflow-hidden px-6 pb-6 pt-6" style={{ background: `linear-gradient(150deg, ${b.accent} 0%, #06271B 130%)` }}>
             <button onClick={onClose} className="absolute left-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/20 text-cream backdrop-blur hover:bg-black/30"><X className="h-5 w-5" /></button>
+            <div className="absolute right-4 top-4 z-10">
+              <ShareButton variant="icon" path={`/b/${b.id}`} title={`${b.name} · اطلبها`}
+                text={`${b.name} — باقة جاهزة بسعر موفّر في اطلبها 🛒`}
+                className="grid h-9 w-9 place-items-center rounded-full bg-black/20 text-cream backdrop-blur transition hover:bg-black/30" />
+            </div>
             <div className="flex flex-wrap items-center justify-center gap-1.5">
               {b.season && <span className="rounded-full bg-cream/90 px-3 py-1 font-display text-xs font-bold text-ink dark:bg-night-900/90 dark:text-cream">{seasonEmoji(b.season)} {b.season}</span>}
               {save > 0 && <span className="rounded-full bg-copper px-3 py-1 font-display text-xs font-bold text-cream shadow">وفّر {fmt(save)} د.ع ({discPct}%)</span>}
             </div>
-            <div className="mx-auto mt-4 flex h-28 items-end justify-center">
+            <motion.div initial={{ scale: 0.6, opacity: 0, y: 14 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 220, delay: 0.12 }}
+              className="mx-auto mt-4 flex h-28 items-end justify-center">
               {b.emojis.map((e, i) => {
                 const mid = (b.emojis.length - 1) / 2; const off = i - mid;
                 return (
@@ -119,7 +130,7 @@ export function BundleDetailModal({ b, onAdd, onClose }) {
                   </div>
                 );
               })}
-            </div>
+            </motion.div>
           </div>
 
           {/* body */}

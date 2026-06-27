@@ -45,12 +45,7 @@ exports.handler = async function (event) {
     return { statusCode: 302, headers: { Location: '/?' + (type === 'store' ? 's' : type === 'product' ? 'p' : 'c') + '=' + encodeURIComponent(decoded) }, body: '' };
   }
 
-  // البشر: التطبيق عادي وبسرعة (لا يهمّهم وسوم OG)
-  if (!isCrawler) {
-    return { statusCode: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' }, body: html };
-  }
-
-  // الروبوتات: نبني معاينة غنية
+  // نحقن وسوم المعاينة دائماً (للجميع) — أضمن من الاعتماد على كشف الروبوت
   let title = 'اطلبها · Otlobha — متجرك العراقي الطازج';
   let desc = 'خضار وفواكه ومؤونة طازجة توصل لباب بيتك في السماوة. اطلبها الآن.';
   let image = 'https://' + host + '/icons/icon-512.png';
@@ -70,6 +65,15 @@ exports.handler = async function (event) {
         image = p.image || image;
       }
       ogUrl = 'https://' + host + '/p/' + encodeURIComponent(decoded);
+    } else if (type === 'bundle') {
+      const x = await fetchOne('bundles', 'id=eq.' + encodeURIComponent(decoded) + '&select=name,kicker,description,image,price,old_price');
+      if (x) {
+        title = x.name + ' · اطلبها';
+        const pr = x.price ? (' — ' + Number(x.price).toLocaleString('en') + ' د.ع') : '';
+        desc = (x.kicker || x.description || ('باقة ' + x.name + ' في اطلبها')) + pr;
+        image = x.image || image;
+      }
+      ogUrl = 'https://' + host + '/b/' + encodeURIComponent(decoded);
     } else if (type === 'category') {
       const c = await fetchOne('categories', 'name=eq.' + encodeURIComponent(decoded) + '&select=name,image');
       title = decoded + ' · اطلبها';

@@ -4,7 +4,7 @@ import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle } from 'lucide-rea
 
 import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
-import BundleSection from './components/BundleSection.jsx';
+import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';
 import Footer from './components/Footer.jsx';
@@ -144,6 +144,9 @@ export default function App() {
       m = path.match(/^\/s\/([^/?#]+)/);
       if (m) return { type: 'store', name: decodeURIComponent(m[1]) };
       if (sp.get('s')) return { type: 'store', name: sp.get('s') };
+      m = path.match(/^\/b\/([^/?#]+)/);
+      if (m) return { type: 'bundle', id: decodeURIComponent(m[1]) };
+      if (sp.get('b')) return { type: 'bundle', id: sp.get('b') };
     } catch (e) {}
     return null;
   }, []);
@@ -177,6 +180,16 @@ export default function App() {
     }
     // eslint-disable-next-line
   }, [stores]);
+
+  // if arriving via a bundle share link (/b/{id}), open that bundle's details once loaded
+  const [deepBundle, setDeepBundle] = useState(null);
+  useEffect(() => {
+    if (deepLink?.type === 'bundle' && bundles.length) {
+      const b = bundles.find((x) => String(x.id) === String(deepLink.id));
+      if (b) setDeepBundle(b);
+    }
+    // eslint-disable-next-line
+  }, [bundles]);
 
   // sync the customer's followed stores from their account (cross-device)
   useEffect(() => {
@@ -391,6 +404,7 @@ export default function App() {
       />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <AccountDrawer open={accountOpen} onClose={() => setAccountOpen(false)} onReorder={reorder} />
+      {deepBundle && <BundleDetailModal b={deepBundle} onAdd={addItem} onClose={() => setDeepBundle(null)} />}
 
       {/* add-to-cart toast */}
       <AnimatePresence>
