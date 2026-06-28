@@ -444,6 +444,8 @@ export default function App() {
       </main>
 
       <Footer />
+      {/* مساحة أسفل الصفحة حتى شريط السلّة العائم ما يغطّي آخر محتوى */}
+      {count > 0 && <div aria-hidden="true" className="h-24" />}
 
       {/* sticky cart bar — أقوى محفّز شراء (يظهر لمّا تكون السلّة مليانة) */}
       <CartBar count={count} total={total} freeOver={SETTINGS.free_delivery_over} onOpen={() => setCartOpen(true)} />
