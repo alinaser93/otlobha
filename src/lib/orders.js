@@ -27,6 +27,18 @@ export async function createOrder(payload) {
   }
 }
 
+// Schedule an order for later (by its token). scheduledForISO null = deliver ASAP.
+export async function setOrderSchedule(orderId, scheduledForISO) {
+  if (!supabaseEnabled || !supabase || !orderId) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('set_order_schedule', { p_order_id: orderId, p_scheduled_for: scheduledForISO });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Redeem loyalty points against a just-created order. Atomic & best-effort:
 // on failure nothing changes (no points lost, order stays at full price).
 export async function redeemPointsForOrder(accountId, orderId, points) {

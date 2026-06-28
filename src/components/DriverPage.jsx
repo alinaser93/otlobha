@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck, Lock, LogOut, RefreshCw, Loader2, Phone, MessageCircle,
   Navigation, MapPin, Package, Check, CheckCircle2, ChevronLeft, Radio, Sun, Moon,
-  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3, Star,
+  Wallet, Banknote, TrendingUp, Store as StoreIcon, PackageCheck, Clock3, Star, Calendar,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { formatScheduled } from '../lib/schedule.js';
 import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import {
   getDriverSession, setDriverSession, clearDriverSession,
@@ -560,6 +561,9 @@ function DeliveryCard({ o, ready, onAdvance, driverId }) {
       {/* customer */}
       <div className="mt-3 grid gap-1.5 rounded-xl bg-ink/5 dark:bg-white/5 p-3 text-sm">
         <div className="flex items-center gap-2"><Package className="h-3.5 w-3.5 text-ink/40 dark:text-cream/40" /> <b>{o.customer_name || '—'}</b></div>
+        {o.scheduled_for && (
+          <div className="flex items-center gap-2 font-bold text-brand-700 dark:text-brand-400"><Calendar className="h-3.5 w-3.5 shrink-0" /> <span>مجدول: {formatScheduled(o.scheduled_for)}</span></div>
+        )}
         <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/40 dark:text-cream/40" /> <span className="text-ink/70 dark:text-cream/80">{[o.area, o.address].filter(Boolean).join(' — ') || '—'}</span></div>
         {o.notes && <div className="text-ink/55 dark:text-cream/60">📝 {o.notes}</div>}
         <div className="text-ink/50 dark:text-cream/50">💳 {o.payment || '—'}</div>

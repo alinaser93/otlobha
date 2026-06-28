@@ -5,8 +5,9 @@ import {
   Store, LogOut, Plus, Pencil, Trash2, Eye, EyeOff, Loader2, X, Save,
   Image as ImageIcon, Camera, Sparkles, Sun, Moon, Package, Phone,
   ClipboardList, MapPin, Clock, Ban, ChevronDown, Minus, MessageCircle, Truck, Gift, Layers, Copy, GripVertical, Wallet, Receipt, Banknote, CheckCircle2,
-  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation, BellRing, QrCode,
+  Star, Users, Check, Lock, User, AlertTriangle, Tag, PackageCheck, Navigation, BellRing, QrCode, Calendar,
 } from 'lucide-react';
+import { formatScheduled } from '../lib/schedule.js';
 import {
   getMerchantSession, setMerchantSession, clearMerchantSession,
   merchantLogin, merchantMe, merchantLogout,
@@ -901,6 +902,9 @@ function OrdersList({ token, orders, onReload }) {
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {fmtOrderDate(o.created_at)}</span>
                       {o.area && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" /> {o.area}</span>}
                     </p>
+                    {o.scheduled_for && (
+                      <p className="mt-1 flex items-center gap-1 text-xs font-bold text-brand-700 dark:text-brand-400"><Calendar className="h-3 w-3 shrink-0" /> مجدول: {formatScheduled(o.scheduled_for)}</p>
+                    )}
                   </div>
                   <div className="text-left">
                     <div className="text-[10px] text-ink/40 dark:text-cream/40">قيمة منتجاتك</div>

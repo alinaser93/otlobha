@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle, Gift, Ticket, Wallet } from 'lucide-react';
+import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle, Gift, Ticket, Wallet, Calendar, Zap } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { createOrder, redeemPointsForOrder } from '../lib/orders.js';
+import { createOrder, redeemPointsForOrder, setOrderSchedule } from '../lib/orders.js';
+import { dayOptions, availableSlots, buildScheduledISO, formatScheduled } from '../lib/schedule.js';
 import { validateCoupon, applyCouponToOrder, couponError } from '../lib/coupons.js';
 import { accountWallet, redeemWalletForOrder } from '../lib/wallet.js';
 import { notifyNewOrder } from '../lib/push.js';
@@ -40,6 +41,15 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   const [couponBusy, setCouponBusy] = useState(false);
   const [useWallet, setUseWallet] = useState(false); // pay with wallet credit
   const [walletBalance, setWalletBalance] = useState(0);
+  // delivery timing: now vs scheduled
+  const [schedMode, setSchedMode] = useState('now'); // 'now' | 'later'
+  const [schedOffset, setSchedOffset] = useState(0);
+  const [schedSlotId, setSchedSlotId] = useState('');
+  const [schedError, setSchedError] = useState('');
+  const schedDays = dayOptions();
+  const schedSlots = availableSlots(schedOffset);
+  const schedSlot = schedSlots.find((s) => s.id === schedSlotId) || null;
+  const scheduledISO = schedMode === 'later' && schedSlot ? buildScheduledISO(schedOffset, schedSlot) : null;
 
   // prefill from the logged-in account, else from saved guest details
   useEffect(() => {
@@ -152,6 +162,8 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   function submit() {
     if (items.length === 0) return;
     if (!validate()) return;
+    if (schedMode === 'later' && !schedSlot) { setSchedError('اختر يوم و فترة التوصيل'); return; }
+    setSchedError('');
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
     } catch {}
@@ -171,6 +183,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       `🏠 العنوان: ${form.address}`,
       geo ? `🗺️ الموقع على الخريطة: https://maps.google.com/?q=${geo.lat},${geo.lng}` : null,
       form.notes ? `📝 ملاحظات: ${form.notes}` : null,
+      scheduledISO ? `🗓️ موعد التوصيل: ${formatScheduled(scheduledISO)}` : `🚀 التوصيل: في أقرب وقت`,
       ``,
       `——— الطلب ———`,
       lines,
@@ -214,6 +227,10 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
         if (walletUsed > 0) {
           try { await redeemWalletForOrder(profile.id, res.order.id, walletUsed); } catch {}
         }
+      }
+      // attach the scheduled delivery time (works for guests too)
+      if (res?.ok && res.order?.id && scheduledISO) {
+        try { await setOrderSchedule(res.order.id, scheduledISO); } catch {}
       }
       // refresh the cached account so the updated points show next time the drawer opens
       if (res?.ok) reload?.();
@@ -367,6 +384,53 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
                   className={`${fieldBase} resize-none ${ok}`}
                 />
               </Field>
+
+              {/* delivery timing — now vs scheduled */}
+              <div>
+                <p className="mb-2 font-display text-sm font-bold text-ink dark:text-cream">وقت التوصيل</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button type="button" onClick={() => { setSchedMode('now'); setSchedError(''); }}
+                    className={`flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 font-display text-sm font-bold transition ${schedMode === 'now' ? 'border-copper bg-copper/10 text-copper-dark dark:text-copper-light' : 'border-ink/10 text-ink/55 dark:border-white/10 dark:text-cream/55'}`}>
+                    <Zap className="h-4 w-4" /> وصّلها الآن
+                  </button>
+                  <button type="button" onClick={() => setSchedMode('later')}
+                    className={`flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 font-display text-sm font-bold transition ${schedMode === 'later' ? 'border-copper bg-copper/10 text-copper-dark dark:text-copper-light' : 'border-ink/10 text-ink/55 dark:border-white/10 dark:text-cream/55'}`}>
+                    <Calendar className="h-4 w-4" /> جدولة لاحقاً
+                  </button>
+                </div>
+
+                {schedMode === 'later' && (
+                  <div className="mt-3 space-y-3 rounded-2xl bg-ink/[0.03] p-3 dark:bg-white/[0.04]">
+                    {/* day chips */}
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {schedDays.map((d) => (
+                        <button key={d.offset} type="button" onClick={() => { setSchedOffset(d.offset); setSchedSlotId(''); setSchedError(''); }}
+                          className={`shrink-0 rounded-xl border px-3 py-1.5 text-center transition ${schedOffset === d.offset ? 'border-copper bg-copper/15' : 'border-ink/10 dark:border-white/10'}`}>
+                          <div className="font-display text-xs font-bold text-ink dark:text-cream">{d.label}</div>
+                          <div className="text-[10px] text-ink/45 dark:text-cream/45">{d.sub}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {/* slot chips */}
+                    {schedSlots.length === 0 ? (
+                      <p className="text-xs font-bold text-ink/50 dark:text-cream/50">انتهت فترات اليوم — اختر يوماً آخر 📆</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {schedSlots.map((s) => (
+                          <button key={s.id} type="button" onClick={() => { setSchedSlotId(s.id); setSchedError(''); }}
+                            className={`rounded-xl border px-3 py-1.5 font-body text-xs font-bold transition ${schedSlotId === s.id ? 'border-copper bg-copper/15 text-copper-dark dark:text-copper-light' : 'border-ink/10 text-ink/70 dark:border-white/10 dark:text-cream/70'}`}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {scheduledISO && (
+                      <p className="text-xs font-bold text-brand-700 dark:text-brand-400">سيصلك: {formatScheduled(scheduledISO)} ✅</p>
+                    )}
+                    {schedError && <p className="text-xs font-bold text-red-600 dark:text-red-300">{schedError}</p>}
+                  </div>
+                )}
+              </div>
 
               {/* payment methods */}
               <div>
