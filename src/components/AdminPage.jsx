@@ -34,6 +34,7 @@ import {
   adminSetProductActive, adminReorderProducts,
   adminListCategories, adminAddCategory, adminUpdateCategory, adminRemoveCategory,
   adminReorderCategories,
+  adminListSubcategories, adminSaveSubcategory, adminDeleteSubcategory, adminSetProductSubcategory,
   adminListBundles, adminAddBundle, adminUpdateBundle, adminRemoveBundle,
   adminSetBundleActive, adminReorderBundles, adminSetBundleSeason,
   adminListStores, adminAddStore, adminUpdateStore, adminRemoveStore,
@@ -430,9 +431,10 @@ function CatalogSection({ admin }) {
   const [t, setT] = useState('products');
   return (
     <div>
-      <SubTabs value={t} onChange={setT} tabs={[['products', 'المنتجات', Package], ['categories', 'الأقسام', Layers], ['bundles', 'الباقات', Boxes]]} />
+      <SubTabs value={t} onChange={setT} tabs={[['products', 'المنتجات', Package], ['categories', 'الأقسام', Layers], ['subcategories', 'التفرّعات', Layers], ['bundles', 'الباقات', Boxes]]} />
       {t === 'products' && <ProductsManager admin={admin} />}
       {t === 'categories' && <CategoriesManager admin={admin} />}
+      {t === 'subcategories' && <SubcategoriesManager admin={admin} />}
       {t === 'bundles' && <BundlesManager admin={admin} />}
     </div>
   );
@@ -852,6 +854,7 @@ function Thumb({ p }) {
 function ProductsManager({ admin }) {
   const [list, setList] = useState([]);
   const [cats, setCats] = useState([]);
+  const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // null | 'new' | product
   const [confirm, setConfirm] = useState(null);
@@ -860,10 +863,11 @@ function ProductsManager({ admin }) {
 
   async function load() {
     setLoading(true);
-    const [p, c] = await Promise.all([adminListProducts(admin.id), adminListCategories(admin.id)]);
+    const [p, c, s] = await Promise.all([adminListProducts(admin.id), adminListCategories(admin.id), adminListSubcategories(admin.id)]);
     const items = Array.isArray(p?.products) ? p.products : [];
     setList(items); listRef.current = items;
     setCats(Array.isArray(c?.categories) ? c.categories : []);
+    setSubs(Array.isArray(s) ? s : []);
     setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
@@ -926,7 +930,7 @@ function ProductsManager({ admin }) {
 
       <AnimatePresence>
         {editing && (
-          <ProductForm admin={admin} cats={cats} product={editing === 'new' ? null : editing}
+          <ProductForm admin={admin} cats={cats} subs={subs} product={editing === 'new' ? null : editing}
             onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
         )}
         {smart && (
@@ -995,10 +999,11 @@ function ProductRow({ p, onToggle, onEdit, onDelete, confirm, setConfirm, onPers
   );
 }
 
-function ProductForm({ admin, cats, product, onClose, onSaved }) {
+function ProductForm({ admin, cats, subs = [], product, onClose, onSaved }) {
   const [f, setF] = useState({
     name: product?.name || '',
     category: product?.category || (cats[0]?.name || ''),
+    subcategory: product?.subcategory || '',
     price: product?.price ?? '',
     unit: product?.unit || 'كيلو',
     emoji: product?.emoji || '🛒',
@@ -1096,6 +1101,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
       if (pid && storeId) await adminSetProductStore(admin.id, pid, storeId);
       if (pid) { try { await adminSetProductReviews(admin.id, pid, reviewsEnabled); } catch {} }
       if (pid) { try { await adminSetProductMarkup(admin.id, pid, markup.trim() === '' ? null : Math.max(0, parseFloat(markup) || 0)); } catch {} }
+      if (pid) { try { await adminSetProductSubcategory(admin.id, pid, f.subcategory || null); } catch {} }
       setBusy(false);
       onSaved();
     } else {
@@ -1144,9 +1150,19 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
           <input className={inp} value={f.name} onChange={set('name')} placeholder="مثلاً: تفاح أحمر" />
         </Lbl>
         <Lbl label="القسم">
-          <CategoryPicker value={f.category} onChange={(v) => setF((prev) => ({ ...prev, category: v }))}
+          <CategoryPicker value={f.category} onChange={(v) => setF((prev) => ({ ...prev, category: v, subcategory: '' }))}
             options={cats.map((c) => c.name)} allowNew placeholder="اختر أو أضف قسماً" />
         </Lbl>
+        {subs.filter((s) => s.category_name === f.category).length > 0 && (
+          <Lbl label="التفرّع (اختياري)">
+            <select className={inp} value={f.subcategory} onChange={(e) => setF((prev) => ({ ...prev, subcategory: e.target.value }))}>
+              <option value="">— بدون تفرّع —</option>
+              {subs.filter((s) => s.category_name === f.category).map((s) => (
+                <option key={s.id} value={s.name}>{s.emoji ? s.emoji + ' ' : ''}{s.name}</option>
+              ))}
+            </select>
+          </Lbl>
+        )}
         {stores.length > 0 && (
           <Lbl label="المتجر" full>
             <select className={inp} value={storeId} onChange={(e) => setStoreId(e.target.value)}>
@@ -1349,6 +1365,107 @@ function CategoryRow({ c, onEdit, onDelete, confirm, setConfirm, onPersist }) {
           className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
       )}
     </Reorder.Item>
+  );
+}
+
+function SubcategoriesManager({ admin }) {
+  const [cats, setCats] = useState([]);
+  const [subs, setSubs] = useState([]);
+  const [form, setForm] = useState({ categoryName: '', name: '', emoji: '' });
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
+  const [confirm, setConfirm] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    const [c, s] = await Promise.all([adminListCategories(admin.id), adminListSubcategories(admin.id)]);
+    const cl = Array.isArray(c?.categories) ? c.categories : [];
+    setCats(cl);
+    setSubs(Array.isArray(s) ? s : []);
+    setForm((f) => ({ ...f, categoryName: f.categoryName || (cl[0]?.name || '') }));
+    setLoading(false);
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(null), 2600);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  async function add() {
+    setMsg('');
+    if (!form.categoryName) { setMsg('اختر الفئة الأمّ'); return; }
+    if (!form.name.trim()) { setMsg('اكتب اسم التفرّع'); return; }
+    const r = await adminSaveSubcategory(admin.id, { categoryName: form.categoryName, name: form.name.trim(), emoji: form.emoji.trim(), sort: subs.length });
+    if (r && r.id) { setForm({ categoryName: form.categoryName, name: '', emoji: '' }); load(); }
+    else setMsg('تعذّرت الإضافة');
+  }
+
+  async function remove(s) {
+    setConfirm(null); setMsg('');
+    const r = await adminDeleteSubcategory(admin.id, s.id);
+    if (r?.ok) load(); else setMsg('تعذّر الحذف');
+  }
+
+  const grouped = {};
+  subs.forEach((s) => { (grouped[s.category_name] = grouped[s.category_name] || []).push(s); });
+
+  return (
+    <div className="space-y-3 px-4 pb-4">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{subs.length} تفرّع · التفرّع يتبع فئة أمّ · المنتج بدون تفرّع يبقى يظهر بالفئة</span>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-ink/50 dark:text-cream/50">
+          <Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…
+        </div>
+      ) : !cats.length ? (
+        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">أضِف أقساماً أولاً من تبويب «الأقسام»، بعدها تگدر تضيف تفرّعات لها.</p>
+      ) : (
+        <div className="space-y-3">
+          {cats.filter((c) => grouped[c.name]?.length).map((c) => (
+            <div key={c.id} className="overflow-hidden rounded-xl border border-ink/10 dark:border-white/10">
+              <div className="flex items-center gap-2 bg-beige px-3 py-2 font-display text-sm font-bold text-ink dark:bg-night-900 dark:text-cream">
+                <span>{c.emoji || '🏷️'}</span> {c.name}
+                <span className="text-[11px] font-normal text-ink/40 dark:text-cream/40">({grouped[c.name].length})</span>
+              </div>
+              <div className="divide-y divide-ink/5 dark:divide-white/5">
+                {grouped[c.name].map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 bg-cream px-3 py-2 dark:bg-night-800">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-lg ring-1 ring-ink/5 dark:bg-night-900 dark:ring-white/10">{s.emoji || '🔖'}</span>
+                    <span className="flex-1 truncate text-sm text-ink dark:text-cream">{s.name}</span>
+                    {confirm === s.id ? (
+                      <button onClick={() => remove(s)} className="shrink-0 rounded-lg bg-red-600 px-2 py-1.5 text-[11px] font-bold text-white">تأكيد؟</button>
+                    ) : (
+                      <button onClick={() => setConfirm(s.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-300"><Trash2 className="h-4 w-4" /></button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!subs.length && <p className="py-4 text-center text-xs text-ink/40 dark:text-cream/40">ماكو تفرّعات بعد — أضف أول تفرّع تحت.</p>}
+        </div>
+      )}
+      {msg && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">{msg}</p>}
+
+      {cats.length > 0 && (
+        <div className="rounded-xl border border-ink/10 bg-cream p-3 dark:border-white/10 dark:bg-night-800">
+          <div className="mb-2 flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة تفرّع</div>
+          <div className="space-y-2">
+            <select value={form.categoryName} onChange={(e) => setForm({ ...form, categoryName: e.target.value })} className={inp + ' w-full'}>
+              {cats.map((c) => <option key={c.id} value={c.name}>{c.emoji ? c.emoji + ' ' : ''}{c.name}</option>)}
+            </select>
+            <div className="flex gap-2">
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="اسم التفرّع (مثلاً: أجبان بيضاء)" className={inp + ' flex-1'} />
+              <input value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value })}
+                placeholder="🔖" className="w-16 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center text-sm outline-none focus:border-copper dark:border-white/10 dark:bg-night-900" />
+              <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">إضافة</button>
+            </div>
+          </div>
+          <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد إضافة التفرّعات، روح لـ«المنتجات» وحدّد تفرّع كل منتج.</p>
+        </div>
+      )}
+    </div>
   );
 }
 

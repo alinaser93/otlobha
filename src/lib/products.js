@@ -84,6 +84,29 @@ export const adminRemoveCategory = (adminId, id) =>
 export const adminReorderCategories = (adminId, ids) =>
   rpc('admin_reorder_categories', { p_admin_id: adminId, p_ids: ids });
 
+/* ───────────────────────── subcategories (admin) — 🆕 ───────────────────────── */
+
+export const adminListSubcategories = (adminId) =>
+  rpc('admin_list_subcategories', { p_admin_id: adminId });
+
+export const adminSaveSubcategory = (adminId, f = {}) =>
+  rpc('admin_save_subcategory', {
+    p_admin_id: adminId,
+    p_id: f.id || null,
+    p_category_name: f.categoryName,
+    p_name: f.name,
+    p_emoji: f.emoji || null,
+    p_image: f.image ?? null,
+    p_sort: f.sort ?? 0,
+    p_active: f.active ?? true,
+  });
+
+export const adminDeleteSubcategory = (adminId, id) =>
+  rpc('admin_delete_subcategory', { p_admin_id: adminId, p_id: id });
+
+export const adminSetProductSubcategory = (adminId, productId, subcategory) =>
+  rpc('admin_set_product_subcategory', { p_admin_id: adminId, p_product_id: productId, p_subcategory: subcategory || null });
+
 /* ───────────────────────── stores (admin) ───────────────────────── */
 export const adminListStores = (adminId) => rpc('admin_list_stores', { p_admin_id: adminId });
 
@@ -274,12 +297,13 @@ export const adminSetBundleSeason = (adminId, id, season) =>
 export async function fetchStoreCatalog() {
   if (!supabaseEnabled || !supabase) return null;
   try {
-    const [pr, cr, br, bs, sr] = await Promise.all([
+    const [pr, cr, br, bs, sr, sub] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('categories').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.from('bundles').select('*').eq('active', true).order('sort', { ascending: true }),
       supabase.rpc('store_best_sellers', { p_limit: 200 }),
       supabase.from('stores').select('*').eq('active', true).order('sort', { ascending: true }),
+      supabase.from('subcategories').select('*').eq('active', true).order('sort', { ascending: true }),
     ]);
     if (pr.error || cr.error) return null;
 
@@ -309,6 +333,7 @@ export async function fetchStoreCatalog() {
         id: r.id,
         name: r.name,
         tag: r.category,
+        subcategory: r.subcategory || null,   // 🆕 التفرّع
         storeId: r.store_id || null,
         price,
         basePrice,                 // 🆕 سعر التاجر الأساسي (للطلب/التسوية)
@@ -399,7 +424,17 @@ export async function fetchStoreCatalog() {
       manualClosed: !!s.manual_closed,
     }));
 
-    return { products, categories, bundles, stores };
+    // 🆕 التفرّعات (للزبون — تصفّح بالتفرّعات داخل الفئة)
+    const subcategories = (sub && !sub.error ? sub.data || [] : []).map((s) => ({
+      id: s.id,
+      categoryName: s.category_name,
+      name: s.name,
+      emoji: s.emoji || null,
+      image: s.image || null,
+      sort: s.sort || 0,
+    }));
+
+    return { products, categories, bundles, stores, subcategories };
   } catch {
     return null;
   }
