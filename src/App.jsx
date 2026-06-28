@@ -83,6 +83,7 @@ export default function App() {
   const [myActiveOrder, setMyActiveOrder] = useState(null);
   const [products, setProducts] = useState(PRODUCTS);
   const [categories, setCategories] = useState(CATEGORIES);
+  const [subcategories, setSubcategories] = useState([]);
   const [bundles, setBundles] = useState(BUNDLES);
   const [stores, setStores] = useState([]);
   const [activeStore, setActiveStore] = useState(null);
@@ -168,6 +169,7 @@ export default function App() {
       if (!alive || !res) return;
       if (Array.isArray(res.products) && res.products.length) setProducts(res.products);
       if (Array.isArray(res.categories) && res.categories.length) setCategories(res.categories);
+      if (Array.isArray(res.subcategories)) setSubcategories(res.subcategories);
       if (Array.isArray(res.bundles) && res.bundles.length) setBundles(res.bundles);
       if (Array.isArray(res.stores)) setStores(res.stores);    });
     return () => {
@@ -425,6 +427,7 @@ export default function App() {
         <ProductGrid
           products={products}
           categories={categories}
+          subcategories={subcategories}
           onAdd={addItem}
           fly={fly}
           cat={cat}

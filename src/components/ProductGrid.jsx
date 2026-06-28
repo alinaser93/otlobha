@@ -10,11 +10,12 @@ import { StoreReviews } from './StoreRating.jsx';
 
 // products + categories now come from the live catalog (App fetches them from
 // the database, falling back to the bundled catalog). Shapes are unchanged.
-export default function ProductGrid({ products = [], categories = ['الكل'], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore, account = null, onRequireLogin, followIds = [], onToggleFollow, cat: catProp, onCat, hideChips = false }) {
+export default function ProductGrid({ products = [], categories = ['الكل'], subcategories = [], onAdd, fly, openProductId = null, initialCat = null, storeFilter = null, store = null, onClearStore, account = null, onRequireLogin, followIds = [], onToggleFollow, cat: catProp, onCat, hideChips = false }) {
   // category can be controlled by the parent (sticky strip) or kept locally
   const [catLocal, setCatLocal] = useState('الكل');
   const cat = catProp !== undefined ? catProp : catLocal;
   const setCat = onCat || setCatLocal;
+  const [subFilter, setSubFilter] = useState(null);   // 🆕 التفرّع المختار (null = الكل)
   const [selected, setSelected] = useState(null);
   const [ratingOverride, setRatingOverride] = useState(null);
   const [reviewsKey, setReviewsKey] = useState(0);
@@ -33,9 +34,14 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
     return [{ name: 'الكل', image: null, emoji: null }, ...present.map((n) => meta.get(n) || { name: n, image: null, emoji: null })];
   })();
   const list = cat === 'الكل' ? byStore : byStore.filter((p) => p.tag === cat);
+  // 🆕 تفرّعات القسم الحالي + القائمة بعد فلترة التفرّع
+  const subsForCat = cat === 'الكل' ? [] : (subcategories || []).filter((s) => s.categoryName === cat);
+  const shown = subFilter ? list.filter((p) => p.subcategory === subFilter) : list;
 
   // reset live rating override when switching stores
   useEffect(() => { setRatingOverride(null); }, [store?.id]);
+  // 🆕 صفّر فلتر التفرّع عند تغيير القسم
+  useEffect(() => { setSubFilter(null); }, [cat]);
 
   // open a shared product / category once the live catalog has loaded
   useEffect(() => {
@@ -129,18 +135,53 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           )}
         </motion.div>
 
-        {list.length === 0 ? (
+        {/* 🆕 شريط التفرّعات — يظهر لمّا القسم عنده تفرّعات */}
+        {subsForCat.length > 0 && (
+          <div className="mt-6 -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              onClick={() => setSubFilter(null)}
+              className={`shrink-0 rounded-full px-4 py-1.5 font-body text-[13px] font-bold transition ${
+                subFilter === null
+                  ? 'bg-copper text-cream shadow-soft'
+                  : 'bg-white text-ink ring-1 ring-ink/10 hover:bg-beige dark:bg-night-800 dark:text-cream/80 dark:ring-white/10'
+              }`}
+            >
+              الكل
+            </button>
+            {subsForCat.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSubFilter(s.name)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 font-body text-[13px] font-bold transition ${
+                  subFilter === s.name
+                    ? 'bg-copper text-cream shadow-soft'
+                    : 'bg-white text-ink ring-1 ring-ink/10 hover:bg-beige dark:bg-night-800 dark:text-cream/80 dark:ring-white/10'
+                }`}
+              >
+                {s.emoji && <span>{s.emoji}</span>}
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {shown.length === 0 ? (
           <div className="mt-10 flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-ink/15 bg-beige/30 py-16 text-center dark:border-white/15 dark:bg-white/5">
             <div className="grid h-16 w-16 place-items-center rounded-2xl bg-copper/10 text-copper">
               <ShoppingBasket className="h-8 w-8" />
             </div>
             <p className="mt-4 font-display text-lg font-bold text-ink/70 dark:text-cream/70">
-              {store ? 'لا توجد منتجات في هذا القسم بعد' : 'لا توجد منتجات في هذا القسم حالياً'}
+              {subFilter ? 'لا توجد منتجات في هذا التفرّع بعد' : (store ? 'لا توجد منتجات في هذا القسم بعد' : 'لا توجد منتجات في هذا القسم حالياً')}
             </p>
             <p className="mt-1 font-body text-sm text-ink/45 dark:text-cream/45">
-              {cat !== 'الكل' ? 'جرّب قسماً آخر من الأعلى 👆' : 'تابعنا — نضيف منتجات جديدة قريباً 🌿'}
+              {subFilter ? 'جرّب تفرّعاً آخر 👆' : (cat !== 'الكل' ? 'جرّب قسماً آخر من الأعلى 👆' : 'تابعنا — نضيف منتجات جديدة قريباً 🌿')}
             </p>
-            {cat !== 'الكل' && (
+            {subFilter ? (
+              <button onClick={() => setSubFilter(null)}
+                className="mt-4 rounded-full bg-copper px-5 py-2 font-body text-sm font-bold text-cream hover:bg-copper-dark">
+                عرض كل «{cat}»
+              </button>
+            ) : cat !== 'الكل' && (
               <button onClick={() => setCat('الكل')}
                 className="mt-4 rounded-full bg-copper px-5 py-2 font-body text-sm font-bold text-cream hover:bg-copper-dark">
                 عرض كل الأقسام
@@ -149,7 +190,7 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
           </div>
         ) : (
           <motion.div layout className="mt-9 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
-            {list.map((p, i) => (
+            {shown.map((p, i) => (
               <motion.div
                 key={p.id}
                 layout
