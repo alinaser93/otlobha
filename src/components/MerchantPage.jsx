@@ -20,7 +20,9 @@ import {
   merchantWallet, merchantInvoices, merchantConfirmReceipt,
   merchantSetHours, fetchStoreHours,
   fetchCategories, mapProduct,
+  merchantStoreReviews, merchantDeleteStoreReview, merchantSetProductReviews,
 } from '../lib/merchant.js';
+import ReviewsModeration from './ReviewsModeration.jsx';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { cleanProductImage } from '../lib/bgremove.js';
 import { generateProductDescription, suggestBadge, suggestPrice, extractProductsFromImage, generateBundle } from '../lib/ai.js';
@@ -213,6 +215,7 @@ function ProductForm({ token, cats, product, initial, onClose, onSaved }) {
   const [description, setDescription] = useState(base.description || '');
   const [trackStock, setTrackStock] = useState(base.stock != null);
   const [stock, setStock] = useState(base.stock != null ? String(base.stock) : '');
+  const [reviewsEnabled, setReviewsEnabled] = useState(base.reviewsEnabled !== false);
   const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
@@ -289,7 +292,11 @@ function ProductForm({ token, cats, product, initial, onClose, onSaved }) {
       ? await merchantUpdateProduct(token, product.id, payload)
       : await merchantAddProduct(token, payload);
     setBusy(false);
-    if (r?.ok) onSaved();
+    if (r?.ok) {
+      const pid = editing ? product.id : (r?.product?.id || r?.id || null);
+      if (pid) { try { await merchantSetProductReviews(token, pid, reviewsEnabled); } catch {} }
+      onSaved();
+    }
     else setErr(r?.error === 'unauthorized' ? 'انتهت الجلسة، سجّل الدخول مجدداً' : 'تعذّر الحفظ');
   }
 
@@ -379,6 +386,18 @@ function ProductForm({ token, cats, product, initial, onClose, onSaved }) {
                   className={inp + ' mt-2'} placeholder="الكمية المتوفّرة" />
               )}
               {!trackStock && <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">غير مفعّل = متوفّر دائماً (بدون عدّ)</p>}
+            </div>
+
+            {/* reviews toggle */}
+            <div className="rounded-xl bg-ink/5 p-3 dark:bg-white/5">
+              <label className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-sm font-bold text-ink dark:text-cream"><Star className="h-4 w-4 text-copper" /> السماح بتقييم هذا المنتج</span>
+                <button type="button" onClick={() => setReviewsEnabled((v) => !v)}
+                  className={`relative h-6 w-11 rounded-full transition ${reviewsEnabled ? 'bg-copper' : 'bg-ink/20 dark:bg-white/20'}`}>
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${reviewsEnabled ? 'right-0.5' : 'right-5'}`} />
+                </button>
+              </label>
+              <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">{reviewsEnabled ? 'الزبائن يگدرون يقيّمونه بعد الاستلام' : 'التقييم مغلق لهذا المنتج'}</p>
             </div>
 
             {/* badge */}
@@ -1555,6 +1574,23 @@ function MerchantWallet({ token }) {
   );
 }
 
+function MerchantReviews({ token }) {
+  return (
+    <div>
+      <div className="mb-4">
+        <h2 className="font-display text-xl font-black text-ink dark:text-cream">تقييمات متجري</h2>
+        <p className="font-body text-xs text-ink/50 dark:text-cream/50">راجع آراء زبائنك، و احذف أي تعليق غير لائق — يعيد حساب معدّل متجرك تلقائياً</p>
+      </div>
+      <ReviewsModeration
+        load={() => merchantStoreReviews(token)}
+        remove={(id) => merchantDeleteStoreReview(token, id)}
+        primaryKey="name"
+        emptyText="ماكو تقييمات لمتجرك بعد"
+      />
+    </div>
+  );
+}
+
 function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
   const { token } = session;
   const [store, setStore] = useState(session.store);
@@ -1670,7 +1706,7 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
 
         {/* tabs */}
         <div className="mx-auto flex max-w-4xl gap-1.5 overflow-x-auto px-4 pb-2 no-scrollbar">
-          {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['wallet', 'محفظتي', Wallet], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
+          {[['products', 'منتجاتي', Package], ['bundles', 'الباقات', Gift], ['orders', 'الطلبات', ClipboardList], ['wallet', 'محفظتي', Wallet], ['reviews', 'التقييمات', Star], ['store', 'متجري', Store]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -1768,6 +1804,8 @@ function Dashboard({ session, onLogout, onStoreUpdated, dark, toggleTheme }) {
           <BundlesManager token={token} products={products} cats={cats} />
         ) : tab === 'wallet' ? (
           <MerchantWallet token={token} />
+        ) : tab === 'reviews' ? (
+          <MerchantReviews token={token} />
         ) : (
           <>
             <div className="mb-4">

@@ -26,7 +26,9 @@ import {
   adminListDriversExt, adminListAdminsExt, adminResetDriverPass, adminResetAdminPass,
   adminSetDriverActive, adminSetAdminActive,
   adminCreateCampaign, adminListCampaigns, adminCustomerSubCount,
+  adminStoreReviews, adminDeleteStoreReview, adminDriverReviews, adminDeleteDriverReview, adminSetProductReviews,
 } from '../lib/admin.js';
+import ReviewsModeration from './ReviewsModeration.jsx';
 import {
   adminListProducts, adminAddProduct, adminUpdateProduct, adminRemoveProduct,
   adminSetProductActive, adminReorderProducts,
@@ -283,7 +285,7 @@ function Dashboard({ admin, onOut }) {
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
         {/* section navigation */}
         <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['coupons', 'كوبونات', Tag], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
+          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['coupons', 'كوبونات', Tag], ['reviews', 'التقييمات', Star], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setSection(k)}
               className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${section === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -364,6 +366,7 @@ function Dashboard({ admin, onOut }) {
         {section === 'finance' && <SectionCard><EarningsManager admin={admin} /></SectionCard>}
         {section === 'people' && <SectionCard><PeopleSection admin={admin} onChange={load} /></SectionCard>}
         {section === 'coupons' && <SectionCard><CouponsManager admin={admin} /></SectionCard>}
+        {section === 'reviews' && <SectionCard><ReviewsManager admin={admin} /></SectionCard>}
         {section === 'settings' && <SectionCard><SettingsManager admin={admin} /></SectionCard>}
         {section === 'campaigns' && <SectionCard><CampaignsManager admin={admin} /></SectionCard>}
         {section === 'profile' && (
@@ -689,6 +692,39 @@ function AdminsManager({ admin }) {
 }
 
 /* ───────────────────────── Drivers manager ───────────────────────── */
+function ReviewsManager({ admin }) {
+  const [tab, setTab] = useState('stores');
+  return (
+    <div>
+      <p className="mb-3 text-sm text-ink/55 dark:text-cream/55">راجع و احذف أي تقييم أو تعليق غير لائق. حذف التقييم يعيد حساب معدّل المتجر/المندوب تلقائياً.</p>
+      <div className="mb-4 flex gap-2">
+        {[['stores', 'تقييمات المتاجر'], ['drivers', 'تقييمات المندوبين']].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-bold transition ${tab === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {tab === 'stores' && (
+        <ReviewsModeration
+          load={() => adminStoreReviews(admin.id)}
+          remove={(id) => adminDeleteStoreReview(admin.id, id)}
+          primaryKey="name" secondaryKey="store"
+          emptyText="لا توجد تقييمات متاجر بعد"
+        />
+      )}
+      {tab === 'drivers' && (
+        <ReviewsModeration
+          load={() => adminDriverReviews(admin.id)}
+          remove={(oid) => adminDeleteDriverReview(admin.id, oid)}
+          idKey="order_id" primaryKey="driver"
+          emptyText="لا توجد تقييمات مندوبين بعد"
+        />
+      )}
+    </div>
+  );
+}
+
 function DriversManager({ admin, onChange }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -971,6 +1007,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
   });
   const [track, setTrack] = useState(product?.stock !== null && product?.stock !== undefined);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
+  const [reviewsEnabled, setReviewsEnabled] = useState(product?.reviews_enabled !== false);
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : '');
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(product?.store_id || '');
@@ -1055,6 +1092,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
     if (r?.ok) {
       const pid = r.product?.id || product?.id;
       if (pid && storeId) await adminSetProductStore(admin.id, pid, storeId);
+      if (pid) { try { await adminSetProductReviews(admin.id, pid, reviewsEnabled); } catch {} }
       setBusy(false);
       onSaved();
     } else {
@@ -1156,6 +1194,12 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
           </p>
         )}
       </div>
+
+      {/* per-product reviews toggle */}
+      <label className="flex items-center justify-between rounded-xl border border-ink/10 bg-cream/60 p-3 dark:border-white/10 dark:bg-night-900/40">
+        <span className="flex items-center gap-1.5 text-sm font-bold text-ink dark:text-cream"><Star className="h-4 w-4 text-copper" /> السماح بتقييم هذا المنتج</span>
+        <input type="checkbox" checked={reviewsEnabled} onChange={(e) => setReviewsEnabled(e.target.checked)} className="h-4 w-4 accent-copper" />
+      </label>
 
       {/* description (shown in the product detail popup) */}
       <div>

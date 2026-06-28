@@ -9,7 +9,7 @@ import { SETTINGS, SHOP_NAME } from '../config.js';
 import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
 import { formatScheduled } from '../lib/schedule.js';
 import { celebrateSound, primeAudio } from '../lib/alerts.js';
-import OrderRating from './OrderRating.jsx';
+import OrderRating, { RatingSheet } from './OrderRating.jsx';
 import PushToggle from './PushToggle.jsx';
 import InstallButton from './InstallButton.jsx';
 import LiveRouteMap from './LiveRouteMap.jsx';
@@ -310,6 +310,9 @@ export default function OrderTrackingPage() {
 
         {/* rate your order (after delivery): driver + stores + products */}
         <OrderRating orderId={order.id} driverName={order.driver?.name} />
+
+        {/* auto-popup rating prompt — appears once on delivery */}
+        <RatingSheet orderId={order.id} driverName={order.driver?.name} />
 
         {/* order details */}
         <div className="rounded-3xl bg-cream p-5 shadow-card dark:bg-night-800">
