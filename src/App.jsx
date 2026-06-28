@@ -5,11 +5,12 @@ import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle, Search, Sparkles 
 import Header from './components/Header.jsx';
 import Hero from './components/Hero.jsx';
 import PromoCarousel from './components/PromoCarousel.jsx';
-import CategoryStrip from './components/CategoryStrip.jsx';
 import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';
 import Footer from './components/Footer.jsx';
+import CategoryGrid from './components/CategoryGrid.jsx';
+import CartBar from './components/CartBar.jsx';
 import CartDrawer from './components/CartDrawer.jsx';
 import CheckoutModal from './components/CheckoutModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
@@ -365,12 +366,18 @@ export default function App() {
                 <Sparkles className="h-3.5 w-3.5" /> مساعد ذكي
               </span>
             </button>
+            {/* value strip — يوصّل القيمة من أول نظرة */}
+            <div className="mt-2.5 flex items-center justify-center gap-4 font-body text-[11.5px] font-bold text-ink/55 dark:text-cream/55 sm:gap-7">
+              <span className="flex items-center gap-1">🚚 توصيل سريع</span>
+              <span className="flex items-center gap-1">💵 دفع عند الاستلام</span>
+              <span className="flex items-center gap-1">⭐ تقييمات حقيقية</span>
+            </div>
           </div>
         </div>
 
         <PromoCarousel onAction={onPromo} />
         {!activeStore && (
-          <CategoryStrip categories={categories} active={cat} onPick={pickCategory} />
+          <CategoryGrid categories={categories} onPick={pickCategory} />
         )}
         <StoresSection
           stores={stores}
@@ -406,11 +413,14 @@ export default function App() {
 
       <Footer />
 
+      {/* sticky cart bar — أقوى محفّز شراء (يظهر لمّا تكون السلّة مليانة) */}
+      <CartBar count={count} total={total} freeOver={SETTINGS.free_delivery_over} onOpen={() => setCartOpen(true)} />
+
       {/* floating rewards trigger — RTL end / bottom-left */}
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={openAccount}
-        className="fixed bottom-5 left-5 z-[60] flex items-center gap-2 rounded-full bg-copper px-4 py-3 font-display text-sm font-bold text-cream shadow-seal hover:bg-copper-dark"
+        className={`fixed left-5 z-[60] flex items-center gap-2 rounded-full bg-copper px-4 py-3 font-display text-sm font-bold text-cream shadow-seal transition-all hover:bg-copper-dark ${count > 0 ? 'bottom-24' : 'bottom-5'}`}
       >
         <Gift className="h-5 w-5" />
         <span className="hidden sm:inline">{account ? 'محفظتي' : 'اربح 5,000 د.ع'}</span>
@@ -426,7 +436,7 @@ export default function App() {
         initial={{ opacity: 0, scale: 0 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.6, type: 'spring' }}
-        className="fixed bottom-5 right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-seal hover:bg-[#1ebe5d]"
+        className={`fixed right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-seal transition-all hover:bg-[#1ebe5d] ${count > 0 ? 'bottom-24' : 'bottom-5'}`}
         aria-label="تواصل معنا عبر واتساب"
         title="خدمة العملاء — واتساب"
       >
