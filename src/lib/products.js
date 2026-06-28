@@ -182,6 +182,8 @@ export const adminSetProductMarkup = (adminId, id, pct) =>
   rpc('admin_set_product_markup', { p_admin_id: adminId, p_id: id, p_pct: pct });
 export const adminSetBundleMarkup = (adminId, id, pct) =>
   rpc('admin_set_bundle_markup', { p_admin_id: adminId, p_id: id, p_pct: pct });
+export const adminSetPriceRounding = (adminId, step) =>
+  rpc('admin_set_price_rounding', { p_admin_id: adminId, p_step: step });
 
 /* ───────────────────────── app settings (admin control panel) ───────────────────────── */
 export const getSettings = () => rpc('get_settings', {});

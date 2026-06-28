@@ -216,7 +216,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       notes: form.notes,
       payment: pm?.label || form.payment,
       location: geo ? `https://maps.google.com/?q=${geo.lat},${geo.lng}` : null,
-      items: items.map((it) => ({ key: it.key ?? null, name: it.name, qty: it.qty, price: (it.base ?? it.price), mk: it.mk ?? 0, storeId: it.storeId ?? null })),
+      items: items.map((it) => ({ key: it.key ?? null, name: it.name, qty: it.qty, price: (it.base ?? it.price), mk: it.mk ?? 0, disp: it.price, storeId: it.storeId ?? null })),
       subtotal: total,
       total: grand,
     }).then(async (res) => {

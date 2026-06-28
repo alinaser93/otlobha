@@ -40,7 +40,7 @@ import {
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
   adminFinanceReport, adminSettleMerchant, adminSettleDriver,
-  adminSetGlobalMarkup, adminSetStoreMarkup, adminSetCategoryMarkup, adminSetProductMarkup, adminSetBundleMarkup,
+  adminSetGlobalMarkup, adminSetStoreMarkup, adminSetCategoryMarkup, adminSetProductMarkup, adminSetBundleMarkup, adminSetPriceRounding,
   getSettings, adminUpdateSettings, adminSetPointsSettings, adminSetRatingWindow,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -1856,8 +1856,10 @@ function SettingsManager({ admin }) {
     await adminSetRatingWindow(admin.id, Math.max(1, parseInt(s.rating_window_days, 10) || 30));
     const mkVal = Math.max(0, parseFloat(s.markup_pct) || 0);
     await adminSetGlobalMarkup(admin.id, mkVal);
+    const stepVal = Math.max(0, parseInt(s.price_round_step, 10) || 0);
+    await adminSetPriceRounding(admin.id, stepVal);
     setSaving(false);
-    if (r?.ok) { setSaved(true); applySettings({ ...r.settings, markup_pct: mkVal }); setTimeout(() => setSaved(false), 2500); }
+    if (r?.ok) { setSaved(true); applySettings({ ...r.settings, markup_pct: mkVal, price_round_step: stepVal }); setTimeout(() => setSaved(false), 2500); }
   }
 
   if (loading) return <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
@@ -1910,6 +1912,21 @@ function SettingsManager({ admin }) {
         <p className="mb-2 text-[11px] leading-snug text-ink/45 dark:text-cream/45">نسبة تُضاف فوق سعر التاجر يدفعها الزبون — ربح <b>إلك إنت</b>، منفصلة عن العمولة. يقدر التاجر يضل يقبض على سعره الأساسي. تقدر تخصّصها لكل متجر/فئة/منتج/باقة (تطغى على العام).</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="الهامش العام" k="markup_pct" hint="على كل السلع افتراضياً · 0 = معطّل" suffix="%" />
+        </div>
+        <div className="mt-3">
+          <label className="mb-1 block text-[12px] font-bold text-ink/60 dark:text-cream/60">تقريب السعر لأقرب فئة نقدية</label>
+          <div className="grid grid-cols-4 gap-2">
+            {[['بدون', 0], ['٢٥٠', 250], ['٥٠٠', 500], ['١٬٠٠٠', 1000]].map(([lbl, val]) => {
+              const active = (parseInt(s.price_round_step, 10) || 0) === val;
+              return (
+                <button key={val} type="button" onClick={() => { setS((prev) => ({ ...prev, price_round_step: val })); setSaved(false); }}
+                  className={`rounded-xl py-2.5 text-sm font-bold transition ${active ? 'bg-copper text-cream shadow-soft' : 'bg-beige text-ink/60 hover:bg-ink/10 dark:bg-night-900 dark:text-cream/60'}`}>
+                  {lbl}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">السعر بعد الهامش يصير رقماً مريحاً بالنقود (مثلاً ٦٬٠٥٠ ← ٦٬٠٠٠). سعر التاجر ما يتأثّر.</p>
         </div>
       </div>
 
