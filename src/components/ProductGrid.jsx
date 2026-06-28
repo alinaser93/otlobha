@@ -166,7 +166,7 @@ export default function ProductGrid({ products = [], categories = ['الكل'], 
         )}
       </div>
 
-      <ProductModal product={selected} onClose={() => setSelected(null)} onAdd={onAdd} />
+      <ProductModal product={selected} onClose={() => setSelected(null)} onAdd={onAdd} account={account} onRequireLogin={onRequireLogin} />
     </section>
   );
 }

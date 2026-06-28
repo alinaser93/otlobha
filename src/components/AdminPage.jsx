@@ -38,7 +38,7 @@ import {
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
   adminFinanceReport, adminSettleMerchant, adminSettleDriver,
-  getSettings, adminUpdateSettings, adminSetPointsSettings,
+  getSettings, adminUpdateSettings, adminSetPointsSettings, adminSetRatingWindow,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
@@ -1770,6 +1770,7 @@ function SettingsManager({ admin }) {
       if (v.points_dinar_per_point == null) v.points_dinar_per_point = POINTS.redeemDinarPerPoint;
       if (v.points_redeem_max_pct == null) v.points_redeem_max_pct = POINTS.redeemMaxPct;
       if (v.points_redeem_min_order == null) v.points_redeem_min_order = POINTS.redeemMinOrder;
+      if (v.rating_window_days == null) v.rating_window_days = 30;
       setS(v);
       setLoading(false);
     });
@@ -1791,6 +1792,7 @@ function SettingsManager({ admin }) {
       maxPct: Math.min(100, Math.max(0, parseInt(s.points_redeem_max_pct, 10) || 0)),
       minOrder: Math.max(0, parseInt(s.points_redeem_min_order, 10) || 0),
     });
+    await adminSetRatingWindow(admin.id, Math.max(1, parseInt(s.rating_window_days, 10) || 30));
     setSaving(false);
     if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
   }
@@ -1847,6 +1849,15 @@ function SettingsManager({ admin }) {
           <Field label="قيمة النقطة" k="points_dinar_per_point" hint="كم دينار خصم لكل نقطة" suffix="د.ع" />
           <Field label="أقصى خصم من الطلب" k="points_redeem_max_pct" hint="أعلى نسبة من الطلب تُدفع بالنقاط" suffix="%" />
           <Field label="أقل طلب للاستبدال" k="points_redeem_min_order" hint="لا استبدال تحت هذا المبلغ" suffix="د.ع" />
+        </div>
+      </div>
+
+      {/* verified ratings */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Star className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">التقييمات الموثّقة</h3></div>
+        <p className="mb-2 text-[11px] leading-snug text-ink/45 dark:text-cream/45">التقييم متاح فقط للزبون الذي طلب فعلاً، بعد التوصيل، خلال هذه المدة من تاريخ الطلب. (المتاجر الكبرى تعطي مدة واسعة — لا يُنصح بدقائق معدودة لأنها تقتل عدد التقييمات.)</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="نافذة التقييم" k="rating_window_days" hint="كم يوم يبقى التقييم مفتوحاً بعد الطلب" suffix="يوم" />
         </div>
       </div>
 

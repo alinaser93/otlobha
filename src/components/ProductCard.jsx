@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Star } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 
 export default function ProductCard({ p, onAdd, fly, onOpen }) {
@@ -73,6 +73,11 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
       <div className="mt-3 flex flex-1 flex-col">
         <span className="font-body text-[11px] text-copper dark:text-copper-light">{p.tag}</span>
         <h3 className="mt-0.5 font-display text-[17px] font-bold leading-tight text-ink dark:text-cream">{p.name}</h3>
+        {p.ratingCount > 0 && (
+          <span className="mt-1 inline-flex w-fit items-center gap-1 font-body text-[11px] font-bold text-amber-600 dark:text-amber-300">
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {Number(p.rating).toFixed(1)} <span className="font-normal text-ink/35 dark:text-cream/35">({p.ratingCount})</span>
+          </span>
+        )}
         <div className="mt-2 flex items-baseline gap-1.5">
           <span className="font-display text-xl font-black text-brand-800 dark:text-brand-400">{fmt(p.price)}</span>
           {p.oldPrice && (

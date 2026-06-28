@@ -67,6 +67,40 @@ export async function rateOrderDriver(orderId, rating, comment) {
   }
 }
 
+// What's rateable for a delivered order (driver + each store + each product).
+export async function orderRatingStatus(orderId) {
+  if (!supabaseEnabled || !supabase || !orderId) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('order_rating_status', { p_order_id: orderId });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function rateOrderProduct(orderId, productId, stars, comment) {
+  if (!supabaseEnabled || !supabase || !orderId) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('rate_order_product', { p_order_id: orderId, p_product_id: productId, p_stars: stars, p_comment: comment || null });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function rateOrderStore(orderId, storeId, stars, comment) {
+  if (!supabaseEnabled || !supabase || !orderId) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('rate_order_store', { p_order_id: orderId, p_store_id: storeId, p_stars: stars, p_comment: comment || null });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Public order tracking by its secure id (token) — no login needed.
 export async function orderReadyByToken(id) {
   if (!supabaseEnabled || !supabase || !id) return null;

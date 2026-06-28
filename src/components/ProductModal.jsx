@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus, ShoppingCart, Share2, Check } from 'lucide-react';
+import { X, Plus, Minus, ShoppingCart, Share2, Check, Star } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
+import { ProductReviews } from './ProductRating.jsx';
 
 /*
   ProductModal — tap a product to see a rich, animated detail sheet.
   Closes on backdrop tap, the X, Escape, or the phone's back button
   (we push one history entry on open and pop it on close).
 */
-export default function ProductModal({ product, onClose, onAdd }) {
+export default function ProductModal({ product, onClose, onAdd, account = null, onRequireLogin }) {
   const open = !!product;
   const [qty, setQty] = useState(1);
   const [imgOk, setImgOk] = useState(true);
   const out = !!product && product.stock != null && product.stock <= 0;
   const low = !!product && product.stock != null && product.stock > 0 && product.stock <= 5;
   const [copied, setCopied] = useState(false);
+
+  const rating = product?.rating ?? 0;
+  const ratingCount = product?.ratingCount ?? 0;
 
   const productUrl = () =>
     (typeof window !== 'undefined' ? window.location.origin : '') + '/p/' + (product?.id ?? '');
@@ -65,6 +69,7 @@ export default function ProductModal({ product, onClose, onAdd }) {
   }
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <motion.div
@@ -152,6 +157,18 @@ export default function ProductModal({ product, onClose, onAdd }) {
                 )}
               </div>
 
+              {/* rating summary (read-only — rating happens after delivery) */}
+              {ratingCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 rounded-2xl bg-ink/[0.03] px-3.5 py-2.5 dark:bg-white/[0.04]">
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star key={s} className={`h-4 w-4 ${s <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-ink/20 dark:text-cream/20'}`} />
+                    ))}
+                  </div>
+                  <span className="font-body text-sm font-bold text-ink/70 dark:text-cream/70">{Number(rating).toFixed(1)} <span className="font-normal text-ink/40 dark:text-cream/40">({ratingCount} تقييم)</span></span>
+                </div>
+              )}
+
               {out ? (
                 <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-3 py-1 text-sm font-bold text-red-600 dark:text-red-300">نفد المخزون حالياً</div>
               ) : low ? (
@@ -167,6 +184,9 @@ export default function ProductModal({ product, onClose, onAdd }) {
                   <p className="font-body text-sm leading-relaxed text-ink/45 dark:text-cream/45">منتج طازج ومختار بعناية من «اطلبها». أضِفه لسلتك واطلبه الآن.</p>
                 )}
               </div>
+
+              {/* customer reviews */}
+              <ProductReviews productId={product.id} />
             </div>
 
             {/* sticky action bar */}
@@ -194,5 +214,6 @@ export default function ProductModal({ product, onClose, onAdd }) {
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }
