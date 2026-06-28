@@ -173,4 +173,15 @@ export const mapProduct = (p) => ({
   description: p.description,
   stock: p.stock,
   oldPrice: p.old_price,
+  reviewsEnabled: p.reviews_enabled !== false,
 });
+
+// ── rating moderation (merchant) ──
+export const merchantStoreReviews = (token, limit = 50) =>
+  rpc('merchant_store_reviews', { p_token: token, p_limit: limit });
+
+export const merchantDeleteStoreReview = (token, id) =>
+  rpc('merchant_delete_store_review', { p_token: token, p_id: id });
+
+export const merchantSetProductReviews = (token, productId, enabled) =>
+  rpc('merchant_set_product_reviews', { p_token: token, p_product_id: productId, p_enabled: enabled });

@@ -1,4 +1,5 @@
 import { supabase, supabaseEnabled } from './supabase.js';
+import { effectiveMarkup, withMarkup } from '../config.js';
 
 // shared RPC helper (same shape as lib/admin.js)
 async function rpc(fn, args) {
@@ -169,6 +170,21 @@ export const adminSetStoreCommission = (adminId, storeId, pct) =>
 export const adminCommissionReport = (adminId, since = null) =>
   rpc('admin_commission_report', { p_admin_id: adminId, p_since: since });
 
+/* ───────────────────────── platform markup (admin) — نسبة ربح المالك ───────────────────────── */
+// pct = null يعني «يرث المستوى الأعلى». العام: pct رقم (0 = معطّل)
+export const adminSetGlobalMarkup = (adminId, pct) =>
+  rpc('admin_set_global_markup', { p_admin_id: adminId, p_pct: pct });
+export const adminSetStoreMarkup = (adminId, storeId, pct) =>
+  rpc('admin_set_store_markup', { p_admin_id: adminId, p_store_id: storeId, p_pct: pct });
+export const adminSetCategoryMarkup = (adminId, id, pct) =>
+  rpc('admin_set_category_markup', { p_admin_id: adminId, p_id: id, p_pct: pct });
+export const adminSetProductMarkup = (adminId, id, pct) =>
+  rpc('admin_set_product_markup', { p_admin_id: adminId, p_id: id, p_pct: pct });
+export const adminSetBundleMarkup = (adminId, id, pct) =>
+  rpc('admin_set_bundle_markup', { p_admin_id: adminId, p_id: id, p_pct: pct });
+export const adminSetPriceRounding = (adminId, step) =>
+  rpc('admin_set_price_rounding', { p_admin_id: adminId, p_step: step });
+
 /* ───────────────────────── app settings (admin control panel) ───────────────────────── */
 export const getSettings = () => rpc('get_settings', {});
 export const adminUpdateSettings = (adminId, s = {}) =>
@@ -274,9 +290,18 @@ export async function fetchStoreCatalog() {
 
     const NEW_DAYS = 10;
     const now = Date.now();
+    // 🆕 platform-markup lookup maps (category name → pct, store id → pct)
+    const catMarkup = {};
+    (cr.data || []).forEach((c) => { if (c && c.name != null) catMarkup[c.name] = c.markup_pct; });
+    const storeMarkup = {};
+    (sr && !sr.error ? sr.data || [] : []).forEach((s) => { if (s && s.id) storeMarkup[s.id] = s.markup_pct; });
+
     const products = (pr.data || []).map((r) => {
-      const price = r.price;
-      const oldPrice = r.old_price && r.old_price > price ? r.old_price : null;
+      const mkPct = effectiveMarkup({ product: r.markup_pct, category: catMarkup[r.category], store: storeMarkup[r.store_id] });
+      const basePrice = r.price;
+      const price = withMarkup(basePrice, mkPct);                  // ما يدفعه الزبون
+      const baseOld = r.old_price && r.old_price > basePrice ? r.old_price : null;
+      const oldPrice = baseOld ? withMarkup(baseOld, mkPct) : null;
       const stock = r.stock === null || r.stock === undefined ? null : Number(r.stock);
       const isNew = r.created_at ? now - new Date(r.created_at).getTime() < NEW_DAYS * 86400000 : false;
       const pct = oldPrice ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0;
@@ -286,6 +311,8 @@ export async function fetchStoreCatalog() {
         tag: r.category,
         storeId: r.store_id || null,
         price,
+        basePrice,                 // 🆕 سعر التاجر الأساسي (للطلب/التسوية)
+        markupPct: mkPct,          // 🆕 نسبة الهامش الفعّالة
         unit: r.unit,
         emoji: r.emoji,
         image: r.image || null,
@@ -327,6 +354,8 @@ export async function fetchStoreCatalog() {
     // bundles map back to the exact shape BundleCard/cart expect (parallel arrays)
     const bundles = (br.error ? [] : (br.data || [])).map((r) => {
       const ing = Array.isArray(r.ingredients) ? r.ingredients : [];
+      const mkPct = effectiveMarkup({ product: r.markup_pct, store: storeMarkup[r.store_id] });
+      const basePrice = r.price;
       return {
         id: r.id,
         name: r.name,
@@ -340,8 +369,10 @@ export async function fetchStoreCatalog() {
         emojis: ing.map((x) => x?.emoji || '🛒'),
         images: ing.map((x) => x?.image || null),
         image: r.image || null,
-        price: r.price,
-        old: r.old_price ?? null,
+        price: withMarkup(basePrice, mkPct),
+        basePrice,                 // 🆕
+        markupPct: mkPct,          // 🆕
+        old: r.old_price ? withMarkup(r.old_price, mkPct) : null,
         accent: r.accent || '#0F5132',
         storeId: r.store_id || null,
         season: r.season || null,

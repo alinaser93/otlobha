@@ -90,6 +90,11 @@ export default function ProductCard({ p, onAdd, fly, onOpen }) {
             🔥 بقي {p.stock}
           </span>
         )}
+        {!low && !out && p.sold >= 8 && (
+          <span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-brand-500/12 px-2 py-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">
+            🔥 طلبه {p.sold}+ زبون
+          </span>
+        )}
       </div>
     </motion.article>
   );

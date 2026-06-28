@@ -11,6 +11,7 @@ import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import { AREAS, CITY, POINTS } from '../config.js';
 import { fmt } from '../data/catalog.js';
 import { listMyOrders } from '../lib/orders.js';
+import OrderRating from './OrderRating.jsx';
 import { accountWallet } from '../lib/wallet.js';
 
 export default function AccountDrawer({ open, onClose, onReorder }) {
@@ -357,6 +358,12 @@ function OrderCard({ o, onReorder }) {
           </button>
         </div>
       </div>
+
+      {o.status === 'done' && (
+        <div className="mt-3">
+          <OrderRating orderId={o.id} driverName={o.driver_name || o.driver?.name} compact />
+        </div>
+      )}
     </div>
   );
 }

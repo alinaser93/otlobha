@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Truck, Leaf, ShieldCheck, Gift, Check, MessageCircle, Search, Sparkles } from 'lucide-react';
+import { Truck, Leaf, ShieldCheck, Check, Search, Sparkles } from 'lucide-react';
 
 import Header from './components/Header.jsx';
-import Hero from './components/Hero.jsx';
 import PromoCarousel from './components/PromoCarousel.jsx';
-import CategoryStrip from './components/CategoryStrip.jsx';
 import BundleSection, { BundleDetailModal } from './components/BundleSection.jsx';
 import ProductGrid from './components/ProductGrid.jsx';
 import StoresSection from './components/StoresSection.jsx';
 import Footer from './components/Footer.jsx';
+import CategoryGrid from './components/CategoryGrid.jsx';
+import ProductRail from './components/ProductRail.jsx';
+import CartBar from './components/CartBar.jsx';
 import CartDrawer from './components/CartDrawer.jsx';
 import CheckoutModal from './components/CheckoutModal.jsx';
 import AuthModal from './components/AuthModal.jsx';
@@ -20,7 +21,7 @@ import { listMyOrders } from './lib/orders.js';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
 import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
-import { SETTINGS, applySettings } from './config.js';
+import { SETTINGS, applySettings, withMarkup } from './config.js';
 
 /* ── slim promo bar ── */
 function TopBar() {
@@ -244,7 +245,7 @@ export default function App() {
       if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + n } : i));
       // bundles carry an `emojis` array; products carry a single `emoji`
       const image = p.emojis ? (p.images?.[0] ?? p.image) : p.image;
-      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: n, storeId: p.storeId ?? null }];
+      return [...prev, { key: p.id, name: p.name, price: p.price, base: p.basePrice ?? p.price, mk: p.markupPct ?? 0, emoji: p.emojis ? '🧺' : p.emoji, image, qty: n, storeId: p.storeId ?? null }];
     });
     setBump(true);
     setTimeout(() => setBump(false), 520);
@@ -284,14 +285,14 @@ export default function App() {
             next[idx] = { ...next[idx], qty: next[idx].qty + qty };
           } else {
             const image = prod.emojis ? (prod.images?.[0] ?? prod.image) : prod.image;
-            next.push({ key: prod.id, name: prod.name, price: prod.price, emoji: prod.emojis ? '🧺' : prod.emoji, image, qty });
+            next.push({ key: prod.id, name: prod.name, price: prod.price, base: prod.basePrice ?? prod.price, mk: prod.markupPct ?? 0, emoji: prod.emojis ? '🧺' : prod.emoji, image, qty });
           }
         } else {
           // product no longer in the catalog — keep it from the saved order data
           const k = 'past-' + oi.name;
           const idx = next.findIndex((i) => i.key === k);
           if (idx >= 0) next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-          else next.push({ key: k, name: oi.name, price: Number(oi.price) || 0, emoji: '🛒', image: null, qty });
+          else { const b = Number(oi.price) || 0; const m = Number(oi.mk) || 0; next.push({ key: k, name: oi.name, price: withMarkup(b, m), base: b, mk: m, emoji: '🛒', image: null, qty }); }
         }
       }
       return next;
@@ -308,6 +309,16 @@ export default function App() {
   const bundleHeading = activeStore
     ? { kicker: 'باقات المتجر', title: 'باقات مختارة', subtitle: 'وفّر أكثر مع باقات هذا المتجر — مكوّنات كاملة بسعر مميّز.' }
     : { kicker: 'الأكثر طلباً · وفّر أكثر', title: 'أفضل ٥ باقات في اطلبها', subtitle: 'الباقات الأكثر مبيعاً — مكوّنات وصفة كاملة بسعر أوفر من شرائها مفردة.' };
+
+  // 🆕 Blinkit-style rails (homepage only): top sellers + today's deals
+  const bestSellers = useMemo(
+    () => [...products].filter((p) => (p.stock == null || p.stock > 0)).sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 12),
+    [products]
+  );
+  const deals = useMemo(
+    () => products.filter((p) => p.oldPrice && (p.stock == null || p.stock > 0)).slice(0, 12),
+    [products]
+  );
 
   // entering / leaving a store resets the product filter so we never land on an empty category
   useEffect(() => { setCat('الكل'); }, [activeStore]);
@@ -350,8 +361,6 @@ export default function App() {
       />
 
       <main>
-        <Hero onShop={() => document.getElementById('stores')?.scrollIntoView({ behavior: 'smooth' })} />
-
         {/* prominent search entry (opens the smart search + AI assistant) */}
         <div className="bg-beige pt-5 dark:bg-night">
           <div className="mx-auto max-w-7xl px-4 sm:px-8">
@@ -365,12 +374,30 @@ export default function App() {
                 <Sparkles className="h-3.5 w-3.5" /> مساعد ذكي
               </span>
             </button>
+            {/* value strip — يوصّل القيمة من أول نظرة */}
+            <div className="mt-2.5 flex items-center justify-center gap-4 font-body text-[11.5px] font-bold text-ink/55 dark:text-cream/55 sm:gap-7">
+              <span className="flex items-center gap-1">🚚 توصيل سريع</span>
+              <span className="flex items-center gap-1">💵 دفع عند الاستلام</span>
+              <span className="flex items-center gap-1">⭐ تقييمات حقيقية</span>
+            </div>
           </div>
         </div>
 
         <PromoCarousel onAction={onPromo} />
         {!activeStore && (
-          <CategoryStrip categories={categories} active={cat} onPick={pickCategory} />
+          <CategoryGrid categories={categories} onPick={pickCategory} />
+        )}
+        {!activeStore && (
+          <ProductRail
+            kicker="🔥 الأكثر طلباً في السماوة"
+            title="الأكثر مبيعاً"
+            products={bestSellers}
+            onAdd={addItem}
+            fly={fly}
+            onSeeAll={() => pickCategory('الكل')}
+            account={account}
+            onRequireLogin={() => setAuthOpen(true)}
+          />
         )}
         <StoresSection
           stores={stores}
@@ -382,6 +409,18 @@ export default function App() {
             if (id) setTimeout(() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }), 60);
           }}
         />
+        {!activeStore && (
+          <ProductRail
+            kicker="💸 وفّر اليوم"
+            title="عروض وخصومات"
+            products={deals}
+            onAdd={addItem}
+            fly={fly}
+            onSeeAll={() => pickCategory('الكل')}
+            account={account}
+            onRequireLogin={() => setAuthOpen(true)}
+          />
+        )}
         <BundleSection bundles={shownBundles} onAdd={addItem} fly={fly} title={bundleHeading.title} subtitle={bundleHeading.subtitle} kicker={bundleHeading.kicker} />
         <ProductGrid
           products={products}
@@ -406,32 +445,8 @@ export default function App() {
 
       <Footer />
 
-      {/* floating rewards trigger — RTL end / bottom-left */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={openAccount}
-        className="fixed bottom-5 left-5 z-[60] flex items-center gap-2 rounded-full bg-copper px-4 py-3 font-display text-sm font-bold text-cream shadow-seal hover:bg-copper-dark"
-      >
-        <Gift className="h-5 w-5" />
-        <span className="hidden sm:inline">{account ? 'محفظتي' : 'اربح 5,000 د.ع'}</span>
-      </motion.button>
-
-      {/* floating WhatsApp customer-service button — bottom-right */}
-      <motion.a
-        href={`https://wa.me/${SETTINGS.whatsapp_number}?text=${encodeURIComponent('مرحباً، لديّ استفسار 🙏')}`}
-        target="_blank"
-        rel="noreferrer"
-        whileTap={{ scale: 0.92 }}
-        whileHover={{ scale: 1.06 }}
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.6, type: 'spring' }}
-        className="fixed bottom-5 right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-seal hover:bg-[#1ebe5d]"
-        aria-label="تواصل معنا عبر واتساب"
-        title="خدمة العملاء — واتساب"
-      >
-        <MessageCircle className="h-7 w-7" />
-      </motion.a>
+      {/* sticky cart bar — أقوى محفّز شراء (يظهر لمّا تكون السلّة مليانة) */}
+      <CartBar count={count} total={total} freeOver={SETTINGS.free_delivery_over} onOpen={() => setCartOpen(true)} />
 
       <CartDrawer
         open={cartOpen}

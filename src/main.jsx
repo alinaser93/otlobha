@@ -5,10 +5,12 @@ import AdminPage from './components/AdminPage.jsx';
 import DriverPage from './components/DriverPage.jsx';
 import MerchantPage from './components/MerchantPage.jsx';
 import OrderTrackingPage from './components/OrderTrackingPage.jsx';
+import InfoPage from './components/InfoPage.jsx';
 import { AuthProvider } from './lib/auth.jsx';
 import './index.css';
 
 // routes: /admin , /driver , /merchant , /order/{id}  (+ ?admin / ?driver / ?merchant / ?order= fallbacks)
+const INFO_SLUGS = ['about', 'terms', 'privacy', 'faq', 'returns', 'contact', 'delivery', 'careers'];
 function route() {
   try {
     const path = window.location.pathname.replace(/\/+$/, '');
@@ -18,6 +20,7 @@ function route() {
     if (path === '/driver' || params.has('driver') || hash === '#driver') return 'driver';
     if (path === '/merchant' || params.has('merchant') || hash === '#merchant') return 'merchant';
     if (/^\/order\//.test(window.location.pathname) || params.has('order')) return 'order';
+    if (INFO_SLUGS.includes(path.replace(/^\//, ''))) return 'info';
     return 'store';
   } catch {
     return 'store';
@@ -32,6 +35,7 @@ if (r === 'admin') content = <AdminPage />;
 else if (r === 'driver') content = <DriverPage />;
 else if (r === 'merchant') content = <MerchantPage />;
 else if (r === 'order') content = <OrderTrackingPage />;
+else if (r === 'info') content = <InfoPage slug={window.location.pathname.replace(/^\/+|\/+$/g, '')} />;
 else content = (
   <AuthProvider>
     <App />

@@ -94,3 +94,19 @@ export const adminCreateCampaign = (adminId, title, body, url) =>
   rpc('admin_create_campaign', { p_admin_id: adminId, p_title: title, p_body: body, p_url: url || null });
 export const adminListCampaigns = (adminId) => rpc('admin_list_campaigns', { p_admin_id: adminId });
 export const adminCustomerSubCount = (adminId) => rpc('admin_customer_sub_count', { p_admin_id: adminId });
+
+// ── rating moderation (admin) ──
+export const adminStoreReviews = (adminId, limit = 100) =>
+  rpc('admin_store_reviews', { p_admin_id: adminId, p_limit: limit });
+export const adminDeleteStoreReview = (adminId, id) =>
+  rpc('admin_delete_store_review', { p_admin_id: adminId, p_id: id });
+export const adminDriverReviews = (adminId, limit = 100) =>
+  rpc('admin_driver_reviews', { p_admin_id: adminId, p_limit: limit });
+export const adminDeleteDriverReview = (adminId, orderId) =>
+  rpc('admin_delete_driver_review', { p_admin_id: adminId, p_order_id: orderId });
+export const adminSetProductReviews = (adminId, productId, enabled) =>
+  rpc('admin_set_product_reviews', { p_admin_id: adminId, p_product_id: productId, p_enabled: enabled });
+
+// 🆕 إجمالي ربح الهامش المضاف خلال فترة (لوحة المالية)
+export const adminMarkupIncome = (adminId, since = null) =>
+  rpc('admin_markup_income', { p_admin_id: adminId, p_since: since || null });
