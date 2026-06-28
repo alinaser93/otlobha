@@ -20,7 +20,7 @@ import { listMyOrders } from './lib/orders.js';
 import { useFlyToCart, fadeUp, viewportOnce, useBackClose } from './lib/motion.js';
 import { PRODUCTS, BUNDLES, CATEGORIES } from './data/catalog.js';
 import { fetchStoreCatalog, storeMyFollows, storeToggleFollow, getSettings } from './lib/products.js';
-import { SETTINGS, applySettings } from './config.js';
+import { SETTINGS, applySettings, withMarkup } from './config.js';
 
 /* ── slim promo bar ── */
 function TopBar() {
@@ -244,7 +244,7 @@ export default function App() {
       if (found) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + n } : i));
       // bundles carry an `emojis` array; products carry a single `emoji`
       const image = p.emojis ? (p.images?.[0] ?? p.image) : p.image;
-      return [...prev, { key: p.id, name: p.name, price: p.price, emoji: p.emojis ? '🧺' : p.emoji, image, qty: n, storeId: p.storeId ?? null }];
+      return [...prev, { key: p.id, name: p.name, price: p.price, base: p.basePrice ?? p.price, mk: p.markupPct ?? 0, emoji: p.emojis ? '🧺' : p.emoji, image, qty: n, storeId: p.storeId ?? null }];
     });
     setBump(true);
     setTimeout(() => setBump(false), 520);
@@ -284,14 +284,14 @@ export default function App() {
             next[idx] = { ...next[idx], qty: next[idx].qty + qty };
           } else {
             const image = prod.emojis ? (prod.images?.[0] ?? prod.image) : prod.image;
-            next.push({ key: prod.id, name: prod.name, price: prod.price, emoji: prod.emojis ? '🧺' : prod.emoji, image, qty });
+            next.push({ key: prod.id, name: prod.name, price: prod.price, base: prod.basePrice ?? prod.price, mk: prod.markupPct ?? 0, emoji: prod.emojis ? '🧺' : prod.emoji, image, qty });
           }
         } else {
           // product no longer in the catalog — keep it from the saved order data
           const k = 'past-' + oi.name;
           const idx = next.findIndex((i) => i.key === k);
           if (idx >= 0) next[idx] = { ...next[idx], qty: next[idx].qty + qty };
-          else next.push({ key: k, name: oi.name, price: Number(oi.price) || 0, emoji: '🛒', image: null, qty });
+          else { const b = Number(oi.price) || 0; const m = Number(oi.mk) || 0; next.push({ key: k, name: oi.name, price: withMarkup(b, m), base: b, mk: m, emoji: '🛒', image: null, qty }); }
         }
       }
       return next;

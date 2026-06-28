@@ -5,7 +5,7 @@ import {
   Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing, Calendar,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { SETTINGS, SHOP_NAME } from '../config.js';
+import { SETTINGS, SHOP_NAME, withMarkup } from '../config.js';
 import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
 import { formatScheduled } from '../lib/schedule.js';
 import { celebrateSound, primeAudio } from '../lib/alerts.js';
@@ -321,13 +321,13 @@ export default function OrderTrackingPage() {
             {items.map((it, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
                 <span className="text-ink/80 dark:text-cream/80">{it.name} <span className="text-ink/40 dark:text-cream/40">×{it.qty}</span></span>
-                <span className="text-ink/60 dark:text-cream/60">{fmt((it.price || 0) * (it.qty || 1))} د.ع</span>
+                <span className="text-ink/60 dark:text-cream/60">{fmt(withMarkup(it.price || 0, it.mk) * (it.qty || 1))} د.ع</span>
               </div>
             ))}
           </div>
           <div className="mt-3 space-y-1.5 border-t border-ink/10 pt-3 text-sm dark:border-white/10">
             {(() => {
-              const sub = order.subtotal != null ? order.subtotal : items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0);
+              const sub = order.subtotal != null ? order.subtotal : items.reduce((s, it) => s + withMarkup(it.price || 0, it.mk) * (it.qty || 1), 0);
               const delivery = Math.max(0, (order.total || 0) - sub);
               return (
                 <div className="flex items-center justify-between">

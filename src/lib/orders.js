@@ -39,6 +39,19 @@ export async function setOrderSchedule(orderId, scheduledForISO) {
   }
 }
 
+// Record the platform-markup portion of a just-created order (owner's margin).
+// Best-effort & idempotent (the RPC only sets it once). Never blocks the order.
+export async function setOrderMarkup(orderId, markup) {
+  if (!supabaseEnabled || !supabase || !orderId || !markup) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('set_order_markup', { p_order_id: orderId, p_markup: markup });
+    if (error) return { ok: false, error: error.message };
+    return data;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Redeem loyalty points against a just-created order. Atomic & best-effort:
 // on failure nothing changes (no points lost, order stays at full price).
 export async function redeemPointsForOrder(accountId, orderId, points) {

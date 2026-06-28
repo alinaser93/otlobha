@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Loader2, Check, MessageCircle, AlertCircle, Gift, Ticket, Wallet, Calendar, Zap } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
-import { createOrder, redeemPointsForOrder, setOrderSchedule } from '../lib/orders.js';
+import { createOrder, redeemPointsForOrder, setOrderSchedule, setOrderMarkup } from '../lib/orders.js';
 import { dayOptions, availableSlots, buildScheduledISO, formatScheduled } from '../lib/schedule.js';
 import { validateCoupon, applyCouponToOrder, couponError } from '../lib/coupons.js';
 import { accountWallet, redeemWalletForOrder } from '../lib/wallet.js';
@@ -95,6 +95,10 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
   const storeCount = Math.max(1, new Set((items || []).map((it) => it.storeId).filter(Boolean)).size || 1);
   const delivery = calcDelivery(total, storeCount);
   const grand = total + delivery;
+
+  // 🆕 platform markup = marked-up subtotal − base subtotal (owner's margin, recorded separately)
+  const baseSubtotal = (items || []).reduce((s, it) => s + ((it.base ?? it.price) || 0) * (it.qty || 1), 0);
+  const markupTotal = Math.max(0, Math.round(total - baseSubtotal));
 
   // ── discounts (coupon applies first, then points on the remainder) ──
   const couponDiscount = coupon?.ok ? Math.min(coupon.discount || 0, grand) : 0;
@@ -212,7 +216,7 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       notes: form.notes,
       payment: pm?.label || form.payment,
       location: geo ? `https://maps.google.com/?q=${geo.lat},${geo.lng}` : null,
-      items: items.map((it) => ({ key: it.key ?? null, name: it.name, qty: it.qty, price: it.price, storeId: it.storeId ?? null })),
+      items: items.map((it) => ({ key: it.key ?? null, name: it.name, qty: it.qty, price: (it.base ?? it.price), mk: it.mk ?? 0, storeId: it.storeId ?? null })),
       subtotal: total,
       total: grand,
     }).then(async (res) => {
@@ -231,6 +235,10 @@ export default function CheckoutModal({ open, onClose, items, total, profile }) 
       // attach the scheduled delivery time (works for guests too)
       if (res?.ok && res.order?.id && scheduledISO) {
         try { await setOrderSchedule(res.order.id, scheduledISO); } catch {}
+      }
+      // 🆕 record the platform-markup portion (owner's margin) — best-effort
+      if (res?.ok && res.order?.id && markupTotal > 0) {
+        try { await setOrderMarkup(res.order.id, markupTotal); } catch {}
       }
       // refresh the cached account so the updated points show next time the drawer opens
       if (res?.ok) reload?.();

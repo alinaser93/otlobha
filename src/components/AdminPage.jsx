@@ -26,7 +26,7 @@ import {
   adminListDriversExt, adminListAdminsExt, adminResetDriverPass, adminResetAdminPass,
   adminSetDriverActive, adminSetAdminActive,
   adminCreateCampaign, adminListCampaigns, adminCustomerSubCount,
-  adminStoreReviews, adminDeleteStoreReview, adminDriverReviews, adminDeleteDriverReview, adminSetProductReviews,
+  adminStoreReviews, adminDeleteStoreReview, adminDriverReviews, adminDeleteDriverReview, adminSetProductReviews, adminMarkupIncome,
 } from '../lib/admin.js';
 import ReviewsModeration from './ReviewsModeration.jsx';
 import {
@@ -40,6 +40,7 @@ import {
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
   adminFinanceReport, adminSettleMerchant, adminSettleDriver,
+  adminSetGlobalMarkup, adminSetStoreMarkup, adminSetCategoryMarkup, adminSetProductMarkup, adminSetBundleMarkup,
   getSettings, adminUpdateSettings, adminSetPointsSettings, adminSetRatingWindow,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
@@ -1008,6 +1009,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
   const [track, setTrack] = useState(product?.stock !== null && product?.stock !== undefined);
   const [stock, setStock] = useState(product?.stock != null ? String(product.stock) : '');
   const [reviewsEnabled, setReviewsEnabled] = useState(product?.reviews_enabled !== false);
+  const [markup, setMarkup] = useState(product?.markup_pct != null ? String(product.markup_pct) : '');
   const [oldPrice, setOldPrice] = useState(product?.old_price ? String(product.old_price) : '');
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(product?.store_id || '');
@@ -1093,6 +1095,7 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
       const pid = r.product?.id || product?.id;
       if (pid && storeId) await adminSetProductStore(admin.id, pid, storeId);
       if (pid) { try { await adminSetProductReviews(admin.id, pid, reviewsEnabled); } catch {} }
+      if (pid) { try { await adminSetProductMarkup(admin.id, pid, markup.trim() === '' ? null : Math.max(0, parseFloat(markup) || 0)); } catch {} }
       setBusy(false);
       onSaved();
     } else {
@@ -1200,6 +1203,15 @@ function ProductForm({ admin, cats, product, onClose, onSaved }) {
         <span className="flex items-center gap-1.5 text-sm font-bold text-ink dark:text-cream"><Star className="h-4 w-4 text-copper" /> السماح بتقييم هذا المنتج</span>
         <input type="checkbox" checked={reviewsEnabled} onChange={(e) => setReviewsEnabled(e.target.checked)} className="h-4 w-4 accent-copper" />
       </label>
+
+      {/* per-product platform markup (owner's margin) */}
+      <div className="rounded-xl border border-ink/10 bg-cream/60 p-3 dark:border-white/10 dark:bg-night-900/40">
+        <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-ink dark:text-cream"><TrendingUp className="h-4 w-4 text-copper" /> هامش المنصّة لهذا المنتج %</div>
+        <input type="number" step="0.5" min="0" max="100" dir="ltr" value={markup} onChange={(e) => setMarkup(e.target.value)}
+          className="w-full rounded-lg border border-ink/10 bg-beige px-3 py-2 text-sm font-bold text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream"
+          placeholder="فارغ = يرث الفئة/المتجر/العام" />
+        <p className="mt-1 text-[10px] leading-snug text-ink/40 dark:text-cream/40">نسبة ربحك المضافة فوق سعر التاجر. اتركه فارغاً ليرث الأعلى، أو 0 لإلغاء الهامش هنا.</p>
+      </div>
 
       {/* description (shown in the product detail popup) */}
       <div>
@@ -1343,6 +1355,7 @@ function CategoryRow({ c, onEdit, onDelete, confirm, setConfirm, onPersist }) {
 function CategoryModal({ admin, category, onClose, onSaved }) {
   const [name, setName] = useState(category.name || '');
   const [emoji, setEmoji] = useState(category.emoji || '');
+  const [markup, setMarkup] = useState(category.markup_pct != null ? String(category.markup_pct) : '');
   const [image, setImage] = useState(category.image || '');
   const [srcFile, setSrcFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -1385,6 +1398,7 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
     const r = await adminUpdateCategory(admin.id, category.id, {
       name: name.trim(), emoji: emoji.trim(), image,
     });
+    try { await adminSetCategoryMarkup(admin.id, category.id, markup.trim() === '' ? null : Math.max(0, parseFloat(markup) || 0)); } catch {}
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr(r?.error === 'exists' ? 'الاسم مستخدم لقسم آخر' : 'تعذّر الحفظ');
@@ -1428,6 +1442,9 @@ function CategoryModal({ admin, category, onClose, onSaved }) {
         </Lbl>
         <Lbl label="إيموجي احتياطي">
           <input className={inp} value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🏷️" />
+        </Lbl>
+        <Lbl label="هامش المنصّة %">
+          <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={markup} onChange={(e) => setMarkup(e.target.value)} placeholder="فارغ = العام" />
         </Lbl>
       </div>
 
@@ -1837,8 +1854,10 @@ function SettingsManager({ admin }) {
       minOrder: Math.max(0, parseInt(s.points_redeem_min_order, 10) || 0),
     });
     await adminSetRatingWindow(admin.id, Math.max(1, parseInt(s.rating_window_days, 10) || 30));
+    const mkVal = Math.max(0, parseFloat(s.markup_pct) || 0);
+    await adminSetGlobalMarkup(admin.id, mkVal);
     setSaving(false);
-    if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
+    if (r?.ok) { setSaved(true); applySettings({ ...r.settings, markup_pct: mkVal }); setTimeout(() => setSaved(false), 2500); }
   }
 
   if (loading) return <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
@@ -1882,6 +1901,15 @@ function SettingsManager({ admin }) {
         <div className="mb-2 flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">العمولة</h3></div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="العمولة الافتراضية" k="default_commission_pct" hint="للمتاجر الجديدة (تقدر تغيّرها لكل متجر)" suffix="%" />
+        </div>
+      </div>
+
+      {/* platform markup (owner's margin) */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">هامش المنصّة (ربحك)</h3></div>
+        <p className="mb-2 text-[11px] leading-snug text-ink/45 dark:text-cream/45">نسبة تُضاف فوق سعر التاجر يدفعها الزبون — ربح <b>إلك إنت</b>، منفصلة عن العمولة. يقدر التاجر يضل يقبض على سعره الأساسي. تقدر تخصّصها لكل متجر/فئة/منتج/باقة (تطغى على العام).</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="الهامش العام" k="markup_pct" hint="على كل السلع افتراضياً · 0 = معطّل" suffix="%" />
         </div>
       </div>
 
@@ -1976,6 +2004,7 @@ function LivePreview({ s }) {
 function EarningsManager({ admin }) {
   const [range, setRange] = useState('all');
   const [data, setData] = useState(null);
+  const [markupIncome, setMarkupIncome] = useState(0);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('merchants'); // merchants | drivers
 
@@ -1989,8 +2018,12 @@ function EarningsManager({ admin }) {
 
   async function load(r) {
     setLoading(true);
-    const res = await adminFinanceReport(admin.id, sinceFor(r));
+    const [res, mk] = await Promise.all([
+      adminFinanceReport(admin.id, sinceFor(r)),
+      adminMarkupIncome(admin.id, sinceFor(r)),
+    ]);
     setData(res?.ok ? res : { ok: false, merchants: [], drivers: [], total_commission: 0, total_delivery: 0, total_driver_fees: 0, net: 0 });
+    setMarkupIncome(mk?.ok ? (mk.markup_income || 0) : 0);
     setLoading(false);
   }
   useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range]);
@@ -2026,12 +2059,12 @@ function EarningsManager({ admin }) {
           {/* net profit hero */}
           <div className="rounded-3xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-cream shadow-card">
             <div className="flex items-center gap-1.5 text-cream/80"><Wallet className="h-4 w-4" /> <span className="text-sm font-bold">صافي ربح اطلبها</span></div>
-            <p className="mt-1 font-display text-4xl font-black">{fmt(data?.net || 0)} <span className="text-lg">د.ع</span></p>
-            <p className="mt-1 text-xs text-cream/70">العمولات + التوصيل − أجور المندوبين · من {data?.orders_count || 0} طلب مُسلّم</p>
+            <p className="mt-1 font-display text-4xl font-black">{fmt((data?.net || 0) + (markupIncome || 0))} <span className="text-lg">د.ع</span></p>
+            <p className="mt-1 text-xs text-cream/70">العمولات + التوصيل + هامش المنصّة − أجور المندوبين · من {data?.orders_count || 0} طلب مُسلّم</p>
           </div>
 
           {/* breakdown cards */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl bg-green-500/10 p-3 ring-1 ring-green-500/20">
               <div className="text-[11px] font-bold text-green-700/80 dark:text-green-300/80">العمولات</div>
               <div className="mt-0.5 font-display text-lg font-black text-green-700 dark:text-green-300">{fmt(data?.total_commission || 0)}</div>
@@ -2039,6 +2072,10 @@ function EarningsManager({ admin }) {
             <div className="rounded-2xl bg-copper/10 p-3 ring-1 ring-copper/20">
               <div className="text-[11px] font-bold text-copper-dark dark:text-copper-light">التوصيل</div>
               <div className="mt-0.5 font-display text-lg font-black text-copper dark:text-copper-light">{fmt(data?.total_delivery || 0)}</div>
+            </div>
+            <div className="rounded-2xl bg-indigo-500/10 p-3 ring-1 ring-indigo-500/20">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-700/80 dark:text-indigo-300/80"><TrendingUp className="h-3 w-3" /> هامش المنصّة</div>
+              <div className="mt-0.5 font-display text-lg font-black text-indigo-700 dark:text-indigo-300">{fmt(markupIncome || 0)}</div>
             </div>
             <div className="rounded-2xl bg-red-500/10 p-3 ring-1 ring-red-500/20">
               <div className="text-[11px] font-bold text-red-600/80 dark:text-red-300/80">أجور المندوبين</div>
@@ -2269,6 +2306,7 @@ function StoreModal({ admin, store, onClose, onSaved }) {
   const [phone, setPhone] = useState(store.phone || '');
   const [rating, setRating] = useState(store.rating != null ? String(store.rating) : '');
   const [commission, setCommission] = useState(store.commission_pct != null ? String(store.commission_pct) : '15');
+  const [markup, setMarkup] = useState(store.markup_pct != null ? String(store.markup_pct) : '');
   const [logo, setLogo] = useState(store.logo || '');
   const [cover, setCover] = useState(store.cover || '');
   const [coverVideo, setCoverVideo] = useState(store.cover_video || store.coverVideo || '');
@@ -2339,6 +2377,8 @@ function StoreModal({ admin, store, onClose, onSaved }) {
     });
     // save commission rate (best-effort, separate RPC)
     await adminSetStoreCommission(admin.id, store.id, commission === '' ? 15 : Math.min(100, Math.max(0, parseFloat(commission) || 0)));
+    // save platform markup (empty = inherit global)
+    await adminSetStoreMarkup(admin.id, store.id, markup.trim() === '' ? null : Math.max(0, parseFloat(markup) || 0));
     setBusy(false);
     if (r?.ok) onSaved();
     else setErr(r?.error === 'exists' ? 'الاسم مستخدم لمتجر آخر' : 'تعذّر الحفظ');
@@ -2414,6 +2454,9 @@ function StoreModal({ admin, store, onClose, onSaved }) {
         </Lbl>
         <Lbl label="نسبة عمولتك % (ربحك من المتجر)">
           <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={commission} onChange={(e) => setCommission(e.target.value)} placeholder="15" />
+        </Lbl>
+        <Lbl label="هامش المنصّة % (يُضاف فوق السعر)">
+          <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={markup} onChange={(e) => setMarkup(e.target.value)} placeholder="فارغ = العام" />
         </Lbl>
         <Lbl label="هاتف المتجر (اختياري)" full>
           <input dir="ltr" className={inp} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07XXXXXXXXX" />
@@ -2672,6 +2715,7 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
   });
   const [image, setImage] = useState(bundle?.image || '');
   const [season, setSeason] = useState(bundle?.season || '');
+  const [markup, setMarkup] = useState(bundle?.markup_pct != null ? String(bundle.markup_pct) : '');
   const [ingredients, setIngredients] = useState(
     Array.isArray(bundle?.ingredients) && bundle.ingredients.length
       ? bundle.ingredients.map((x) => ({ name: x?.name || '', qty: x?.qty ?? 1, unit: x?.unit || '', emoji: x?.emoji || '🛒', image: x?.image || '' }))
@@ -2741,6 +2785,7 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
     if (r?.ok) {
       const id = bundle ? bundle.id : r.bundle?.id;
       if (id) await adminSetBundleSeason(admin.id, id, season || '');
+      if (id) { try { await adminSetBundleMarkup(admin.id, id, markup.trim() === '' ? null : Math.max(0, parseFloat(markup) || 0)); } catch {} }
     }
     setBusy(false);
     if (r?.ok) onSaved();
@@ -2797,6 +2842,9 @@ function BundleForm({ admin, bundle, onClose, onSaved }) {
         </Lbl>
         <Lbl label="السعر قبل الخصم (اختياري)">
           <input type="number" inputMode="numeric" className={inp} value={f.old_price} onChange={set('old_price')} placeholder="بدون خصم" dir="ltr" />
+        </Lbl>
+        <Lbl label="هامش المنصّة %">
+          <input type="number" step="0.5" min="0" max="100" dir="ltr" className={inp} value={markup} onChange={(e) => setMarkup(e.target.value)} placeholder="فارغ = العام" />
         </Lbl>
         <Lbl label="لون الباقة">
           <input type="color" value={f.accent} onChange={set('accent')}

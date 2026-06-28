@@ -20,10 +20,11 @@ export const SETTINGS = {
   driver_fee_base: 1500,            // أجرة المندوب لكل توصيل
   driver_fee_per_extra_store: 500,  // يُضاف لأجرة المندوب لكل متجر إضافي
   default_commission_pct: 15,       // العمولة الافتراضية للمتاجر الجديدة
+  markup_pct: 0,                    // 🆕 هامش المنصّة العام (نسبة ربحك فوق سعر التاجر) — 0 = معطّل
   whatsapp_number: '9647748600445', // رقم واتساب استلام الطلبات/الاستفسارات
 };
 
-const NUMERIC_KEYS = ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct', 'points_dinar_per_point', 'points_redeem_max_pct', 'points_redeem_min_order'];
+const NUMERIC_KEYS = ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct', 'points_dinar_per_point', 'points_redeem_max_pct', 'points_redeem_min_order', 'markup_pct'];
 
 // يدمج إعدادات قادمة من الخادم في الكائن الحيّ (يُستدعى عند الإقلاع وبعد أي تعديل)
 export function applySettings(s) {
@@ -48,6 +49,21 @@ export function calcDelivery(total, storeCount = 1) {
   if (s.free_delivery_over > 0 && total >= s.free_delivery_over) return 0;
   const extra = Math.max(0, (storeCount || 1) - 1) * s.delivery_extra_store;
   return Math.min(s.delivery_fee + extra, s.delivery_fee_cap);
+}
+
+// 🆕 هامش المنصّة — يحلّ النسبة الفعّالة (الأخصّ يفوز، null/فارغ = يرث الأعلى)
+//   الترتيب: منتج → فئة → متجر → العام. يُستعمل للمنتجات (مرّر الثلاثة) وللباقات (مرّر منتج=هامش الباقة + متجر).
+export function effectiveMarkup({ product, category, store } = {}) {
+  const pick = [product, category, store].find((v) => v !== null && v !== undefined && v !== '');
+  const pct = pick !== null && pick !== undefined && pick !== '' ? Number(pick) : Number(SETTINGS.markup_pct || 0);
+  return Number.isFinite(pct) && pct > 0 ? pct : 0;
+}
+
+// يطبّق النسبة على السعر الأساسي ويقرّب لأقرب دينار
+export function withMarkup(basePrice, pct) {
+  const b = Number(basePrice) || 0;
+  if (!pct || pct <= 0) return b;
+  return Math.round(b * (1 + pct / 100));
 }
 
 // 📍 مناطق/أحياء السماوة وأقضيتها — أضِف أو احذف بحرية

@@ -1,9 +1,25 @@
 // (no lucide icons used here)
 
 const COLS = [
-  { h: 'تسوّق', l: ['الخضار', 'الفواكه', 'المؤونة', 'الحلويات', 'الباقات الذكية'] },
-  { h: 'اطلبها', l: ['من نحن', 'مناطق التوصيل', 'الوظائف', 'تواصل معنا'] },
-  { h: 'المساعدة', l: ['الأسئلة الشائعة', 'سياسة الإرجاع', 'الخصوصية', 'الشروط'] },
+  { h: 'تسوّق', l: [
+    ['خضار', `/c/${encodeURIComponent('خضار')}`],
+    ['فواكه', `/c/${encodeURIComponent('فواكه')}`],
+    ['مؤونة', `/c/${encodeURIComponent('مؤونة')}`],
+    ['حلويات', `/c/${encodeURIComponent('حلويات')}`],
+    ['الباقات الذكية', '/'],
+  ] },
+  { h: 'اطلبها', l: [
+    ['من نحن', '/about'],
+    ['مناطق التوصيل', '/delivery'],
+    ['الوظائف', '/careers'],
+    ['تواصل معنا', '/contact'],
+  ] },
+  { h: 'المساعدة', l: [
+    ['الأسئلة الشائعة', '/faq'],
+    ['سياسة الإرجاع', '/returns'],
+    ['الخصوصية', '/privacy'],
+    ['الشروط', '/terms'],
+  ] },
 ];
 
 export default function Footer() {
@@ -38,10 +54,10 @@ export default function Footer() {
             <div key={c.h}>
               <h4 className="font-display text-lg font-bold text-cream">{c.h}</h4>
               <ul className="mt-3 space-y-2 font-body text-sm">
-                {c.l.map((x) => (
-                  <li key={x}>
-                    <a href="#" className="transition hover:text-copper-light">
-                      {x}
+                {c.l.map(([t, href]) => (
+                  <li key={t}>
+                    <a href={href} className="transition hover:text-copper-light">
+                      {t}
                     </a>
                   </li>
                 ))}
@@ -51,7 +67,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-cream/10 py-6 font-body text-sm text-cream/50 sm:flex-row">
-          <span>© ٢٠٢٥ اطلبها · Otlobha — جميع الحقوق محفوظة</span>
+          <span>© ٢٠٢٦ اطلبها · Otlobha — جميع الحقوق محفوظة</span>
           <span className="flex items-center gap-3">
             <span className="rounded-lg bg-cream/10 px-3 py-1.5">دفع عند الاستلام</span>
             <span className="rounded-lg bg-cream/10 px-3 py-1.5">Mastercard</span>

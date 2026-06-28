@@ -106,3 +106,7 @@ export const adminDeleteDriverReview = (adminId, orderId) =>
   rpc('admin_delete_driver_review', { p_admin_id: adminId, p_order_id: orderId });
 export const adminSetProductReviews = (adminId, productId, enabled) =>
   rpc('admin_set_product_reviews', { p_admin_id: adminId, p_product_id: productId, p_enabled: enabled });
+
+// 🆕 إجمالي ربح الهامش المضاف خلال فترة (لوحة المالية)
+export const adminMarkupIncome = (adminId, since = null) =>
+  rpc('admin_markup_income', { p_admin_id: adminId, p_since: since || null });
