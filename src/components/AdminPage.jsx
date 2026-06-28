@@ -4,7 +4,7 @@ import {
   Lock, LogOut, RefreshCw, Loader2, Package, Clock, MapPin, Phone,
   MessageCircle, Navigation, UserPlus, Trash2, Users, Check, X,
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
-  Plus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
+  Plus, Minus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
   Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing, Home, Tag,
 } from 'lucide-react';
 import { useOrderChime } from '../lib/alerts.js';
@@ -38,11 +38,14 @@ import {
   adminReorderStores, adminSetProductStore, adminSetStoreCredentials,
   adminSetStoreCommission, adminCommissionReport,
   adminFinanceReport, adminSettleMerchant, adminSettleDriver,
-  getSettings, adminUpdateSettings,
+  getSettings, adminUpdateSettings, adminSetPointsSettings, adminSetRatingWindow,
 } from '../lib/products.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
 import { cleanProductImage } from '../lib/bgremove.js';
+import { applySettings, POINTS } from '../config.js';
+import { adminListCoupons, adminUpsertCoupon, adminSetCouponActive, adminDeleteCoupon, couponError } from '../lib/coupons.js';
+import { adminAdjustWallet } from '../lib/wallet.js';
 
 const STATUS = {
   new: { label: 'جديد', dot: 'bg-amber-400', chip: 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300', glow: 'bg-amber-400/40' },
@@ -280,7 +283,7 @@ function Dashboard({ admin, onOut }) {
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5">
         {/* section navigation */}
         <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
+          {[['orders', 'الطلبات', ShoppingBag], ['catalog', 'الكتالوج', Boxes], ['stores', 'المتاجر', StoreIcon], ['finance', 'المالية', Wallet], ['people', 'المستخدمون', Users], ['coupons', 'كوبونات', Tag], ['campaigns', 'الإشعارات', BellRing], ['settings', 'الإعدادات', SlidersHorizontal], ['profile', 'حسابي', KeyRound]].map(([k, label, Icon]) => (
             <button key={k} onClick={() => setSection(k)}
               className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition ${section === k ? 'bg-copper text-cream shadow-soft' : 'bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60'}`}>
               <Icon className="h-4 w-4" /> {label}
@@ -360,6 +363,7 @@ function Dashboard({ admin, onOut }) {
         {section === 'stores' && <SectionCard><StoresManager admin={admin} /></SectionCard>}
         {section === 'finance' && <SectionCard><EarningsManager admin={admin} /></SectionCard>}
         {section === 'people' && <SectionCard><PeopleSection admin={admin} onChange={load} /></SectionCard>}
+        {section === 'coupons' && <SectionCard><CouponsManager admin={admin} /></SectionCard>}
         {section === 'settings' && <SectionCard><SettingsManager admin={admin} /></SectionCard>}
         {section === 'campaigns' && <SectionCard><CampaignsManager admin={admin} /></SectionCard>}
         {section === 'profile' && (
@@ -729,6 +733,9 @@ function DriversManager({ admin, onChange }) {
                 <span className="font-bold">{d.name || d.username}</span>
                 <span className="mr-2 text-ink/40 dark:text-cream/40">@{d.username}</span>
                 {d.phone && <span className="mr-2 text-ink/50 dark:text-cream/50" dir="ltr">{d.phone}</span>}
+                {d.rating_count > 0 && (
+                  <span className="mr-2 inline-flex items-center gap-0.5 font-bold text-amber-500"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {(d.rating_sum / d.rating_count).toFixed(1)} <span className="font-normal text-ink/40 dark:text-cream/40">({d.rating_count})</span></span>
+                )}
               </div>
               <button onClick={() => remove(d.id)} className="grid h-7 w-7 place-items-center rounded-lg bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20">
                 <Trash2 className="h-3.5 w-3.5" />
@@ -1568,6 +1575,189 @@ function CampaignsManager({ admin }) {
   );
 }
 
+function CouponForm({ admin, coupon, onDone, onCancel }) {
+  const [f, setF] = useState({
+    code: coupon?.code || '',
+    kind: coupon?.kind || 'percent',
+    value: coupon?.value ?? 10,
+    minOrder: coupon?.min_order ?? 0,
+    maxDiscount: coupon?.max_discount ?? 0,
+    usageLimit: coupon?.usage_limit ?? 0,
+    perUserLimit: coupon?.per_user_limit ?? 1,
+    expiresAt: coupon?.expires_at ? String(coupon.expires_at).slice(0, 10) : '',
+    active: coupon?.active ?? true,
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => { setF((p) => ({ ...p, [k]: e.target.value })); setErr(''); };
+
+  async function save() {
+    if (!f.code.trim()) { setErr('اكتب كود الكوبون'); return; }
+    setBusy(true); setErr('');
+    const r = await adminUpsertCoupon(admin.id, {
+      id: coupon?.id || null,
+      code: f.code.trim().toUpperCase(),
+      kind: f.kind,
+      value: Math.max(0, parseInt(f.value, 10) || 0),
+      minOrder: Math.max(0, parseInt(f.minOrder, 10) || 0),
+      maxDiscount: Math.max(0, parseInt(f.maxDiscount, 10) || 0),
+      usageLimit: Math.max(0, parseInt(f.usageLimit, 10) || 0),
+      perUserLimit: Math.max(0, parseInt(f.perUserLimit, 10) || 0),
+      expiresAt: f.expiresAt ? f.expiresAt : null,
+      active: !!f.active,
+    });
+    setBusy(false);
+    if (r?.ok) onDone(); else setErr(couponError(r?.error));
+  }
+
+  const inp = 'w-full rounded-xl border border-ink/10 bg-beige px-3 py-2.5 text-sm font-bold text-ink outline-none focus:border-copper dark:border-white/10 dark:bg-night-900 dark:text-cream';
+  const lbl = 'mb-1 block text-[12px] font-bold text-ink/60 dark:text-cream/60';
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onCancel} className="grid h-8 w-8 place-items-center rounded-lg bg-ink/5 text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60"><X className="h-4 w-4" /></button>
+        <h3 className="font-display text-base font-black text-ink dark:text-cream">{coupon ? 'تعديل كوبون' : 'كوبون جديد'}</h3>
+      </div>
+
+      <div>
+        <label className={lbl}>الكود</label>
+        <input value={f.code} onChange={set('code')} dir="ltr" placeholder="مثلاً WELCOME10"
+          className={inp + ' text-center uppercase tracking-widest'} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={lbl}>نوع الخصم</label>
+          <select value={f.kind} onChange={set('kind')} className={inp}>
+            <option value="percent">نسبة %</option>
+            <option value="fixed">مبلغ ثابت</option>
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>{f.kind === 'percent' ? 'النسبة (%)' : 'المبلغ (د.ع)'}</label>
+          <input type="number" dir="ltr" inputMode="numeric" value={f.value} onChange={set('value')} className={inp} />
+        </div>
+        <div>
+          <label className={lbl}>أقل طلب (د.ع)</label>
+          <input type="number" dir="ltr" inputMode="numeric" value={f.minOrder} onChange={set('minOrder')} className={inp} />
+        </div>
+        {f.kind === 'percent' && (
+          <div>
+            <label className={lbl}>سقف الخصم (د.ع)</label>
+            <input type="number" dir="ltr" inputMode="numeric" value={f.maxDiscount} onChange={set('maxDiscount')} className={inp} />
+            <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">0 = بلا سقف</p>
+          </div>
+        )}
+        <div>
+          <label className={lbl}>حدّ الاستخدام الكلي</label>
+          <input type="number" dir="ltr" inputMode="numeric" value={f.usageLimit} onChange={set('usageLimit')} className={inp} />
+          <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">0 = بلا حدّ</p>
+        </div>
+        <div>
+          <label className={lbl}>لكل زبون</label>
+          <input type="number" dir="ltr" inputMode="numeric" value={f.perUserLimit} onChange={set('perUserLimit')} className={inp} />
+          <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">0 = بلا حدّ</p>
+        </div>
+        <div>
+          <label className={lbl}>تاريخ الانتهاء (اختياري)</label>
+          <input type="date" dir="ltr" value={f.expiresAt} onChange={set('expiresAt')} className={inp} />
+        </div>
+      </div>
+
+      <label className="flex items-center justify-between rounded-xl bg-ink/5 px-3 py-2.5 dark:bg-white/5">
+        <span className="text-sm font-bold text-ink/70 dark:text-cream/70">مُفعّل</span>
+        <input type="checkbox" checked={f.active} onChange={(e) => setF((p) => ({ ...p, active: e.target.checked }))} className="h-5 w-5 accent-copper" />
+      </label>
+
+      {err && <p className="flex items-center gap-1 text-sm font-bold text-red-500"><X className="h-4 w-4" /> {err}</p>}
+
+      <button onClick={save} disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-cream shadow-soft transition hover:bg-copper-dark disabled:opacity-60">
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} {coupon ? 'حفظ التعديلات' : 'إنشاء الكوبون'}
+      </button>
+    </div>
+  );
+}
+
+function CouponsManager({ admin }) {
+  const [list, setList] = useState(null);
+  const [editing, setEditing] = useState(null); // null | 'new' | couponObject
+  const [busyId, setBusyId] = useState(null);
+
+  const load = () => adminListCoupons(admin.id).then((r) => setList(r?.ok ? (r.coupons || []) : []));
+  useEffect(() => { load(); }, []);
+
+  async function toggle(c) { setBusyId(c.id); await adminSetCouponActive(admin.id, c.id, !c.active); await load(); setBusyId(null); }
+  async function remove(c) {
+    if (!window.confirm(`حذف الكوبون ${c.code}؟`)) return;
+    setBusyId(c.id); await adminDeleteCoupon(admin.id, c.id); await load(); setBusyId(null);
+  }
+
+  if (list === null) return <div className="flex items-center justify-center gap-2 py-12 text-ink/50 dark:text-cream/50"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحميل…</div>;
+  if (editing) return <CouponForm admin={admin} coupon={editing === 'new' ? null : editing} onDone={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />;
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-display text-base font-black text-ink dark:text-cream">الكوبونات {list.length > 0 && <span className="text-ink/40 dark:text-cream/40">({list.length})</span>}</h3>
+        <button onClick={() => setEditing('new')} className="flex items-center gap-1.5 rounded-xl bg-copper px-3.5 py-2 font-display text-sm font-bold text-cream shadow-soft transition hover:bg-copper-dark">
+          <Plus className="h-4 w-4" /> كوبون جديد
+        </button>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink/15 py-12 text-center dark:border-white/15">
+          <Tag className="mx-auto h-8 w-8 text-ink/25 dark:text-cream/25" />
+          <p className="mt-2 font-display font-bold text-ink/60 dark:text-cream/60">ماكو كوبونات بعد</p>
+          <p className="mt-1 text-sm text-ink/40 dark:text-cream/40">أنشئ كوبون أول حتى يستخدمه زبائنك عند الدفع</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {list.map((c) => {
+            const expired = c.expires_at && new Date(c.expires_at) < new Date();
+            return (
+              <div key={c.id} className={`rounded-2xl bg-cream p-3.5 ring-1 shadow-soft dark:bg-night-800 ${c.active && !expired ? 'ring-brand-900/5 dark:ring-white/10' : 'ring-ink/10 opacity-70 dark:ring-white/10'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-lg font-black tracking-wider text-copper-dark dark:text-copper-light" dir="ltr">{c.code}</span>
+                      <span className="rounded-full bg-brand-800/10 px-2 py-0.5 text-[11px] font-bold text-brand-800 dark:bg-brand-600/20 dark:text-brand-300">
+                        {c.kind === 'percent' ? `${c.value}%` : `${fmt(c.value)} د.ع`}
+                      </span>
+                      {(!c.active || expired) && <span className="rounded-full bg-ink/10 px-2 py-0.5 text-[10px] font-bold text-ink/50 dark:bg-white/10 dark:text-cream/50">{expired ? 'منتهٍ' : 'متوقّف'}</span>}
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink/50 dark:text-cream/50">
+                      {c.min_order > 0 && <>أقل طلب {fmt(c.min_order)} د.ع · </>}
+                      {c.kind === 'percent' && c.max_discount > 0 && <>سقف {fmt(c.max_discount)} د.ع · </>}
+                      استُخدم {c.used_count}{c.usage_limit > 0 ? `/${c.usage_limit}` : ''} مرّة
+                      {c.per_user_limit > 0 && <> · {c.per_user_limit} لكل زبون</>}
+                      {c.expires_at && <> · ينتهي {String(c.expires_at).slice(0, 10)}</>}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-center gap-2 border-t border-ink/5 pt-2.5 dark:border-white/5">
+                  <button onClick={() => toggle(c)} disabled={busyId === c.id}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition disabled:opacity-50 ${c.active ? 'bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-ink/5 text-ink/50 dark:bg-white/10 dark:text-cream/50'}`}>
+                    {busyId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : c.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                    {c.active ? 'مُفعّل' : 'متوقّف'}
+                  </button>
+                  <button onClick={() => setEditing(c)} className="flex items-center gap-1 rounded-lg bg-ink/5 px-2.5 py-1.5 text-[12px] font-bold text-ink/60 hover:bg-ink/10 dark:bg-white/10 dark:text-cream/60">
+                    <Pencil className="h-3.5 w-3.5" /> تعديل
+                  </button>
+                  <button onClick={() => remove(c)} disabled={busyId === c.id} className="ml-auto flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300">
+                    <Trash2 className="h-3.5 w-3.5" /> حذف
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsManager({ admin }) {
   const [s, setS] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1575,7 +1765,15 @@ function SettingsManager({ admin }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    getSettings().then((r) => { setS(r || {}); setLoading(false); });
+    getSettings().then((r) => {
+      const v = { ...(r || {}) };
+      if (v.points_dinar_per_point == null) v.points_dinar_per_point = POINTS.redeemDinarPerPoint;
+      if (v.points_redeem_max_pct == null) v.points_redeem_max_pct = POINTS.redeemMaxPct;
+      if (v.points_redeem_min_order == null) v.points_redeem_min_order = POINTS.redeemMinOrder;
+      if (v.rating_window_days == null) v.rating_window_days = 30;
+      setS(v);
+      setLoading(false);
+    });
   }, []);
 
   const set = (k) => (e) => { setS((prev) => ({ ...prev, [k]: e.target.value })); setSaved(false); };
@@ -1588,6 +1786,13 @@ function SettingsManager({ admin }) {
     }
     payload.whatsapp_number = (s.whatsapp_number || '').replace(/[^\d]/g, '');
     const r = await adminUpdateSettings(admin.id, payload);
+    // also persist loyalty-points redemption settings (self-contained RPC)
+    await adminSetPointsSettings(admin.id, {
+      dinarPerPoint: Math.max(1, parseInt(s.points_dinar_per_point, 10) || 1),
+      maxPct: Math.min(100, Math.max(0, parseInt(s.points_redeem_max_pct, 10) || 0)),
+      minOrder: Math.max(0, parseInt(s.points_redeem_min_order, 10) || 0),
+    });
+    await adminSetRatingWindow(admin.id, Math.max(1, parseInt(s.rating_window_days, 10) || 30));
     setSaving(false);
     if (r?.ok) { setSaved(true); applySettings(r.settings); setTimeout(() => setSaved(false), 2500); }
   }
@@ -1633,6 +1838,26 @@ function SettingsManager({ admin }) {
         <div className="mb-2 flex items-center gap-2"><Wallet className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">العمولة</h3></div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="العمولة الافتراضية" k="default_commission_pct" hint="للمتاجر الجديدة (تقدر تغيّرها لكل متجر)" suffix="%" />
+        </div>
+      </div>
+
+      {/* loyalty points redemption */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Sparkles className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">استبدال نقاط الولاء</h3></div>
+        <p className="mb-2 text-[11px] leading-snug text-ink/45 dark:text-cream/45">الزبون يكسب نقطة لكل {POINTS.dinarsPerEarnedPoint} د.ع تلقائياً، و يستبدلها خصماً عند الدفع حسب هذه القيم.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="قيمة النقطة" k="points_dinar_per_point" hint="كم دينار خصم لكل نقطة" suffix="د.ع" />
+          <Field label="أقصى خصم من الطلب" k="points_redeem_max_pct" hint="أعلى نسبة من الطلب تُدفع بالنقاط" suffix="%" />
+          <Field label="أقل طلب للاستبدال" k="points_redeem_min_order" hint="لا استبدال تحت هذا المبلغ" suffix="د.ع" />
+        </div>
+      </div>
+
+      {/* verified ratings */}
+      <div>
+        <div className="mb-2 flex items-center gap-2"><Star className="h-4 w-4 text-copper" /><h3 className="font-display text-sm font-black text-ink dark:text-cream">التقييمات الموثّقة</h3></div>
+        <p className="mb-2 text-[11px] leading-snug text-ink/45 dark:text-cream/45">التقييم متاح فقط للزبون الذي طلب فعلاً، بعد التوصيل، خلال هذه المدة من تاريخ الطلب. (المتاجر الكبرى تعطي مدة واسعة — لا يُنصح بدقائق معدودة لأنها تقتل عدد التقييمات.)</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="نافذة التقييم" k="rating_window_days" hint="كم يوم يبقى التقييم مفتوحاً بعد الطلب" suffix="يوم" />
         </div>
       </div>
 
@@ -2729,6 +2954,22 @@ function AccountEditModal({ admin, account, onClose, onSaved }) {
   const [err, setErr] = useState('');
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
+  // wallet credit adjuster
+  const [walletBal, setWalletBal] = useState(account.wallet_balance ?? 0);
+  const [wAmt, setWAmt] = useState('');
+  const [wReason, setWReason] = useState('');
+  const [wBusy, setWBusy] = useState(false);
+  const [wMsg, setWMsg] = useState('');
+  async function adjustWallet(sign) {
+    const amt = Math.abs(parseInt(wAmt, 10) || 0);
+    if (!amt) { setWMsg('اكتب مبلغاً'); return; }
+    setWBusy(true); setWMsg('');
+    const r = await adminAdjustWallet(admin.id, account.id, sign * amt, wReason.trim());
+    setWBusy(false);
+    if (r?.ok) { setWalletBal(r.balance); setWAmt(''); setWReason(''); setWMsg('تم ✓'); setTimeout(() => setWMsg(''), 2000); }
+    else setWMsg(r?.error === 'insufficient' ? 'الرصيد لا يكفي للخصم' : 'تعذّر التعديل');
+  }
+
   async function save() {
     if (!f.phone.trim()) { setErr('رقم الهاتف مطلوب'); return; }
     setBusy(true); setErr('');
@@ -2766,6 +3007,25 @@ function AccountEditModal({ admin, account, onClose, onSaved }) {
         <Lbl label="تاريخ الميلاد"><input type="date" dir="ltr" className={inp} value={f.birthdate || ''} onChange={set('birthdate')} /></Lbl>
         <Lbl label="ملاحظات (خاصة بك)" full><textarea rows={2} className={inp} value={f.notes} onChange={set('notes')} /></Lbl>
       </div>
+
+      {/* wallet credit */}
+      <div className="rounded-xl bg-brand-800/5 p-3 ring-1 ring-brand-800/10 dark:bg-white/5">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 font-display text-sm font-black text-ink dark:text-cream"><Wallet className="h-4 w-4 text-copper" /> محفظة الرصيد</span>
+          <span className="font-display text-lg font-black text-brand-800 dark:text-brand-300">{fmt(walletBal)} د.ع</span>
+        </div>
+        <div className="flex gap-2">
+          <input type="number" dir="ltr" inputMode="numeric" value={wAmt} onChange={(e) => setWAmt(e.target.value)} placeholder="المبلغ" className={inp} />
+          <input value={wReason} onChange={(e) => setWReason(e.target.value)} placeholder="السبب (اختياري)" className={inp} />
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button type="button" onClick={() => adjustWallet(1)} disabled={wBusy} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-green-600 py-2 text-[13px] font-bold text-white hover:bg-green-700 disabled:opacity-60">{wBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} إضافة رصيد</button>
+          <button type="button" onClick={() => adjustWallet(-1)} disabled={wBusy} className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-ink/10 py-2 text-[13px] font-bold text-ink/70 hover:bg-ink/15 dark:bg-white/10 dark:text-cream/70"><Minus className="h-3.5 w-3.5" /> خصم</button>
+        </div>
+        {wMsg && <p className="mt-1.5 text-[12px] font-bold text-brand-700 dark:text-brand-300">{wMsg}</p>}
+        <p className="mt-1 text-[10px] text-ink/40 dark:text-cream/40">للإرجاعات والتعويضات — الزبون يصرفه عند الدفع.</p>
+      </div>
+
       {err && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">{err}</div>}
       <div className="flex gap-2">
         <button onClick={save} disabled={busy} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-copper py-3 font-display font-bold text-ink dark:text-cream hover:bg-copper-dark disabled:opacity-60">

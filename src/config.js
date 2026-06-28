@@ -23,7 +23,7 @@ export const SETTINGS = {
   whatsapp_number: '9647748600445', // رقم واتساب استلام الطلبات/الاستفسارات
 };
 
-const NUMERIC_KEYS = ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct'];
+const NUMERIC_KEYS = ['delivery_fee', 'delivery_extra_store', 'delivery_fee_cap', 'free_delivery_over', 'driver_fee_base', 'driver_fee_per_extra_store', 'default_commission_pct', 'points_dinar_per_point', 'points_redeem_max_pct', 'points_redeem_min_order'];
 
 // يدمج إعدادات قادمة من الخادم في الكائن الحيّ (يُستدعى عند الإقلاع وبعد أي تعديل)
 export function applySettings(s) {
@@ -105,4 +105,8 @@ export const POINTS = {
   referralInvitee: 5000,  // للمدعو الجديد
   dinarPerPoint: 1,       // قيمة النقطة بالدينار (عرض فقط)
   dinarsPerEarnedPoint: 100, // يكسب الزبون نقطة لكل 100 دينار من قيمة الطلب
+  // ── الاستبدال (قيم افتراضية؛ يضبطها الأدمن من الإعدادات وتُقرأ من app_settings) ──
+  redeemDinarPerPoint: 1, // قيمة النقطة بالدينار عند الاستبدال خصماً
+  redeemMaxPct: 50,       // أقصى نسبة من الطلب تُدفع بالنقاط
+  redeemMinOrder: 5000,   // أقل قيمة طلب للاستبدال
 };

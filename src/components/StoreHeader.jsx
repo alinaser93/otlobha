@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Heart, ChevronRight, Phone, BadgeCheck, Users, QrCode } from 'lucide-react';
 import { Stars } from './StoresSection.jsx';
-import { RatingModal } from './StoreRating.jsx';
 
 const CAT_EMOJI = {
   بقالة: '🛒', مخبز: '🥖', مطعم: '🍽️', خضار: '🥬',
@@ -22,17 +21,11 @@ import QRModal from './QRModal.jsx';
 import { storeStatus } from '../lib/storeHours.js';
 
 export default function StoreHeader({ store, count = 0, onBack, account = null, onRequireLogin, onRated, followIds = [], onToggleFollow }) {
-  const [rateOpen, setRateOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   if (!store) return null;
   const followed = followIds.includes(store.id);
   const phone = (store.phone || '').replace(/[^\d]/g, '');
   const st = storeStatus(store);
-
-  function openRate() {
-    if (account?.id) setRateOpen(true);
-    else onRequireLogin?.();
-  }
 
   return (
     <motion.div
@@ -61,12 +54,8 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
           <ChevronRight className="h-4 w-4" /> كل المتاجر
         </button>
 
-        {/* follow + rate + share */}
+        {/* follow + share */}
         <div className="absolute left-4 top-4 flex items-center gap-2">
-          <button onClick={openRate}
-            className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1.5 text-sm font-bold text-ink shadow-soft transition hover:bg-amber-300">
-            <Star className="h-4 w-4 fill-ink" /> قيّم
-          </button>
           <button onClick={() => onToggleFollow?.(store.id)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold backdrop-blur transition ${
               followed ? 'bg-red-500 text-white' : 'bg-white/90 text-ink hover:bg-white'
@@ -82,9 +71,6 @@ export default function StoreHeader({ store, count = 0, onBack, account = null, 
         </div>
       </div>
 
-      {rateOpen && (
-        <RatingModal store={store} account={account} onClose={() => setRateOpen(false)} onRated={onRated} />
-      )}
       {qrOpen && (
         <QRModal path={`/s/${store.name}`} title={store.name} subtitle={store.tagline || 'متجر في اطلبها'} onClose={() => setQrOpen(false)} />
       )}

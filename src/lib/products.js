@@ -137,6 +137,20 @@ export const storeMyRating = (accountId, storeId) =>
 export const storeRatingsList = (storeId, limit = 20) =>
   rpc('store_ratings_list', { p_store_id: storeId, p_limit: limit });
 
+// verified store reviews (only from real buyers, post-delivery)
+export const storeReviewsVerified = (storeId, limit = 20) =>
+  rpc('store_reviews_v_list', { p_store_id: storeId, p_limit: limit });
+
+/* ───────────────────────── product ratings (customer) ───────────────────────── */
+export const productRate = (accountId, productId, stars, comment) =>
+  rpc('product_rate', { p_account_id: accountId, p_product_id: productId, p_stars: stars, p_comment: comment ?? null });
+
+export const productMyRating = (accountId, productId) =>
+  rpc('product_my_rating', { p_account_id: accountId, p_product_id: productId });
+
+export const productRatingsList = (productId, limit = 20) =>
+  rpc('product_ratings_list', { p_product_id: productId, p_limit: limit });
+
 /* ───────────────────────── store follows (customer) ───────────────────────── */
 export const storeToggleFollow = (accountId, storeId) =>
   rpc('store_toggle_follow', { p_account_id: accountId, p_store_id: storeId });
@@ -169,6 +183,19 @@ export const adminUpdateSettings = (adminId, s = {}) =>
     p_default_commission_pct: s.default_commission_pct ?? null,
     p_whatsapp_number: s.whatsapp_number ?? null,
   });
+
+// loyalty-points redemption settings (self-contained admin RPC)
+export const adminSetPointsSettings = (adminId, f = {}) =>
+  rpc('admin_set_points_settings', {
+    p_admin_id: adminId,
+    p_dinar_per_point: f.dinarPerPoint ?? null,
+    p_max_pct: f.maxPct ?? null,
+    p_min_order: f.minOrder ?? null,
+  });
+
+// rating window (days) — how long after an order the customer can rate
+export const adminSetRatingWindow = (adminId, days) =>
+  rpc('admin_set_rating_window', { p_admin_id: adminId, p_days: days });
 
 /* ───────────────────────── finance (admin) ───────────────────────── */
 export const adminFinanceReport = (adminId, since = null) =>
@@ -265,6 +292,8 @@ export async function fetchStoreCatalog() {
         tint: r.tint || '#9A5318',
         description: r.description || '',
         sold: soldMap[r.name] || 0,
+        rating: Number(r.rating) || 0,
+        ratingCount: r.rating_count || 0,
         oldPrice,
         stock,
         discountPct: pct,

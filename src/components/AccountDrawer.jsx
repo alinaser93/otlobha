@@ -11,6 +11,8 @@ import { CodeInput, SuccessCheck } from './CodeInput.jsx';
 import { AREAS, CITY, POINTS } from '../config.js';
 import { fmt } from '../data/catalog.js';
 import { listMyOrders } from '../lib/orders.js';
+import OrderRating from './OrderRating.jsx';
+import { accountWallet } from '../lib/wallet.js';
 
 export default function AccountDrawer({ open, onClose, onReorder }) {
   const { account, updateProfile, logout, changePin } = useAuth();
@@ -21,6 +23,16 @@ export default function AccountDrawer({ open, onClose, onReorder }) {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  const [wallet, setWallet] = useState(null); // { balance, transactions }
+
+  // load the customer's wallet whenever the drawer opens
+  useEffect(() => {
+    let alive = true;
+    if (open && account?.id) {
+      accountWallet(account.id).then((r) => { if (alive && r?.ok) setWallet({ balance: Number(r.balance) || 0, transactions: r.transactions || [] }); });
+    }
+    return () => { alive = false; };
+  }, [open, account?.id]);
 
   // load the customer's past orders whenever the drawer opens
   useEffect(() => {
@@ -154,7 +166,36 @@ export default function AccountDrawer({ open, onClose, onReorder }) {
                 <div className="mt-1 font-body text-xs text-cream/60">
                   ≈ {(points * POINTS.dinarPerPoint).toLocaleString('en')} د.ع رصيد
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2 font-body text-[11px]">
+                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-cream/85">تكسب نقطة لكل {POINTS.dinarsPerEarnedPoint} د.ع</span>
+                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-cream/85">🎁 استبدلها خصماً عند الدفع</span>
+                </div>
               </div>
+
+              {/* wallet credit */}
+              {wallet && (wallet.balance > 0 || wallet.transactions.length > 0) && (
+                <div className="overflow-hidden rounded-3xl bg-cream p-5 shadow-soft ring-1 ring-brand-900/5 dark:bg-night-800 dark:ring-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-body text-sm font-bold text-ink/70 dark:text-cream/70">
+                      <Wallet className="h-4 w-4 text-brand-700 dark:text-brand-300" /> محفظة الرصيد
+                    </div>
+                    <span className="font-display text-2xl font-black text-brand-800 dark:text-brand-300">{fmt(wallet.balance)} <span className="text-sm">د.ع</span></span>
+                  </div>
+                  <p className="mt-1 font-body text-[11px] text-ink/45 dark:text-cream/45">رصيد تستخدمه لدفع طلباتك عند الدفع.</p>
+                  {wallet.transactions.length > 0 && (
+                    <div className="mt-3 space-y-1.5 border-t border-ink/5 pt-3 dark:border-white/5">
+                      {wallet.transactions.slice(0, 6).map((t) => (
+                        <div key={t.id} className="flex items-center justify-between gap-2 font-body text-[12px]">
+                          <span className="min-w-0 truncate text-ink/60 dark:text-cream/60">{t.reason || (t.amount > 0 ? 'إضافة رصيد' : 'صرف')}</span>
+                          <span className={`shrink-0 font-bold ${t.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-ink/60 dark:text-cream/50'}`}>
+                            {t.amount > 0 ? '+' : '−'}{fmt(Math.abs(t.amount))} د.ع
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* my orders */}
               <div className="rounded-3xl bg-cream p-5 shadow-soft dark:bg-night-800">
@@ -317,6 +358,12 @@ function OrderCard({ o, onReorder }) {
           </button>
         </div>
       </div>
+
+      {o.status === 'done' && (
+        <div className="mt-3">
+          <OrderRating orderId={o.id} driverName={o.driver_name || o.driver?.name} compact />
+        </div>
+      )}
     </div>
   );
 }

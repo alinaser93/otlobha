@@ -2,12 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardCheck, Package, Truck, MapPin, CheckCircle2, Loader2,
-  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing,
+  Phone, MessageCircle, Home, XCircle, Wallet, Radio, PartyPopper, PackageCheck, BellRing, Calendar,
 } from 'lucide-react';
 import { fmt } from '../data/catalog.js';
 import { SETTINGS, SHOP_NAME } from '../config.js';
 import { getOrderByToken, orderReadyByToken } from '../lib/orders.js';
+import { formatScheduled } from '../lib/schedule.js';
 import { celebrateSound, primeAudio } from '../lib/alerts.js';
+import OrderRating from './OrderRating.jsx';
 import PushToggle from './PushToggle.jsx';
 import InstallButton from './InstallButton.jsx';
 import LiveRouteMap from './LiveRouteMap.jsx';
@@ -259,6 +261,17 @@ export default function OrderTrackingPage() {
           </div>
         )}
 
+        {/* scheduled delivery time */}
+        {order.scheduled_for && step >= 0 && step < 4 && (
+          <div className="flex items-center gap-3 rounded-2xl bg-brand-600/10 px-4 py-3 text-brand-800 ring-1 ring-brand-700/15 dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/20">
+            <Calendar className="h-5 w-5 shrink-0" />
+            <div>
+              <div className="text-[11px] opacity-70">موعد التوصيل المجدول</div>
+              <div className="font-display font-bold">{formatScheduled(order.scheduled_for)}</div>
+            </div>
+          </div>
+        )}
+
         {/* driver + live map */}
         {order.driver && (
           <div className="overflow-hidden rounded-3xl bg-cream shadow-card dark:bg-night-800">
@@ -294,6 +307,9 @@ export default function OrderTrackingPage() {
             )}
           </div>
         )}
+
+        {/* rate your order (after delivery): driver + stores + products */}
+        <OrderRating orderId={order.id} driverName={order.driver?.name} />
 
         {/* order details */}
         <div className="rounded-3xl bg-cream p-5 shadow-card dark:bg-night-800">

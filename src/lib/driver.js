@@ -52,3 +52,6 @@ export const driverUpdateProfile = (driverId, f) =>
 
 // driver wallet (earnings + cash owed to admin)
 export const driverWallet = (driverId) => rpc('driver_wallet', { p_driver_id: driverId });
+
+// driver's own rating summary (avg + count)
+export const driverRatingSummary = (driverId) => rpc('driver_rating_summary', { p_driver_id: driverId });
