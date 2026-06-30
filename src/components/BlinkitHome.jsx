@@ -204,15 +204,24 @@ function BundlesSection({ h }) {
   );
 }
 
-/* ───────────────────────── الهيدر (متبدّل اللون حسب التبويب) ───────────────────────── */
+/* ───────────────────────── الهيدر (متبدّل اللون + متقلّص عند النزول) ───────────────────────── */
 const HINTS = ['طماطم', 'رمان', 'حليب طازج', 'رز عنبر', 'شوكولا', 'حفّاضات'];
-function Header({ tab, setTab, theme }) {
+function Header({ tab, setTab, theme, collapsed, count }) {
   const [hint, setHint] = useState(0);
   useEffect(() => { const t = setInterval(() => setHint((h) => (h + 1) % HINTS.length), 2200); return () => clearInterval(t); }, []);
   return (
-    <header className="sticky top-0 z-40" style={{ background: theme }}>
-      <div className="px-4 pb-2 pt-3">
-        <div className="flex items-start justify-between gap-2">
+    <header
+      className="sticky top-0 z-40 transition-[background-color,box-shadow] duration-300"
+      style={{ background: collapsed ? '#ffffff' : theme, boxShadow: collapsed ? '0 8px 20px -14px rgba(0,0,0,0.35)' : 'none' }}
+    >
+      {/* بلوك وقت التوصيل — يتقلّص ويختفي عند النزول */}
+      <motion.div
+        initial={false}
+        animate={{ height: collapsed ? 0 : 'auto', opacity: collapsed ? 0 : 1 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden"
+      >
+        <div className="flex items-start justify-between gap-2 px-4 pt-3">
           <div className="min-w-0">
             <span className="font-body text-[12px] font-bold text-blink-ink/70">🛒 اطلبها · توصيل</span>
             <div className="flex items-center gap-2">
@@ -230,9 +239,26 @@ function Header({ tab, setTab, theme }) {
             <button className="grid h-9 w-9 place-items-center rounded-full bg-white/55 text-blink-ink ring-1 ring-black/5" aria-label="حسابي"><User className="h-5 w-5" /></button>
           </div>
         </div>
+      </motion.div>
 
-        {/* بحث */}
-        <div className="mt-2.5 flex w-full items-center gap-2.5 rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/5">
+      {/* صف البحث — يضيف أيقونة سلّة صغيرة عند التقلّص، ويصغر ارتفاعه قليلاً */}
+      <div className={`flex items-center gap-2 px-4 ${collapsed ? 'pt-2.5' : 'pt-2.5'} `}>
+        <AnimatePresence initial={false}>
+          {collapsed && count > 0 && (
+            <motion.button
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 40, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              className="relative grid h-10 shrink-0 place-items-center overflow-hidden rounded-full bg-blink-green text-white"
+              aria-label="السلّة"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-blink-ink px-1 text-[9px] font-black ring-2 ring-white">{count}</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+        <div className={`flex w-full items-center gap-2.5 rounded-xl bg-white shadow-sm ring-1 ring-black/10 transition-[padding] duration-200 ${collapsed ? 'px-3.5 py-2.5' : 'px-3.5 py-3'}`}>
           <Search className="h-5 w-5 shrink-0 text-blink-ink/60" />
           <span className="flex-1 truncate font-body text-[14px] text-blink-sub">
             ابحث عن «
@@ -246,7 +272,7 @@ function Header({ tab, setTab, theme }) {
       </div>
 
       {/* تبويبات الأقسام */}
-      <div className="flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mt-1 flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} className="flex shrink-0 flex-col items-center gap-0.5 pb-1">
             <span className="text-[20px]">{t.icon}</span>
@@ -319,7 +345,20 @@ function WelcomeBanner({ theme }) {
 export default function BlinkitHome() {
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
+  const [collapsed, setCollapsed] = useState(false);
   const theme = TABS.find((t) => t.id === tab)?.theme || '#F8CB46';
+
+  // collapse the header (hide the delivery block) once the page is scrolled
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { setCollapsed(window.scrollY > 56); ticking = false; });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const qtyOf = useCallback((id) => items.find((i) => i.key === id)?.qty || 0, [items]);
   const add = useCallback((p) => setItems((prev) => {
@@ -338,7 +377,7 @@ export default function BlinkitHome() {
 
   return (
     <div className="min-h-screen bg-white pb-28 font-body" dir="rtl">
-      <Header tab={tab} setTab={setTab} theme={theme} />
+      <Header tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} />
 
       <AnimatePresence mode="wait">
         <motion.main
