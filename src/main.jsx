@@ -6,6 +6,7 @@ import DriverPage from './components/DriverPage.jsx';
 import MerchantPage from './components/MerchantPage.jsx';
 import OrderTrackingPage from './components/OrderTrackingPage.jsx';
 import InfoPage from './components/InfoPage.jsx';
+import BlinkitHome from './components/BlinkitHome.jsx';
 import { AuthProvider } from './lib/auth.jsx';
 import './index.css';
 
@@ -16,6 +17,7 @@ function route() {
     const path = window.location.pathname.replace(/\/+$/, '');
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
+    if (path === '/blinkit' || params.has('blinkit') || hash === '#blinkit') return 'blinkit';
     if (path === '/admin' || params.has('admin') || hash === '#admin') return 'admin';
     if (path === '/driver' || params.has('driver') || hash === '#driver') return 'driver';
     if (path === '/merchant' || params.has('merchant') || hash === '#merchant') return 'merchant';
@@ -31,7 +33,8 @@ const r = route();
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
 let content;
-if (r === 'admin') content = <AdminPage />;
+if (r === 'blinkit') content = <BlinkitHome />;
+else if (r === 'admin') content = <AdminPage />;
 else if (r === 'driver') content = <DriverPage />;
 else if (r === 'merchant') content = <MerchantPage />;
 else if (r === 'order') content = <OrderTrackingPage />;

@@ -17,6 +17,19 @@ export default {
         ink:    '#15241C',
         // Night surfaces for dark mode
         night:  { DEFAULT: '#080C0A', 900: '#080C0A', 800: '#121613', 700: '#1A201C', 600: '#232A26' },
+        // Blinkit-style palette (yellow header · green ADD) — used by the Blinkit home redesign
+        blink:  {
+          yellow:    '#F8CB46',
+          yellowDk:  '#F2BE1E',
+          amber:     '#F2A93B',
+          green:     '#0C831F',
+          greenDk:   '#0A6E19',
+          mint:      '#EAF6EC',
+          ink:       '#1F1F1F',
+          sub:       '#7E808C',
+          line:      '#ECECEC',
+          bg:        '#F7F7F7',
+        },
       },
       fontFamily: {
         display: ['Cairo', 'system-ui', 'sans-serif'],
