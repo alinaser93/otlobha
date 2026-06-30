@@ -19,7 +19,7 @@ export default {
         night:  { DEFAULT: '#080C0A', 900: '#080C0A', 800: '#121613', 700: '#1A201C', 600: '#232A26' },
         // Blinkit-style palette (yellow header · green ADD) — used by the Blinkit home redesign
         blink:  {
-          yellow:    '#F8CB46',
+          yellow:    '#FBCB25',
           yellowDk:  '#F2BE1E',
           amber:     '#F2A93B',
           green:     '#0C831F',

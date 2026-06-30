@@ -10,7 +10,7 @@ export const iqd = (n) => Number(n || 0).toLocaleString('en-US');
 
 // ── top category tabs (each themes the header colour, Blinkit-style) ──
 export const TABS = [
-  { id: 'all',         label: 'الكل',       icon: '🛒', theme: '#F8CB46', soft: '#FEF3C7' },
+  { id: 'all',         label: 'الكل',       icon: '🛒', theme: '#FBCB25', soft: '#FEF3C7' },
   { id: 'electronics', label: 'إلكترونيات', icon: '🎧', theme: '#CFE0F6', soft: '#E8F0FB' },
   { id: 'beauty',      label: 'جمال',       icon: '💄', theme: '#F8D5E3', soft: '#FCE9F1' },
   { id: 'decor',       label: 'ديكور',      icon: '🛋️', theme: '#EFD9BE', soft: '#F6EADA' },

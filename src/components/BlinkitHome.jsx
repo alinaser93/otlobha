@@ -151,6 +151,36 @@ function CategoryTiles({ title, cats }) {
   );
 }
 
+/* ───── بلاطة كولاج (2×2 صور منتجات + «+N») — توقيع قسم «الأكثر مبيعاً» في Blinkit ───── */
+function CollageTile({ cat, prods }) {
+  const slots = [prods[0], prods[1], prods[2]];
+  return (
+    <button className="flex flex-col text-right">
+      <div className="grid grid-cols-2 gap-1.5 rounded-2xl p-1.5" style={{ background: '#F8F1C3' }}>
+        {slots.map((p, i) => (
+          <span key={i} className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-white text-2xl">
+            {p ? (p.image ? <img src={p.image} alt="" loading="lazy" className="h-full w-full object-contain p-1 mix-blend-multiply" /> : p.emoji) : null}
+          </span>
+        ))}
+        <span className="grid aspect-square place-items-center rounded-xl bg-white font-display text-[14px] font-black text-blink-ink/70">+{cat.count}</span>
+      </div>
+      <span className="mt-1.5 line-clamp-2 font-body text-[12.5px] font-black leading-tight text-blink-ink">{cat.name}</span>
+      <span className="font-body text-[11px] text-blink-sub">{cat.count} منتج</span>
+    </button>
+  );
+}
+function CollageGroup({ title, cats, prods }) {
+  if (!cats.length) return null;
+  return (
+    <section className="px-4 pt-6">
+      <h2 className="mb-3 font-display text-[18px] font-black text-blink-ink">{title}</h2>
+      <div className="grid grid-cols-3 gap-3">
+        {cats.map((c) => <CollageTile key={c.key} cat={c} prods={prods.filter((p) => p.cat === c.key)} />)}
+      </div>
+    </section>
+  );
+}
+
 /* ───────────────────────── قسم المتاجر ───────────────────────── */
 function StoresSection({ stores }) {
   if (!stores.length) return null;
@@ -421,23 +451,29 @@ export default function BlinkitHome() {
       const top = [...products].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 12);
       const deals = products.filter((p) => p.old).slice(0, 12);
       const fallbackCats = (real.categories || []).filter((c) => c.name && c.name !== 'الكل').map((c) => ({ key: c.name, name: c.name, emoji: c.emoji || '🛒', image: c.image, count: counts[c.name] || 0 }));
-      return { mode: 'real', counts, groups: [{ title: 'تسوّق حسب القسم', cats: fallbackCats }], top, deals, more: products.slice(0, 12), stores, bundles };
+      return { mode: 'real', counts, prods: products, groups: [{ title: 'تسوّق حسب القسم', cats: fallbackCats }], top, deals, more: products.slice(0, 12), stores, bundles };
     }
     const dp = PRODUCTS.map(normProduct);
     const groups = GROUPS.map((g) => ({
       title: g.title,
       cats: CATEGORIES.filter((c) => c.group === g.id).map((c) => ({ key: c.id, name: c.name, emoji: c.emoji, image: null, tint: c.tint, count: PRODUCTS.filter((p) => p.cat === c.id).length })),
     }));
+    // مجموعة «الأكثر مبيعاً» تُعرض ككولاج — اجعلها الفئات الأكثر امتلاءً لتبدو ممتلئة
+    if (groups[0]) {
+      groups[0].cats = CATEGORIES
+        .map((c) => ({ key: c.id, name: c.name, emoji: c.emoji, image: null, tint: c.tint, count: PRODUCTS.filter((p) => p.cat === c.id).length }))
+        .filter((c) => c.count > 0).sort((a, b) => b.count - a.count).slice(0, 6);
+    }
     const stores = STORES.map((s) => ({ id: s.id, name: s.name, tag: s.tag, rating: s.rating, image: null, emoji: s.emoji, mins: s.mins, tint: s.tint }));
     const bundles = BUNDLES.map((b) => ({ ...b }));
-    return { mode: 'demo', groups, top: railTopSellers().map(normProduct), deals: railDeals().map(normProduct), more: dp.slice(0, 12), stores, bundles };
+    return { mode: 'demo', prods: dp, groups, top: railTopSellers().map(normProduct), deals: railDeals().map(normProduct), more: dp.slice(0, 12), stores, bundles };
   }, [real]);
 
   // ── tabs / theme / config / banner (admin-controlled in real mode) ──
   const tabsList = (real && layout?.tabs?.length)
-    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', iconImage: t.icon_image || null, theme: t.theme || '#F8CB46' }))
+    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', iconImage: t.icon_image || null, theme: t.theme || '#FBCB25' }))
     : TABS;
-  const theme = tabsList.find((t) => t.id === tab)?.theme || '#F8CB46';
+  const theme = tabsList.find((t) => t.id === tab)?.theme || '#FBCB25';
   const cfg = (real && layout?.config) || null;
   const deliveryMinutes = cfg?.delivery_minutes || DELIVERY;
   const welcome = cfg ? { title: cfg.welcome_title, subtitle: cfg.welcome_subtitle } : null;
@@ -482,7 +518,7 @@ export default function BlinkitHome() {
               <WelcomeBanner theme={theme} banner={banner} welcome={welcome} deliveryMinutes={deliveryMinutes} media={media} />
               {(realGroups || data.groups).map((g, i) => (
                 <Fragment key={g.title + i}>
-                  <CategoryTiles title={g.title} cats={g.cats} />
+                  {i === 0 ? <CollageGroup title={g.title} cats={g.cats} prods={data.prods} /> : <CategoryTiles title={g.title} cats={g.cats} />}
                   {i === 0 && <Rail title="الأكثر مبيعاً" products={data.top} h={h} />}
                   {i === 0 && showBundles && <BundlesSection bundles={data.bundles} h={h} />}
                 </Fragment>
@@ -494,7 +530,7 @@ export default function BlinkitHome() {
           ) : tab === 'all' ? (
             <>
               <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} media={media} />
-              {data.groups[0] && <CategoryTiles title={data.groups[0].title} cats={data.groups[0].cats} />}
+              {data.groups[0] && <CollageGroup title={data.groups[0].title} cats={data.groups[0].cats} prods={data.prods} />}
               <Rail title="الأكثر مبيعاً" products={data.top} h={h} />
               <BundlesSection bundles={data.bundles} h={h} />
               {data.groups[1] && <CategoryTiles title={data.groups[1].title} cats={data.groups[1].cats} />}
