@@ -6,6 +6,17 @@
 
 export const iqd = (n) => Number(n || 0).toLocaleString('en-US');
 
+// تبويبات الأقسام العلوية (كلٌّ يلوّن الهيدر) — كما في تطبيق Blinkit الحقيقي
+export const TABS = [
+  { id: 'all',         label: 'الكل',       icon: '🛒', theme: '#FBCB25' },
+  { id: 'electronics', label: 'إلكترونيات', icon: '🎧', theme: '#CFE0F6' },
+  { id: 'beauty',      label: 'جمال',       icon: '💄', theme: '#F8D5E3' },
+  { id: 'decor',       label: 'ديكور',      icon: '🛋️', theme: '#EFD9BE' },
+  { id: 'kids',        label: 'أطفال',      icon: '🧸', theme: '#C9E7F5' },
+  { id: 'gifting',     label: 'هدايا',      icon: '🎁', theme: '#F4CFCF' },
+  { id: 'imported',    label: 'مستورد',     icon: '🌍', theme: '#D8ECCB' },
+];
+
 // الأقسام الـ٢٠ بالضبط كما في Constants.kt (أسماء معرّبة + أيقونات المصدر)
 export const CATEGORIES = [
   { id: 'veg',      name: 'خضار وفواكه',            image: '/images/cat/vegetable.png',       emoji: '🥬' },
