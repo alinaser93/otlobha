@@ -29,7 +29,8 @@ export const adminDeleteHomeGroup = (adminId, id) =>
 export const adminSaveHomeTab = (adminId, f = {}) =>
   rpc('admin_save_home_tab', {
     p_admin_id: adminId, p_id: f.id ?? null, p_key: f.key, p_label: f.label,
-    p_icon: f.icon ?? '🛒', p_theme: f.theme ?? '#F8CB46', p_sort: f.sort ?? 0, p_active: f.active ?? true,
+    p_icon: f.icon ?? '🛒', p_icon_image: f.icon_image ?? null,
+    p_theme: f.theme ?? '#F8CB46', p_sort: f.sort ?? 0, p_active: f.active ?? true,
   });
 export const adminDeleteHomeTab = (adminId, id) =>
   rpc('admin_delete_home_tab', { p_admin_id: adminId, p_id: id });
@@ -56,4 +57,8 @@ export const adminSetStorefront = (adminId, f = {}) =>
     p_show_bundles: f.show_bundles ?? null,
     p_welcome_title: f.welcome_title ?? null,
     p_welcome_subtitle: f.welcome_subtitle ?? null,
+    // مرّر '' لمسح الوسائط، أو undefined→null لإبقائها كما هي
+    p_header_image: f.header_image === undefined ? null : f.header_image,
+    p_header_video: f.header_video === undefined ? null : f.header_video,
+    p_header_overlay: f.header_overlay ?? null,
   });

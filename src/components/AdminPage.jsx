@@ -1987,6 +1987,21 @@ function SfRowShell({ children, onDelete, active, onToggle }) {
   );
 }
 
+// رفع ملف (صورة/فيديو) → يعيد الرابط
+function SfUpload({ label, uploader, accept = 'image/*', onUrl, id = 'sf' }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <label className={`flex cursor-pointer items-center gap-1.5 rounded-lg bg-copper/15 px-3 py-2 text-[12px] font-bold text-copper-dark dark:text-copper-light ${busy ? 'opacity-50' : ''}`}>
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />} {label}
+      <input type="file" accept={accept} className="hidden" disabled={busy} onChange={async (e) => {
+        const file = e.target.files?.[0]; if (!file) return; setBusy(true);
+        const r = await uploader(file, id); setBusy(false); e.target.value = '';
+        if (r?.url) onUrl(r.url); else alert(r?.error || 'تعذّر الرفع');
+      }} />
+    </label>
+  );
+}
+
 /* ── المجموعات ── */
 function SfGroups({ admin, home, reload }) {
   const [title, setTitle] = useState('');
@@ -2019,18 +2034,22 @@ function SfGroups({ admin, home, reload }) {
 
 /* ── التبويبات ── */
 function SfTabs({ admin, home, reload }) {
-  const [f, setF] = useState({ key: '', label: '', icon: '🛒', theme: '#F8CB46' });
-  const add = async () => { if (!f.key.trim() || !f.label.trim()) return; await adminSaveHomeTab(admin.id, { ...f, sort: home.tabs.length }); setF({ key: '', label: '', icon: '🛒', theme: '#F8CB46' }); reload(); };
+  const [f, setF] = useState({ key: '', label: '', icon: '🛒', icon_image: '', theme: '#F8CB46' });
+  const add = async () => { if (!f.key.trim() || !f.label.trim()) return; await adminSaveHomeTab(admin.id, { ...f, sort: home.tabs.length }); setF({ key: '', label: '', icon: '🛒', icon_image: '', theme: '#F8CB46' }); reload(); };
+  const save = async (tb, patch) => { await adminSaveHomeTab(admin.id, { id: tb.id, key: tb.key, label: tb.label, icon: tb.icon, icon_image: tb.icon_image, theme: tb.theme, sort: tb.sort, active: tb.active, ...patch }); reload(); };
   return (
     <div className="space-y-2">
-      <span className="text-[12px] text-ink/50 dark:text-cream/50">{home.tabs.length} تبويب — شريط الأقسام العلوي (يلوّن الهيدر)</span>
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{home.tabs.length} تبويب — أيقونة إيموجي أو صورة، ولون يلوّن الهيدر</span>
       {home.tabs.map((tb) => (
         <SfRowShell key={tb.id} active={tb.active}
-          onToggle={async () => { await adminSaveHomeTab(admin.id, { id: tb.id, key: tb.key, label: tb.label, icon: tb.icon, theme: tb.theme, sort: tb.sort, active: !tb.active }); reload(); }}
+          onToggle={() => save(tb, { active: !tb.active })}
           onDelete={async () => { await adminDeleteHomeTab(admin.id, tb.id); reload(); }}>
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xl" style={{ background: tb.theme }}>{tb.icon}</span>
+          <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg text-xl" style={{ background: tb.theme }}>
+            {tb.icon_image ? <img src={tb.icon_image} alt="" className="h-full w-full object-contain p-0.5" /> : tb.icon}
+          </span>
           <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{tb.label}</span>
-          <span dir="ltr" className="font-mono text-[11px] text-ink/40 dark:text-cream/40">{tb.key}</span>
+          <SfUpload label="صورة" uploader={uploadProductImage} id={'tab-' + tb.key} onUrl={(u) => save(tb, { icon_image: u })} />
+          {tb.icon_image && <button onClick={() => save(tb, { icon_image: '' })} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ink/5 text-ink/50 dark:bg-white/10" title="إزالة الصورة"><X className="h-4 w-4" /></button>}
         </SfRowShell>
       ))}
       <div className="rounded-xl border border-ink/10 bg-cream p-3 dark:border-white/10 dark:bg-night-800">
@@ -2042,6 +2061,7 @@ function SfTabs({ admin, home, reload }) {
           <input type="color" value={f.theme} onChange={(e) => setF({ ...f, theme: e.target.value })} className="h-11 w-12 shrink-0 rounded-xl border border-ink/10 dark:border-white/10" />
           <button onClick={add} className="shrink-0 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">إضافة</button>
         </div>
+        <p className="mt-1.5 text-[11px] text-ink/40 dark:text-cream/40">بعد الإضافة، اضغط «صورة» على التبويب لاستبدال الإيموجي بأيقونة صورة.</p>
       </div>
     </div>
   );
@@ -2113,11 +2133,37 @@ function SfSettings({ admin, cfg, reload }) {
     show_bundles: cfg?.sf_show_bundles ?? true,
     welcome_title: cfg?.sf_welcome_title ?? '',
     welcome_subtitle: cfg?.sf_welcome_subtitle ?? '',
+    header_image: cfg?.sf_header_image ?? '',
+    header_video: cfg?.sf_header_video ?? '',
+    header_overlay: cfg?.sf_header_overlay ?? 0.18,
   });
   const [msg, setMsg] = useState('');
   const save = async () => { setMsg(''); const r = await adminSetStorefront(admin.id, f); setMsg(r?.ok ? 'تم الحفظ ✓' : 'تعذّر الحفظ'); reload(); };
   return (
     <div className="space-y-3">
+      {/* خلفية الهيدر (صورة/فيديو) */}
+      <div className="space-y-2 rounded-xl border border-copper/30 bg-copper/5 p-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-ink dark:text-cream"><ImageIcon className="h-4 w-4 text-copper" /> خلفية الهيدر (صورة أو فيديو)</div>
+        <p className="text-[11px] text-ink/50 dark:text-cream/50">تظهر خلف أعلى الواجهة وبانر الترحيب، وتختفي تدريجياً عند النزول.</p>
+        {f.header_video ? (
+          <video src={f.header_video} className="h-24 w-full rounded-lg object-cover" autoPlay loop muted playsInline />
+        ) : f.header_image ? (
+          <img src={f.header_image} alt="" className="h-24 w-full rounded-lg object-cover" />
+        ) : (
+          <div className="grid h-16 place-items-center rounded-lg bg-ink/5 text-[12px] text-ink/40 dark:bg-white/5 dark:text-cream/40">لا توجد خلفية بعد</div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <SfUpload label="رفع صورة" uploader={uploadStoreCover} id="header" onUrl={(u) => setF({ ...f, header_image: u, header_video: '' })} />
+          <SfUpload label="رفع فيديو" accept="video/*" uploader={uploadStoreVideo} id="header" onUrl={(u) => setF({ ...f, header_video: u, header_image: '' })} />
+          {(f.header_image || f.header_video) && <button onClick={() => setF({ ...f, header_image: '', header_video: '' })} className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] font-bold text-red-600 dark:text-red-300">مسح</button>}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 text-[12px] font-bold text-ink/60 dark:text-cream/60">تعتيم النص</span>
+          <input type="range" min="0" max="0.6" step="0.02" value={f.header_overlay} onChange={(e) => setF({ ...f, header_overlay: Number(e.target.value) })} className="flex-1 accent-copper" />
+          <span className="w-8 text-left text-[11px] text-ink/40 dark:text-cream/40">{Math.round(f.header_overlay * 100)}%</span>
+        </div>
+      </div>
+
       <div className="flex items-center gap-2">
         <label className="text-sm font-bold text-ink dark:text-cream">وقت التوصيل (دقائق)</label>
         <input type="number" value={f.delivery_minutes} onChange={(e) => setF({ ...f, delivery_minutes: Number(e.target.value) })} className={inp + ' w-24'} />

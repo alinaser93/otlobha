@@ -220,15 +220,25 @@ function BundlesSection({ bundles, h }) {
 
 /* ───────────────────────── الهيدر (متبدّل اللون + متقلّص عند النزول) ───────────────────────── */
 const HINTS = ['طماطم', 'رمان', 'حليب طازج', 'رز عنبر', 'شوكولا', 'حفّاضات'];
-function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes }) {
+function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes, media, fade }) {
   const [hint, setHint] = useState(0);
   useEffect(() => { const t = setInterval(() => setHint((x) => (x + 1) % HINTS.length), 2200); return () => clearInterval(t); }, []);
+  const hasMedia = media && (media.image || media.video);
   return (
     <header
       className="sticky top-0 z-40 transition-[background-color,box-shadow] duration-300"
       style={{ background: collapsed ? '#ffffff' : theme, boxShadow: collapsed ? '0 8px 20px -14px rgba(0,0,0,0.35)' : 'none' }}
     >
-      <motion.div initial={false} animate={{ height: collapsed ? 0 : 'auto', opacity: collapsed ? 0 : 1 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+      {/* خلفية الهيدر (صورة/فيديو) — الجزء العلوي، يتلاشى تدريجياً عند النزول */}
+      {hasMedia && !collapsed && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity: 1 - fade }}>
+          {media.video
+            ? <video src={media.video} className="h-full w-full object-cover" autoPlay loop muted playsInline />
+            : <img src={media.image} alt="" className="h-full w-full object-cover" />}
+          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,${media.overlay ?? 0.18}), rgba(255,255,255,0) 55%)` }} />
+        </div>
+      )}
+      <motion.div initial={false} animate={{ height: collapsed ? 0 : 'auto', opacity: collapsed ? 0 : 1 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="relative overflow-hidden">
         <div className="flex items-start justify-between gap-2 px-4 pt-3">
           <div className="min-w-0">
             <span className="font-body text-[12px] font-bold text-blink-ink/70">🛒 اطلبها · توصيل</span>
@@ -249,7 +259,7 @@ function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes })
         </div>
       </motion.div>
 
-      <div className="flex items-center gap-2 px-4 pt-2.5">
+      <div className="relative flex items-center gap-2 px-4 pt-2.5">
         <AnimatePresence initial={false}>
           {collapsed && count > 0 && (
             <motion.button initial={{ width: 0, opacity: 0 }} animate={{ width: 40, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="relative grid h-10 shrink-0 place-items-center overflow-hidden rounded-full bg-blink-green text-white" aria-label="السلّة">
@@ -271,10 +281,12 @@ function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes })
         </div>
       </div>
 
-      <div className="mt-1 flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="relative mt-1 flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} className="flex shrink-0 flex-col items-center gap-0.5 pb-1">
-            <span className="text-[20px]">{t.icon}</span>
+            {t.iconImage
+              ? <img src={t.iconImage} alt="" className="h-[22px] w-[22px] object-contain" />
+              : <span className="text-[20px]">{t.icon}</span>}
             <span className={`font-body text-[12px] font-bold ${tab === t.id ? 'text-blink-ink' : 'text-blink-ink/55'}`}>{t.label}</span>
             <span className={`h-0.5 w-6 rounded-full ${tab === t.id ? 'bg-blink-ink' : 'bg-transparent'}`} />
           </button>
@@ -327,15 +339,20 @@ function CartBar({ count, total, onOpen }) {
   );
 }
 
-/* ───────────────────────── بانر ترحيب ───────────────────────── */
-function WelcomeBanner({ theme, banner, deliveryMinutes, welcome }) {
+/* ───────────────────────── بانر ترحيب (الجزء السفلي من الخلفية) ───────────────────────── */
+function WelcomeBanner({ theme, banner, deliveryMinutes, welcome, media }) {
   const title = banner?.title || welcome?.title || 'أهلاً بك في اطلبها 👋';
   const subtitle = banner?.subtitle || welcome?.subtitle || 'اطلب الآن واستمتع بتوصيل مجاني داخل السماوة';
   const bg = banner?.theme || theme;
+  const img = banner?.image || media?.image || null;
+  const vid = !banner?.image && media?.video ? media.video : null;
+  const hasMedia = !!(img || vid);
   return (
     <div className="px-4 pt-3">
-      <div className="relative overflow-hidden rounded-2xl px-5 py-4" style={{ background: banner?.image ? undefined : `linear-gradient(110deg, ${bg}, #ffffff)` }}>
-        {banner?.image && <img src={banner.image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      <div className="relative overflow-hidden rounded-2xl px-5 py-4" style={{ background: hasMedia ? undefined : `linear-gradient(110deg, ${bg}, #ffffff)`, minHeight: hasMedia ? 120 : undefined }}>
+        {vid ? <video src={vid} className="absolute inset-0 h-full w-full object-cover" autoPlay loop muted playsInline />
+          : img ? <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+        {hasMedia && <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,${(media?.overlay ?? 0.18) + 0.05}), rgba(255,255,255,0))` }} />}
         <div className="relative">
           <p className="font-display text-[19px] font-black leading-tight text-blink-ink">{title}</p>
           <p className="mt-1 font-body text-[13px] font-bold text-blink-ink/75">{subtitle}</p>
@@ -351,6 +368,7 @@ export default function BlinkitHome() {
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [fade, setFade] = useState(0);        // 0 (أعلى) → 1 (نزلنا) — لتلاشي خلفية الهيدر تدريجياً
   const [real, setReal] = useState(null);     // كتالوج حقيقي عند تفعيل ?real=1
   const [layout, setLayout] = useState(null); // تخطيط الواجهة من /admin (تبويبات/مجموعات/بانرات/إعدادات)
 
@@ -373,7 +391,7 @@ export default function BlinkitHome() {
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => { setCollapsed(window.scrollY > 56); ticking = false; });
+      requestAnimationFrame(() => { const y = window.scrollY; setCollapsed(y > 56); setFade(Math.min(1, y / 120)); ticking = false; });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -417,7 +435,7 @@ export default function BlinkitHome() {
 
   // ── tabs / theme / config / banner (admin-controlled in real mode) ──
   const tabsList = (real && layout?.tabs?.length)
-    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', theme: t.theme || '#F8CB46' }))
+    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', iconImage: t.icon_image || null, theme: t.theme || '#F8CB46' }))
     : TABS;
   const theme = tabsList.find((t) => t.id === tab)?.theme || '#F8CB46';
   const cfg = (real && layout?.config) || null;
@@ -428,6 +446,15 @@ export default function BlinkitHome() {
   const banner = (real && layout?.banners?.length)
     ? (layout.banners.find((b) => b.tab === tab) || layout.banners.find((b) => b.tab === 'all') || null)
     : null;
+
+  // خلفية الهيدر (صورة/فيديو): من الإعدادات، أو معاينة سريعة عبر ?hero=URL / ?herovid=URL
+  const override = useMemo(() => {
+    try { const p = new URLSearchParams(window.location.search); const img = p.get('hero'); const vid = p.get('herovid'); if (img || vid) return { image: img || null, video: vid || null, overlay: 0.18 }; } catch { /* ignore */ }
+    return null;
+  }, []);
+  const media = override || (cfg && (cfg.header_image || cfg.header_video)
+    ? { image: cfg.header_image || null, video: cfg.header_video || null, overlay: cfg.header_overlay ?? 0.18 }
+    : null);
 
   // ── groups for the current tab (real mode uses admin-assigned groups) ──
   const realGroups = useMemo(() => {
@@ -446,13 +473,13 @@ export default function BlinkitHome() {
 
   return (
     <div className="min-h-screen bg-white pb-28 font-body" dir="rtl">
-      <Header tabs={tabsList} tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} deliveryMinutes={deliveryMinutes} />
+      <Header tabs={tabsList} tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} deliveryMinutes={deliveryMinutes} media={media} fade={fade} />
 
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
           {data.mode === 'real' ? (
             <>
-              <WelcomeBanner theme={theme} banner={banner} welcome={welcome} deliveryMinutes={deliveryMinutes} />
+              <WelcomeBanner theme={theme} banner={banner} welcome={welcome} deliveryMinutes={deliveryMinutes} media={media} />
               {(realGroups || data.groups).map((g, i) => (
                 <Fragment key={g.title + i}>
                   <CategoryTiles title={g.title} cats={g.cats} />
@@ -466,7 +493,7 @@ export default function BlinkitHome() {
             </>
           ) : tab === 'all' ? (
             <>
-              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} />
+              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} media={media} />
               {data.groups[0] && <CategoryTiles title={data.groups[0].title} cats={data.groups[0].cats} />}
               <Rail title="الأكثر مبيعاً" products={data.top} h={h} />
               <BundlesSection bundles={data.bundles} h={h} />
@@ -480,7 +507,7 @@ export default function BlinkitHome() {
             </>
           ) : (
             <>
-              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} />
+              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} media={media} />
               <Rail title="مختارات لك" products={[...data.more].reverse()} h={h} />
               {data.groups[1] && <CategoryTiles title={data.groups[1].title} cats={data.groups[1].cats} />}
               <Rail title="عروض اليوم 🔥" products={data.deals} h={h} />
