@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Mic, ChevronDown, ChevronLeft, User, Wallet, Plus, Minus,
@@ -9,6 +9,7 @@ import {
   railTopSellers, railDeals, iqd,
 } from '../data/blinkitCatalog.js';
 import { fetchStoreCatalog } from '../lib/products.js';
+import { getHomeLayout } from '../lib/storefront.js';
 
 /* ════════════════════════════════════════════════════════════════
    «اطلبها» — رئيسية بنمط Blinkit (مطابقة للفيديو المرجعي).
@@ -219,7 +220,7 @@ function BundlesSection({ bundles, h }) {
 
 /* ───────────────────────── الهيدر (متبدّل اللون + متقلّص عند النزول) ───────────────────────── */
 const HINTS = ['طماطم', 'رمان', 'حليب طازج', 'رز عنبر', 'شوكولا', 'حفّاضات'];
-function Header({ tab, setTab, theme, collapsed, count }) {
+function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes }) {
   const [hint, setHint] = useState(0);
   useEffect(() => { const t = setInterval(() => setHint((x) => (x + 1) % HINTS.length), 2200); return () => clearInterval(t); }, []);
   return (
@@ -232,7 +233,7 @@ function Header({ tab, setTab, theme, collapsed, count }) {
           <div className="min-w-0">
             <span className="font-body text-[12px] font-bold text-blink-ink/70">🛒 اطلبها · توصيل</span>
             <div className="flex items-center gap-2">
-              <h1 className="font-display text-[26px] font-black leading-none text-blink-ink">خلال {DELIVERY} دقائق</h1>
+              <h1 className="font-display text-[26px] font-black leading-none text-blink-ink">خلال {deliveryMinutes} دقائق</h1>
               <span className="rounded-full bg-blink-ink px-1.5 py-0.5 font-display text-[10px] font-black text-blink-yellow">24/7</span>
             </div>
             <button className="mt-1 flex max-w-full items-center gap-1 text-blink-ink/85">
@@ -271,7 +272,7 @@ function Header({ tab, setTab, theme, collapsed, count }) {
       </div>
 
       <div className="mt-1 flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} className="flex shrink-0 flex-col items-center gap-0.5 pb-1">
             <span className="text-[20px]">{t.icon}</span>
             <span className={`font-body text-[12px] font-bold ${tab === t.id ? 'text-blink-ink' : 'text-blink-ink/55'}`}>{t.label}</span>
@@ -327,13 +328,19 @@ function CartBar({ count, total, onOpen }) {
 }
 
 /* ───────────────────────── بانر ترحيب ───────────────────────── */
-function WelcomeBanner({ theme }) {
+function WelcomeBanner({ theme, banner, deliveryMinutes, welcome }) {
+  const title = banner?.title || welcome?.title || 'أهلاً بك في اطلبها 👋';
+  const subtitle = banner?.subtitle || welcome?.subtitle || 'اطلب الآن واستمتع بتوصيل مجاني داخل السماوة';
+  const bg = banner?.theme || theme;
   return (
     <div className="px-4 pt-3">
-      <div className="relative overflow-hidden rounded-2xl px-5 py-4" style={{ background: `linear-gradient(110deg, ${theme}, #ffffff)` }}>
-        <p className="font-display text-[19px] font-black leading-tight text-blink-ink">أهلاً بك في اطلبها 👋</p>
-        <p className="mt-1 font-body text-[13px] font-bold text-blink-ink/75">اطلب الآن واستمتع بـ توصيل مجاني داخل السماوة</p>
-        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-blink-ink px-3 py-1.5 font-display text-[12px] font-black text-blink-yellow"><Clock className="h-3.5 w-3.5" /> خلال {DELIVERY} دقائق</span>
+      <div className="relative overflow-hidden rounded-2xl px-5 py-4" style={{ background: banner?.image ? undefined : `linear-gradient(110deg, ${bg}, #ffffff)` }}>
+        {banner?.image && <img src={banner.image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+        <div className="relative">
+          <p className="font-display text-[19px] font-black leading-tight text-blink-ink">{title}</p>
+          <p className="mt-1 font-body text-[13px] font-bold text-blink-ink/75">{subtitle}</p>
+          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-blink-ink px-3 py-1.5 font-display text-[12px] font-black text-blink-yellow"><Clock className="h-3.5 w-3.5" /> {banner?.cta_label || `خلال ${deliveryMinutes} دقائق`}</span>
+        </div>
       </div>
     </div>
   );
@@ -344,16 +351,17 @@ export default function BlinkitHome() {
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
-  const [real, setReal] = useState(null); // كتالوج حقيقي عند تفعيل ?real=1
-  const theme = TABS.find((t) => t.id === tab)?.theme || '#F8CB46';
+  const [real, setReal] = useState(null);     // كتالوج حقيقي عند تفعيل ?real=1
+  const [layout, setLayout] = useState(null); // تخطيط الواجهة من /admin (تبويبات/مجموعات/بانرات/إعدادات)
 
-  // ?real=1 → اقرأ الكتالوج الحقيقي (يتحكّم به الأدمن/التاجر). يعود للتجريبي إن تعذّر.
+  // ?real=1 → اقرأ الكتالوج الحقيقي + تخطيط الواجهة (يتحكّم بهما الأدمن). يعود للتجريبي إن تعذّر.
   useEffect(() => {
     let on = true;
     try {
       const want = new URLSearchParams(window.location.search).get('real');
       if (want === '1' || want === 'true') {
         fetchStoreCatalog().then((res) => { if (on && res && Array.isArray(res.products) && res.products.length) setReal(res); });
+        getHomeLayout().then((res) => { if (on && res && !res.error) setLayout(res); });
       }
     } catch { /* ignore */ }
     return () => { on = false; };
@@ -384,20 +392,18 @@ export default function BlinkitHome() {
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   const count = items.reduce((s, i) => s + i.qty, 0);
 
-  // ── build the data the sections render (real when available, else demo) ──
+  // ── base data (products/stores/bundles/rails) — real when available, else demo ──
   const data = useMemo(() => {
     if (real) {
       const products = real.products.map(normProduct);
       const counts = {};
       products.forEach((p) => { if (p.cat) counts[p.cat] = (counts[p.cat] || 0) + 1; });
-      const cats = (real.categories || [])
-        .filter((c) => c.name && c.name !== 'الكل')
-        .map((c) => ({ key: c.name, name: c.name, emoji: c.emoji || '🛒', image: c.image, count: counts[c.name] || 0 }));
       const stores = (real.stores || []).map((s) => ({ id: s.id, name: s.name, tag: s.category, rating: s.rating, image: s.logo || s.cover || null, emoji: '🏪', mins: null }));
       const bundles = (real.bundles || []).map((b) => ({ id: b.id, name: b.name, kicker: b.kicker || 'باقة', items: (b.items || []).length, price: b.price, old: b.old, image: b.image, emoji: (b.emojis && b.emojis[0]) || '🧺', tint: '#EFF4EC' }));
       const top = [...products].sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 12);
       const deals = products.filter((p) => p.old).slice(0, 12);
-      return { mode: 'real', groups: [{ title: 'تسوّق حسب القسم', cats }], top, deals, more: products.slice(0, 12), stores, bundles };
+      const fallbackCats = (real.categories || []).filter((c) => c.name && c.name !== 'الكل').map((c) => ({ key: c.name, name: c.name, emoji: c.emoji || '🛒', image: c.image, count: counts[c.name] || 0 }));
+      return { mode: 'real', counts, groups: [{ title: 'تسوّق حسب القسم', cats: fallbackCats }], top, deals, more: products.slice(0, 12), stores, bundles };
     }
     const dp = PRODUCTS.map(normProduct);
     const groups = GROUPS.map((g) => ({
@@ -409,15 +415,58 @@ export default function BlinkitHome() {
     return { mode: 'demo', groups, top: railTopSellers().map(normProduct), deals: railDeals().map(normProduct), more: dp.slice(0, 12), stores, bundles };
   }, [real]);
 
+  // ── tabs / theme / config / banner (admin-controlled in real mode) ──
+  const tabsList = (real && layout?.tabs?.length)
+    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', theme: t.theme || '#F8CB46' }))
+    : TABS;
+  const theme = tabsList.find((t) => t.id === tab)?.theme || '#F8CB46';
+  const cfg = (real && layout?.config) || null;
+  const deliveryMinutes = cfg?.delivery_minutes || DELIVERY;
+  const welcome = cfg ? { title: cfg.welcome_title, subtitle: cfg.welcome_subtitle } : null;
+  const showStores = cfg ? cfg.show_stores !== false : true;
+  const showBundles = cfg ? cfg.show_bundles !== false : true;
+  const banner = (real && layout?.banners?.length)
+    ? (layout.banners.find((b) => b.tab === tab) || layout.banners.find((b) => b.tab === 'all') || null)
+    : null;
+
+  // ── groups for the current tab (real mode uses admin-assigned groups) ──
+  const realGroups = useMemo(() => {
+    if (!(real && layout?.groups?.length && layout?.categories?.length)) return null;
+    const counts = data.counts || {};
+    const tabOk = (t) => tab === 'all' || !t || t === 'all' || t === tab;
+    const mk = (c) => ({ key: c.name, name: c.name, emoji: c.emoji || '🛒', image: c.image, count: counts[c.name] || 0 });
+    const out = layout.groups
+      .filter((g) => tabOk(g.tab))
+      .map((g) => ({ title: g.title, cats: layout.categories.filter((c) => c.home_group === g.id && tabOk(c.home_tab)).map(mk) }))
+      .filter((g) => g.cats.length);
+    const ungrouped = layout.categories.filter((c) => !c.home_group && tabOk(c.home_tab)).map(mk);
+    if (ungrouped.length) out.push({ title: out.length ? 'أقسام أخرى' : 'تسوّق حسب القسم', cats: ungrouped });
+    return out;
+  }, [real, layout, tab, data]);
+
   return (
     <div className="min-h-screen bg-white pb-28 font-body" dir="rtl">
-      <Header tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} />
+      <Header tabs={tabsList} tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} deliveryMinutes={deliveryMinutes} />
 
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
-          {tab === 'all' ? (
+          {data.mode === 'real' ? (
             <>
-              <WelcomeBanner theme={theme} />
+              <WelcomeBanner theme={theme} banner={banner} welcome={welcome} deliveryMinutes={deliveryMinutes} />
+              {(realGroups || data.groups).map((g, i) => (
+                <Fragment key={g.title + i}>
+                  <CategoryTiles title={g.title} cats={g.cats} />
+                  {i === 0 && <Rail title="الأكثر مبيعاً" products={data.top} h={h} />}
+                  {i === 0 && showBundles && <BundlesSection bundles={data.bundles} h={h} />}
+                </Fragment>
+              ))}
+              <Rail title="عروض اليوم 🔥" products={data.deals} h={h} />
+              {showStores && <StoresSection stores={data.stores} />}
+              <Rail title="قد يعجبك أيضاً" products={data.more} h={h} />
+            </>
+          ) : tab === 'all' ? (
+            <>
+              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} />
               {data.groups[0] && <CategoryTiles title={data.groups[0].title} cats={data.groups[0].cats} />}
               <Rail title="الأكثر مبيعاً" products={data.top} h={h} />
               <BundlesSection bundles={data.bundles} h={h} />
@@ -431,11 +480,11 @@ export default function BlinkitHome() {
             </>
           ) : (
             <>
-              <WelcomeBanner theme={theme} />
+              <WelcomeBanner theme={theme} deliveryMinutes={deliveryMinutes} />
               <Rail title="مختارات لك" products={[...data.more].reverse()} h={h} />
               {data.groups[1] && <CategoryTiles title={data.groups[1].title} cats={data.groups[1].cats} />}
               <Rail title="عروض اليوم 🔥" products={data.deals} h={h} />
-              <div className="px-4 pb-2 pt-6 text-center font-body text-[13px] text-blink-sub">المزيد من أقسام «{TABS.find((t) => t.id === tab)?.label}» قريباً ✨</div>
+              <div className="px-4 pb-2 pt-6 text-center font-body text-[13px] text-blink-sub">المزيد من أقسام «{tabsList.find((t) => t.id === tab)?.label}» قريباً ✨</div>
             </>
           )}
         </motion.main>
