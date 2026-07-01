@@ -184,9 +184,9 @@ const THEMES = {
     row2Title: "أجهزة تناسب كل احتياجاتك", row2: [11, 9, 10], tiles: ELECTRONICS_TILES,
   },
   beauty: {
-    eta: "21", surge: true, headTop: "#F3D24E", headBot: "#EBC63A", onHead: "#2a2320", sub: "#5a4e2a",
-    badge: "#3a2f4a", badgeBorder: "#c9b34a", searchBg: "#fff",
-    searchText: "#9a8a5a", searchIcon: "#7a6a3a",
+    eta: "21", surge: true, headTop: "#F5BFD1", headBot: "#F8D2E0", onHead: "#6a2a48", sub: "#8a4a66",
+    badge: "#6a2a48", badgeBorder: "#e0a8be", searchBg: "#fff",
+    searchText: "#a08590", searchIcon: "#8a6072",
     hints: ["سيروم للوجه", "أحمر شفاه", "شامبو", "واقي شمس"],
     hero: { kind: "glow", title: "أبرزي إشراقتك اليومية", sub: "أفضل منتجات الجمال المختارة لكِ",
       bg: "linear-gradient(135deg,#F7CBDC,#F1B0CA)", text: "#7E2E5C", subText: "#6a5a62" },
