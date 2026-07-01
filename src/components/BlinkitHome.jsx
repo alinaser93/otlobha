@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import {
   Search, Mic, ChevronDown, ChevronRight, ChevronLeft, User, Clock, Star,
   Plus, Minus, Home, RotateCcw, LayoutGrid, Printer, ShoppingBasket,
@@ -290,10 +290,11 @@ const CSS = `
 .bk-mic{width:1.5px;height:22px;background:#e2e2e2;margin-left:2px;}
 
 .bk-tabs{display:flex;gap:2px;overflow-x:auto;padding:6px 12px 0;}
-.bk-tab{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 8px 10px;position:relative;cursor:pointer;}
-.bk-tab .tl{font-size:13px;font-weight:600;white-space:nowrap;}
+.bk-tab{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 8px 10px;position:relative;cursor:pointer;color:var(--tc-off);}
+.bk-tab.on{color:var(--tc-on);}
+.bk-tab .tl{font-size:13px;font-weight:600;white-space:nowrap;color:inherit;}
 .bk-tab.on .tl{font-weight:800;}
-.bk-uline{position:absolute;bottom:0;left:16%;right:16%;height:3px;border-radius:3px;}
+.bk-uline{position:absolute;bottom:0;left:16%;right:16%;height:3px;border-radius:3px;background:var(--tc-on);}
 .bk-tab .iconwrap{position:relative;z-index:1;display:flex;}
 .bk-tab.on .iconwrap:before{content:"";position:absolute;inset:-5px -9px;border-radius:50%;background:rgba(248,203,70,.4);z-index:0;}
 
@@ -574,11 +575,9 @@ function WelcomeHero() {
 }
 
 /* ------------------------- الرئيسية (الكل) ------------------------- */
-function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
+function HomeContent({ cart, add, inc, dec, openList }) {
   return (
     <>
-      <div style={{ opacity: heroFade, transform: `translateY(${-(1 - heroFade) * 10}px)` }}><WelcomeHero /></div>
-
       <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">الأكثر مبيعاً</div></div></div>
       <div className="bk-bs-grid">
         {BESTSELLERS.map((b, i) => (
@@ -628,13 +627,11 @@ function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
 }
 
 /* ------------------------- الصفحة المُثيّمة (بقية الأقسام) ------------------------- */
-function ThemedContent({ theme, cart, add, inc, dec, openList, heroFade }) {
+function ThemedContent({ theme, cart, add, inc, dec, openList }) {
   const featured = theme.hero && theme.hero.kind === "featured";
-  const bannerStyle = { opacity: heroFade, transform: `translateY(${-(1 - heroFade) * 12}px)` };
 
   const topBlock = (
     <>
-      <div style={bannerStyle}><Hero hero={theme.hero} /></div>
       {featured && <div style={{ padding: "12px 14px 0" }}><div className="bk-sec-t">{theme.hero.title}</div></div>}
       <ProductRow
         title={theme.row1Title} ids={theme.row1}
@@ -688,9 +685,14 @@ export default function BlinkitHome() {
   const [cart, setCart] = useState({});
   const [hint, setHint] = useState(0);
   const [listing, setListing] = useState(null);
-  const [scrollY, setScrollY] = useState(0);
   const tabRefs = useRef({});
   const scrollRef = useRef(null);
+  const rafPending = useRef(false);
+  const lastY = useRef(0);
+  const headerRef = useRef(null);
+  const delivRef = useRef(null);
+  const promoRef = useRef(null);
+  const heroRef = useRef(null);
 
   const theme = THEMES[catTab];
   const COLLAPSE = 120;
@@ -708,12 +710,13 @@ export default function BlinkitHome() {
     return () => clearInterval(iv);
   }, [theme]);
 
-  const add = (id) => setCart((c) => ({ ...c, [id]: 1 }));
-  const inc = (id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
-  const dec = (id) => setCart((c) => {
+  const add = useCallback((id) => setCart((c) => ({ ...c, [id]: 1 })), []);
+  const inc = useCallback((id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 })), []);
+  const dec = useCallback((id) => setCart((c) => {
     const n = (c[id] || 0) - 1; const nc = { ...c };
     if (n <= 0) delete nc[id]; else nc[id] = n; return nc;
-  });
+  }), []);
+  const openList = useCallback((t) => setListing(t), []);
 
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
   const total = Object.entries(cart).reduce((a, [id, q]) => a + toIQD(byId(+id)?.price || 0) * q, 0);
@@ -723,24 +726,69 @@ export default function BlinkitHome() {
 
   const skip = () => { setExiting(true); setTimeout(() => setReady(true), 400); };
   const pickTab = (id, el) => {
-    setCatTab(id); setListing(null); setScrollY(0);
+    setCatTab(id); setListing(null);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
-  const onScroll = (e) => setScrollY(e.currentTarget.scrollTop);
-
-  const t = clamp01(scrollY / COLLAPSE);
-  const heroFade = clamp01(1 - scrollY / FADE);
-  const hTop = rgb(mix(hexToRgb(theme.headTop), CREAM_RGB, t));
-  const hBot = rgb(mix(hexToRgb(theme.headBot), CREAM_RGB, t));
-  const headBg = `linear-gradient(180deg, ${hTop}, ${hBot})`;
   const onHeadRgb = hexToRgb(theme.onHead);
-  const tabRgb = mix(onHeadRgb, INK_RGB, t);
-  const tabCol = rgb(tabRgb);
-  const tabColDim = rgba(tabRgb, 0.72);
-  const delivOp = clamp01(1 - t * 1.7);
-  const delivH = (1 - t) * 90;
-  const promoH = t * 24;
+
+  // Apply every scroll-linked style straight to the DOM (no React re-render):
+  // header gradient, tab colours (via CSS vars), delivery collapse, promo bar
+  // and the fading hero banner. Scrolling therefore triggers ZERO renders.
+  const applyScroll = (y) => {
+    const t = clamp01(y / COLLAPSE);
+    const heroFade = clamp01(1 - y / FADE);
+    const header = headerRef.current;
+    if (header) {
+      const hTop = rgb(mix(hexToRgb(theme.headTop), CREAM_RGB, t));
+      const hBot = rgb(mix(hexToRgb(theme.headBot), CREAM_RGB, t));
+      const tabRgb = mix(onHeadRgb, INK_RGB, t);
+      header.style.background = `linear-gradient(180deg, ${hTop}, ${hBot})`;
+      header.style.setProperty("--tc-on", rgb(tabRgb));
+      header.style.setProperty("--tc-off", rgba(tabRgb, 0.72));
+    }
+    if (delivRef.current) {
+      delivRef.current.style.maxHeight = `${(1 - t) * 90}px`;
+      delivRef.current.style.opacity = `${clamp01(1 - t * 1.7)}`;
+    }
+    if (promoRef.current) {
+      promoRef.current.style.height = `${t * 24}px`;
+      promoRef.current.style.opacity = `${t}`;
+    }
+    if (heroRef.current) {
+      heroRef.current.style.opacity = `${heroFade}`;
+      heroRef.current.style.transform = `translateY(${-(1 - heroFade) * (catTab === "all" ? 10 : 12)}px)`;
+    }
+  };
+
+  // Re-sync the header to the real scroll position after any (non-scroll)
+  // re-render, so cart/hint updates never snap the header back open.
+  useLayoutEffect(() => {
+    applyScroll(scrollRef.current ? scrollRef.current.scrollTop : 0);
+  });
+
+  // Scroll handler: read once, coalesce to one rAF, mutate the DOM — no setState.
+  const onScroll = (e) => {
+    lastY.current = e.currentTarget.scrollTop;
+    if (!rafPending.current) {
+      rafPending.current = true;
+      requestAnimationFrame(() => { rafPending.current = false; applyScroll(lastY.current); });
+    }
+  };
+
+  // t=0 (expanded) baselines for the first synchronous paint; the layout
+  // effect above immediately reconciles them to the live scroll position.
+  const headBg = `linear-gradient(180deg, ${theme.headTop}, ${theme.headBot})`;
+  const baseTabCol = rgb(onHeadRgb);
+  const baseTabColDim = rgba(onHeadRgb, 0.72);
+
+  // Heavy content is memoized so scrolling never re-renders the product/tile lists.
+  const sections = useMemo(
+    () => (catTab === "all"
+      ? <HomeContent cart={cart} add={add} inc={inc} dec={dec} openList={openList} />
+      : <ThemedContent theme={theme} cart={cart} add={add} inc={inc} dec={dec} openList={openList} />),
+    [catTab, cart, theme, add, inc, dec, openList]
+  );
 
   return (
     <div className="bk-wrap">
@@ -761,9 +809,9 @@ export default function BlinkitHome() {
         ) : (
           <>
             {/* الهيدر القابل للطي */}
-            <div className="bk-header" style={{ background: headBg }}>
+            <div className="bk-header" ref={headerRef} style={{ background: headBg, "--tc-on": baseTabCol, "--tc-off": baseTabColDim }}>
               {/* معلومات التوصيل — تنطوي عند التمرير */}
-              <div className="bk-deliv-wrap" style={{ maxHeight: delivH, opacity: delivOp }}>
+              <div className="bk-deliv-wrap" ref={delivRef} style={{ maxHeight: 90, opacity: 1 }}>
                 <div className="bk-deliv">
                   <div>
                     <div className="lbl" style={{ color: rgba(onHeadRgb, 0.9) }}>التوصيل خلال</div>
@@ -804,9 +852,9 @@ export default function BlinkitHome() {
                     <div key={tb.id} ref={(el) => (tabRefs.current[tb.id] = el)}
                       className={"bk-tab" + (on ? " on" : "")}
                       onClick={(e) => pickTab(tb.id, e.currentTarget)}>
-                      <span className="iconwrap"><tb.Icon size={24} strokeWidth={1.9} color={on ? tabCol : tabColDim} /></span>
-                      <span className="tl" style={{ color: on ? tabCol : tabColDim }}>{tb.label}</span>
-                      {on && <span className="bk-uline" style={{ background: tabCol }} />}
+                      <span className="iconwrap"><tb.Icon size={24} strokeWidth={1.9} /></span>
+                      <span className="tl">{tb.label}</span>
+                      {on && <span className="bk-uline" />}
                     </div>
                   );
                 })}
@@ -814,7 +862,7 @@ export default function BlinkitHome() {
 
               {/* شريط العرض الرفيع — يظهر عند طي الهيدر */}
               {theme.promo && (
-                <div className="bk-promo" style={{ height: promoH, lineHeight: "24px", opacity: t }}>
+                <div className="bk-promo" ref={promoRef} style={{ height: 0, lineHeight: "24px", opacity: 0 }}>
                   ⚡ اطلب الآن واحصل على توصيل مجاني
                 </div>
               )}
@@ -822,9 +870,11 @@ export default function BlinkitHome() {
 
             {/* المحتوى */}
             <div className="bk-content" ref={scrollRef} onScroll={onScroll} key={catTab}>
-              {catTab === "all"
-                ? <HomeContent cart={cart} add={add} inc={inc} dec={dec} openList={setListing} heroFade={heroFade} />
-                : <ThemedContent theme={theme} cart={cart} add={add} inc={inc} dec={dec} openList={setListing} heroFade={heroFade} />}
+              {/* البانر يتلاشى عند التمرير — يُحرَّك عبر ref بلا إعادة رسم */}
+              <div ref={heroRef} style={{ opacity: 1 }}>
+                {catTab === "all" ? <WelcomeHero /> : <Hero hero={theme.hero} />}
+              </div>
+              {sections}
               <div style={{ textAlign: "center", color: "#c8c8c8", fontSize: 13, padding: "20px 0 8px", fontWeight: 800, letterSpacing: 1 }}>بلينكيت</div>
             </div>
           </>
