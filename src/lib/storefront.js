@@ -62,3 +62,44 @@ export const adminSetStorefront = (adminId, f = {}) =>
     p_header_video: f.header_video === undefined ? null : f.header_video,
     p_header_overlay: f.header_overlay ?? null,
   });
+
+/* ── المرحلة ٢: مزايا جديدة قابلة للتحكّم (تحتاج db/blinkit_storefront_3.sql) ── */
+
+// لوحة الإعلانات (بطاقات .bk-ad)
+export const adminSaveHomeAd = (adminId, f = {}) =>
+  rpc('admin_save_home_ad', {
+    p_admin_id: adminId, p_id: f.id ?? null, p_title: f.title ?? null, p_subtitle: f.subtitle ?? null,
+    p_cta_label: f.cta_label ?? null, p_emoji: f.emoji ?? null, p_image: f.image ?? null,
+    p_bg: f.bg ?? null, p_fg: f.fg ?? null, p_tab: f.tab ?? 'all', p_sort: f.sort ?? 0, p_active: f.active ?? true,
+  });
+export const adminDeleteHomeAd = (adminId, id) =>
+  rpc('admin_delete_home_ad', { p_admin_id: adminId, p_id: id });
+
+// كولاج الأكثر مبيعاً (بطاقات شبكة bk-bs)
+export const adminSaveHomeCollage = (adminId, f = {}) =>
+  rpc('admin_save_home_collage', {
+    p_admin_id: adminId, p_id: f.id ?? null, p_title: f.title,
+    p_emojis: Array.isArray(f.emojis) ? f.emojis : [], p_more_count: f.more_count ?? 0,
+    p_cat_name: f.cat_name ?? null, p_tab: f.tab ?? 'all', p_sort: f.sort ?? 0, p_active: f.active ?? true,
+  });
+export const adminDeleteHomeCollage = (adminId, id) =>
+  rpc('admin_delete_home_collage', { p_admin_id: adminId, p_id: id });
+
+// صفوف المنتجات (ProductRow) — المصدر: bestsellers | deals | category | manual
+export const adminSaveHomeRail = (adminId, f = {}) =>
+  rpc('admin_save_home_rail', {
+    p_admin_id: adminId, p_id: f.id ?? null, p_title: f.title, p_subtitle: f.subtitle ?? null,
+    p_source: f.source ?? 'bestsellers', p_cat_name: f.cat_name ?? null,
+    p_product_ids: Array.isArray(f.product_ids) ? f.product_ids : [],
+    p_tab: f.tab ?? 'all', p_sort: f.sort ?? 0, p_active: f.active ?? true,
+  });
+export const adminDeleteHomeRail = (adminId, id) =>
+  rpc('admin_delete_home_rail', { p_admin_id: adminId, p_id: id });
+
+// ثيم تبويب مخصّص (يُدمج فوق ثيم التصميم)
+export const adminSetTabTheme = (adminId, id, themeJson) =>
+  rpc('admin_set_tab_theme', { p_admin_id: adminId, p_id: id, p_theme_json: themeJson ?? null });
+
+// الشريط الترويجي العلوي (⚡)
+export const adminSetPromo = (adminId, enabled, text) =>
+  rpc('admin_set_promo', { p_admin_id: adminId, p_enabled: enabled ?? null, p_text: text ?? null });

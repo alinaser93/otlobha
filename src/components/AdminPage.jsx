@@ -6,6 +6,7 @@ import {
   ShoppingBag, Wallet, ChevronDown, Truck, Sun, Moon, TrendingUp,
   Plus, Minus, Pencil, Eye, EyeOff, GripVertical, Image as ImageIcon, Layers, Save, Boxes,
   Search, KeyRound, Ban, Sparkles, Camera, Link2, Store as StoreIcon, Star, SlidersHorizontal, Banknote, Bike, CheckCircle2, BellRing, Home, Tag,
+  Megaphone, Zap, Palette, ListOrdered, LayoutGrid,
 } from 'lucide-react';
 import { useOrderChime } from '../lib/alerts.js';
 import PushToggle from './PushToggle.jsx';
@@ -48,6 +49,8 @@ import {
   adminListHome, adminSaveHomeGroup, adminDeleteHomeGroup,
   adminSaveHomeTab, adminDeleteHomeTab, adminSaveHomeBanner, adminDeleteHomeBanner,
   adminSetCategoryHome, adminSetStorefront,
+  adminSaveHomeAd, adminDeleteHomeAd, adminSaveHomeCollage, adminDeleteHomeCollage,
+  adminSaveHomeRail, adminDeleteHomeRail, adminSetTabTheme, adminSetPromo,
 } from '../lib/storefront.js';
 import { uploadProductImage, uploadStoreCover, uploadStoreVideo } from '../lib/storage.js';
 import { extractProductsFromImage, generateProductDescription, generateBundle } from '../lib/ai.js';
@@ -1945,17 +1948,19 @@ function CouponsManager({ admin }) {
 /* ═══════════════════ واجهة Blinkit (المجموعات/التبويبات/البانرات/الربط/الإعدادات) ═══════════════════ */
 function StorefrontSection({ admin }) {
   const [t, setT] = useState('groups');
-  const [home, setHome] = useState({ tabs: [], groups: [], banners: [] });
+  const [home, setHome] = useState({ tabs: [], groups: [], banners: [], ads: [], collages: [], rails: [] });
   const [cats, setCats] = useState([]);
+  const [products, setProducts] = useState([]);
   const [cfg, setCfg] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
-    const [h, c, s] = await Promise.all([adminListHome(admin.id), adminListCategories(admin.id), getSettings()]);
-    if (h?.ok) setHome({ tabs: h.tabs || [], groups: h.groups || [], banners: h.banners || [] });
+    const [h, c, s, p] = await Promise.all([adminListHome(admin.id), adminListCategories(admin.id), getSettings(), adminListProducts(admin.id)]);
+    if (h?.ok) setHome({ tabs: h.tabs || [], groups: h.groups || [], banners: h.banners || [], ads: h.ads || [], collages: h.collages || [], rails: h.rails || [] });
     if (Array.isArray(c?.categories)) setCats(c.categories);
     if (s) setCfg(s);
+    if (Array.isArray(p?.products)) setProducts(p.products);
     setLoading(false);
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
@@ -1964,12 +1969,17 @@ function StorefrontSection({ admin }) {
 
   return (
     <div>
-      <SubTabs value={t} onChange={setT} tabs={[['groups', 'المجموعات', Layers], ['tabs', 'التبويبات', Boxes], ['banners', 'البانرات', ImageIcon], ['link', 'ربط الأقسام', Tag], ['settings', 'إعدادات الواجهة', SlidersHorizontal]]} />
+      <SubTabs value={t} onChange={setT} tabs={[['groups', 'المجموعات', Layers], ['tabs', 'التبويبات', Boxes], ['themes', 'الثيمات', Palette], ['banners', 'البانرات', ImageIcon], ['ads', 'الإعلانات', Megaphone], ['collages', 'الكولاج', LayoutGrid], ['rails', 'الصفوف', ListOrdered], ['promo', 'الشريط', Zap], ['link', 'ربط الأقسام', Tag], ['settings', 'إعدادات الواجهة', SlidersHorizontal]]} />
       <div className="px-4 pb-4 pt-1">
         <p className="mb-3 rounded-lg bg-copper/10 px-3 py-2 text-[12px] font-bold text-copper-dark dark:text-copper-light">✨ عايِن تغييراتك على <span dir="ltr">/blinkit?real=1</span></p>
         {t === 'groups'   && <SfGroups   admin={admin} home={home} reload={load} />}
         {t === 'tabs'     && <SfTabs     admin={admin} home={home} reload={load} />}
+        {t === 'themes'   && <SfThemes   admin={admin} home={home} reload={load} />}
         {t === 'banners'  && <SfBanners  admin={admin} home={home} reload={load} />}
+        {t === 'ads'      && <SfAds      admin={admin} home={home} reload={load} />}
+        {t === 'collages' && <SfCollages admin={admin} home={home} cats={cats} reload={load} />}
+        {t === 'rails'    && <SfRails    admin={admin} home={home} cats={cats} products={products} reload={load} />}
+        {t === 'promo'    && <SfPromo    admin={admin} cfg={cfg} reload={load} />}
         {t === 'link'     && <SfCatLink  admin={admin} cats={cats} home={home} reload={load} />}
         {t === 'settings' && <SfSettings admin={admin} cfg={cfg} reload={load} />}
       </div>
@@ -2179,6 +2189,243 @@ function SfSettings({ admin, cfg, reload }) {
         <input type="checkbox" checked={!!f.show_bundles} onChange={(e) => setF({ ...f, show_bundles: e.target.checked })} className="h-5 w-5 accent-copper" />
       </label>
       <button onClick={save} className="flex w-full items-center justify-center gap-2 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream"><Save className="h-4 w-4" /> حفظ الإعدادات</button>
+      {msg && <p className="text-center text-xs font-bold text-green-600 dark:text-green-300">{msg}</p>}
+    </div>
+  );
+}
+
+/* ── ثيمات التبويبات (theme_json) ── */
+function SfThemes({ admin, home, reload }) {
+  return (
+    <div className="space-y-2">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">خصّص ألوان الهيدر وتلميحات البحث وبانر كل تبويب. اترك الحقل فارغاً لاستخدام التصميم الافتراضي.</span>
+      {home.tabs.length === 0 && <p className="py-6 text-center text-sm text-ink/40 dark:text-cream/40">أضِف تبويبات أولاً من «التبويبات».</p>}
+      {home.tabs.map((tb) => <ThemeRow key={tb.id} admin={admin} tb={tb} reload={reload} />)}
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange }) {
+  return (
+    <label className="flex items-center gap-1.5 rounded-lg bg-cream px-2 py-1.5 text-[11px] font-bold text-ink/60 dark:bg-night-800 dark:text-cream/60">
+      {label}
+      <input type="color" value={value || '#888888'} onChange={(e) => onChange(e.target.value)} className="h-6 w-7 rounded border border-ink/10 dark:border-white/10" />
+      {value && <button onClick={() => onChange('')} className="text-ink/40 dark:text-cream/40" title="مسح">✕</button>}
+    </label>
+  );
+}
+
+function ThemeRow({ admin, tb, reload }) {
+  const j = tb.theme_json || {};
+  const [f, setF] = useState({
+    headTop: j.headTop || '', headBot: j.headBot || '', onHead: j.onHead || '', sub: j.sub || '',
+    hints: Array.isArray(j.hints) ? j.hints.join('، ') : '',
+    heroTitle: (j.hero && j.hero.title) || '', heroSub: (j.hero && j.hero.sub) || '',
+  });
+  const [msg, setMsg] = useState('');
+  const save = async () => {
+    const theme = {};
+    ['headTop', 'headBot', 'onHead', 'sub'].forEach((k) => { if (f[k]) theme[k] = f[k]; });
+    const hints = f.hints.split(/[،,\n]/).map((s) => s.trim()).filter(Boolean);
+    if (hints.length) theme.hints = hints;
+    if (f.heroTitle.trim() || f.heroSub.trim()) {
+      theme.hero = { kind: 'glow', title: f.heroTitle.trim(), sub: f.heroSub.trim(),
+        bg: f.headTop ? `linear-gradient(135deg, ${f.headTop}, ${f.headBot || f.headTop})` : undefined,
+        text: f.onHead || '#3a2740', subText: f.sub || '#6a5a62' };
+    }
+    const r = await adminSetTabTheme(admin.id, tb.id, Object.keys(theme).length ? theme : null);
+    setMsg(r?.ok ? 'تم ✓' : 'تعذّر'); reload();
+  };
+  const reset = async () => { await adminSetTabTheme(admin.id, tb.id, null); setF({ headTop: '', headBot: '', onHead: '', sub: '', hints: '', heroTitle: '', heroSub: '' }); reload(); };
+  return (
+    <div className="space-y-2 rounded-xl border border-ink/10 bg-beige p-3 dark:border-white/10 dark:bg-night-900">
+      <div className="flex items-center gap-2">
+        <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg text-lg" style={{ background: tb.theme }}>{tb.icon_image ? <img src={tb.icon_image} alt="" className="h-full w-full object-contain p-0.5" /> : tb.icon}</span>
+        <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{tb.label}</span>
+        {msg && <span className="text-[11px] font-bold text-green-600 dark:text-green-300">{msg}</span>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <ColorField label="أعلى الهيدر" value={f.headTop} onChange={(v) => setF({ ...f, headTop: v })} />
+        <ColorField label="أسفل الهيدر" value={f.headBot} onChange={(v) => setF({ ...f, headBot: v })} />
+        <ColorField label="لون النص" value={f.onHead} onChange={(v) => setF({ ...f, onHead: v })} />
+        <ColorField label="لون فرعي" value={f.sub} onChange={(v) => setF({ ...f, sub: v })} />
+      </div>
+      <input value={f.hints} onChange={(e) => setF({ ...f, hints: e.target.value })} placeholder="تلميحات البحث (مفصولة بفواصل)" className={inp} />
+      <div className="flex flex-wrap gap-2">
+        <input value={f.heroTitle} onChange={(e) => setF({ ...f, heroTitle: e.target.value })} placeholder="عنوان البانر (اختياري)" className={inp + ' flex-1'} />
+        <input value={f.heroSub} onChange={(e) => setF({ ...f, heroSub: e.target.value })} placeholder="وصف البانر" className={inp + ' flex-1'} />
+      </div>
+      <div className="flex gap-2">
+        <button onClick={save} className="flex-1 rounded-xl bg-copper px-4 py-2 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">حفظ ثيم {tb.label}</button>
+        <button onClick={reset} className="rounded-xl bg-ink/5 px-3 py-2 text-[12px] font-bold text-ink/60 dark:bg-white/10 dark:text-cream/60">افتراضي</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── لوحة الإعلانات ── */
+function SfAds({ admin, home, reload }) {
+  const [f, setF] = useState({ title: '', subtitle: '', cta_label: '', emoji: '🍚', image: '', bg: '', fg: '', tab: 'all' });
+  const tabs = home.tabs.length ? home.tabs : [{ key: 'all', label: 'الكل' }];
+  const add = async () => {
+    if (!f.title.trim() && !f.emoji.trim() && !f.image.trim()) return;
+    await adminSaveHomeAd(admin.id, { ...f, sort: home.ads.length });
+    setF({ title: '', subtitle: '', cta_label: '', emoji: '🍚', image: '', bg: '', fg: '', tab: 'all' }); reload();
+  };
+  return (
+    <div className="space-y-2">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{home.ads.length} إعلان — بطاقة كبيرة داخل الواجهة حسب التبويب</span>
+      {home.ads.map((a) => (
+        <SfRowShell key={a.id} active={a.active}
+          onToggle={async () => { await adminSaveHomeAd(admin.id, { ...a, active: !a.active }); reload(); }}
+          onDelete={async () => { await adminDeleteHomeAd(admin.id, a.id); reload(); }}>
+          <span className="grid h-10 w-16 shrink-0 place-items-center overflow-hidden rounded-lg text-2xl" style={{ background: a.bg || '#eee' }}>{a.image ? <img src={a.image} alt="" className="h-full w-full object-cover" /> : (a.emoji || '📢')}</span>
+          <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{a.title || '(بدون عنوان)'}</span>
+          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/50 dark:bg-white/10 dark:text-cream/50">{tabs.find((x) => x.key === a.tab)?.label || a.tab}</span>
+        </SfRowShell>
+      ))}
+      <div className="space-y-2 rounded-xl border border-ink/10 bg-cream p-3 dark:border-white/10 dark:bg-night-800">
+        <div className="flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة إعلان</div>
+        <input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="العنوان (احتفال البرياني هنا)" className={inp} />
+        <input value={f.subtitle} onChange={(e) => setF({ ...f, subtitle: e.target.value })} placeholder="الوصف" className={inp} />
+        <div className="flex flex-wrap gap-2">
+          <input value={f.cta_label} onChange={(e) => setF({ ...f, cta_label: e.target.value })} placeholder="زر (تسوّق الآن)" className={inp + ' flex-1'} />
+          <input value={f.emoji} onChange={(e) => setF({ ...f, emoji: e.target.value })} placeholder="🍚" className="w-14 shrink-0 rounded-xl border border-ink/10 bg-beige px-2 py-2.5 text-center dark:border-white/10 dark:bg-night-900" />
+          <select value={f.tab} onChange={(e) => setF({ ...f, tab: e.target.value })} className={inp + ' w-28'}>{tabs.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input dir="ltr" value={f.bg} onChange={(e) => setF({ ...f, bg: e.target.value })} placeholder="خلفية CSS (تدرّج/لون)" className={inp + ' flex-1'} />
+          <label className="flex items-center gap-1 text-[12px] font-bold text-ink/60 dark:text-cream/60">لون النص <input type="color" value={f.fg || '#2a2a2a'} onChange={(e) => setF({ ...f, fg: e.target.value })} className="h-9 w-10 rounded-lg border border-ink/10 dark:border-white/10" /></label>
+        </div>
+        <input dir="ltr" value={f.image} onChange={(e) => setF({ ...f, image: e.target.value })} placeholder="رابط صورة (اختياري، بديل الإيموجي)" className={inp} />
+        <button onClick={add} className="w-full rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">إضافة الإعلان</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── كولاج الأكثر مبيعاً ── */
+function SfCollages({ admin, home, cats, reload }) {
+  const [f, setF] = useState({ title: '', emojis: '', more_count: 0, cat_name: '', tab: 'all' });
+  const tabs = home.tabs.length ? home.tabs : [{ key: 'all', label: 'الكل' }];
+  const add = async () => {
+    if (!f.title.trim()) return;
+    const emojis = f.emojis.split(/\s+/).filter(Boolean).slice(0, 4);
+    await adminSaveHomeCollage(admin.id, { title: f.title.trim(), emojis, more_count: Number(f.more_count) || 0, cat_name: f.cat_name, tab: f.tab, sort: home.collages.length });
+    setF({ title: '', emojis: '', more_count: 0, cat_name: '', tab: 'all' }); reload();
+  };
+  return (
+    <div className="space-y-2">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{home.collages.length} بطاقة كولاج — تظهر ضمن «الأكثر مبيعاً»</span>
+      {home.collages.map((c) => (
+        <SfRowShell key={c.id} active={c.active}
+          onToggle={async () => { await adminSaveHomeCollage(admin.id, { ...c, emojis: Array.isArray(c.emojis) ? c.emojis : [], active: !c.active }); reload(); }}
+          onDelete={async () => { await adminDeleteHomeCollage(admin.id, c.id); reload(); }}>
+          <span className="flex shrink-0 gap-0.5 text-lg">{(Array.isArray(c.emojis) ? c.emojis : []).slice(0, 4).map((e, i) => <span key={i}>{e}</span>)}</span>
+          <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{c.title}</span>
+          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/50 dark:bg-white/10 dark:text-cream/50">{tabs.find((x) => x.key === c.tab)?.label || c.tab}</span>
+        </SfRowShell>
+      ))}
+      <div className="space-y-2 rounded-xl border border-ink/10 bg-cream p-3 dark:border-white/10 dark:bg-night-800">
+        <div className="flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة بطاقة كولاج</div>
+        <input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="العنوان (خضار وفواكه)" className={inp} />
+        <input value={f.emojis} onChange={(e) => setF({ ...f, emojis: e.target.value })} placeholder="٤ إيموجي مفصولة بمسافة (🥦 🍌 🧅 🫛)" className={inp} />
+        <div className="flex flex-wrap gap-2">
+          <input type="number" value={f.more_count} onChange={(e) => setF({ ...f, more_count: e.target.value })} placeholder="+المزيد" className={inp + ' w-24'} />
+          <select value={f.cat_name} onChange={(e) => setF({ ...f, cat_name: e.target.value })} className={inp + ' flex-1'}>
+            <option value="">— فئة عند الضغط (اختياري) —</option>
+            {(cats || []).map((c) => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+          </select>
+          <select value={f.tab} onChange={(e) => setF({ ...f, tab: e.target.value })} className={inp + ' w-28'}>{tabs.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+        </div>
+        <button onClick={add} className="w-full rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">إضافة</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── صفوف المنتجات ── */
+const RAIL_SRC = { bestsellers: 'الأكثر مبيعاً', deals: 'عروض وخصومات', category: 'فئة محدّدة', manual: 'اختيار يدوي' };
+function RailProductPicker({ products, selected, onChange }) {
+  const [q, setQ] = useState('');
+  const sel = (selected || []).map(String);
+  const list = (products || []).filter((p) => !q || (p.name || '').includes(q)).slice(0, 80);
+  const toggle = (id) => { const s = new Set(sel); const k = String(id); if (s.has(k)) s.delete(k); else s.add(k); onChange([...s]); };
+  return (
+    <div className="rounded-xl border border-ink/10 bg-beige p-2 dark:border-white/10 dark:bg-night-900">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث عن منتج" className={inp + ' mb-2'} />
+      <div className="max-h-48 space-y-1 overflow-y-auto">
+        {list.map((p) => {
+          const on = sel.includes(String(p.id));
+          return (
+            <label key={p.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] ${on ? 'bg-copper/10' : ''}`}>
+              <input type="checkbox" checked={on} onChange={() => toggle(p.id)} className="h-4 w-4 accent-copper" />
+              <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden text-base">{p.image ? <img src={p.image} alt="" className="h-full w-full object-contain" /> : (p.emoji || '🛒')}</span>
+              <span className="flex-1 truncate text-ink dark:text-cream">{p.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[11px] text-ink/40 dark:text-cream/40">{sel.length} منتج مُختار</p>
+    </div>
+  );
+}
+function SfRails({ admin, home, cats, products, reload }) {
+  const [f, setF] = useState({ title: '', subtitle: '', source: 'bestsellers', cat_name: '', product_ids: [], tab: 'all' });
+  const tabs = home.tabs.length ? home.tabs : [{ key: 'all', label: 'الكل' }];
+  const add = async () => {
+    if (!f.title.trim()) return;
+    await adminSaveHomeRail(admin.id, { ...f, product_ids: f.product_ids, sort: home.rails.length });
+    setF({ title: '', subtitle: '', source: 'bestsellers', cat_name: '', product_ids: [], tab: 'all' }); reload();
+  };
+  return (
+    <div className="space-y-2">
+      <span className="text-[12px] text-ink/50 dark:text-cream/50">{home.rails.length} صفّ — كل صفّ شريط منتجات أفقي. عند وجود صفوف يدوية تحلّ محلّ الصفوف التلقائية.</span>
+      {home.rails.map((r) => (
+        <SfRowShell key={r.id} active={r.active}
+          onToggle={async () => { await adminSaveHomeRail(admin.id, { ...r, product_ids: Array.isArray(r.product_ids) ? r.product_ids : [], active: !r.active }); reload(); }}
+          onDelete={async () => { await adminDeleteHomeRail(admin.id, r.id); reload(); }}>
+          <span className="flex-1 truncate font-display text-sm font-bold text-ink dark:text-cream">{r.title}</span>
+          <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[11px] font-bold text-copper-dark dark:text-copper-light">{RAIL_SRC[r.source] || r.source}</span>
+          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] text-ink/50 dark:bg-white/10 dark:text-cream/50">{tabs.find((x) => x.key === r.tab)?.label || r.tab}</span>
+        </SfRowShell>
+      ))}
+      <div className="space-y-2 rounded-xl border border-ink/10 bg-cream p-3 dark:border-white/10 dark:bg-night-800">
+        <div className="flex items-center gap-2 text-sm font-bold"><Plus className="h-4 w-4 text-copper" /> إضافة صفّ</div>
+        <input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="العنوان (لِعشّاق الحلويات)" className={inp} />
+        <input value={f.subtitle} onChange={(e) => setF({ ...f, subtitle: e.target.value })} placeholder="وصف (اختياري)" className={inp} />
+        <div className="flex flex-wrap gap-2">
+          <select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={inp + ' flex-1'}>{Object.entries(RAIL_SRC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          <select value={f.tab} onChange={(e) => setF({ ...f, tab: e.target.value })} className={inp + ' w-28'}>{tabs.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+        </div>
+        {f.source === 'category' && (
+          <select value={f.cat_name} onChange={(e) => setF({ ...f, cat_name: e.target.value })} className={inp}>
+            <option value="">— اختر فئة —</option>
+            {(cats || []).map((c) => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+          </select>
+        )}
+        {f.source === 'manual' && <RailProductPicker products={products} selected={f.product_ids} onChange={(ids) => setF({ ...f, product_ids: ids })} />}
+        <button onClick={add} className="w-full rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream">إضافة الصفّ</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── الشريط الترويجي ── */
+function SfPromo({ admin, cfg, reload }) {
+  const [enabled, setEnabled] = useState(cfg?.sf_promo_enabled ?? true);
+  const [text, setText] = useState(cfg?.sf_promo_text ?? '');
+  const [msg, setMsg] = useState('');
+  const save = async () => { setMsg(''); const r = await adminSetPromo(admin.id, enabled, text); setMsg(r?.ok ? 'تم الحفظ ✓' : 'تعذّر الحفظ'); reload(); };
+  return (
+    <div className="space-y-3">
+      <p className="text-[12px] text-ink/50 dark:text-cream/50">الشريط الأصفر الرفيع أعلى الواجهة الذي يظهر عند النزول.</p>
+      <label className="flex items-center justify-between rounded-xl border border-ink/10 bg-beige px-3 py-2.5 dark:border-white/10 dark:bg-night-900">
+        <span className="text-sm font-bold text-ink dark:text-cream">تفعيل الشريط الترويجي</span>
+        <input type="checkbox" checked={!!enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-5 w-5 accent-copper" />
+      </label>
+      <input value={text} onChange={(e) => setText(e.target.value)} placeholder="⚡ اطلب الآن واحصل على توصيل مجاني" className={inp} />
+      <button onClick={save} className="flex w-full items-center justify-center gap-2 rounded-xl bg-copper px-4 py-2.5 text-sm font-bold text-ink hover:bg-copper-dark dark:text-cream"><Save className="h-4 w-4" /> حفظ</button>
       {msg && <p className="text-center text-xs font-bold text-green-600 dark:text-green-300">{msg}</p>}
     </div>
   );
