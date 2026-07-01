@@ -1,399 +1,829 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Search, Mic, User, ChevronLeft, Clock, Plus, Minus, ChevronDown, Wallet, Heart, Star,
-  Home as HomeIcon, RotateCcw, LayoutGrid, ShoppingCart,
-} from 'lucide-react';
-import { TABS, CATEGORIES, PRODUCTS, bestsellerCats, iqd } from '../data/blinkitCatalog.js';
-import { fetchStoreCatalog } from '../lib/products.js';
-import { getHomeLayout } from '../lib/storefront.js';
+  Search, Mic, ChevronDown, ChevronRight, ChevronLeft, User, Clock, Star,
+  Plus, Minus, Home, RotateCcw, LayoutGrid, Printer, ShoppingBasket,
+  Headphones, Sparkles, Lamp, Baby, Gift, Globe, ShoppingBag, TrendingUp,
+} from "lucide-react";
 
-/* ════════════════════════════════════════════════════════════════
-   «اطلبها» — رئيسية بنمط Blinkit:
-   هيدر متقلّص (تبويبات + خلفية) → بانر ترحيب → عروض كبرى (Mega Sale)
-   → الأكثر مبيعاً (كولاج) → كاروسيل منتجات → تسوّق حسب القسم (٢٠ بأيقونات).
-   ════════════════════════════════════════════════════════════════ */
+/* ============================================================
+   تطبيق تجارة سريعة بأسلوب بلينكيت — نسخة عربية (RTL).
+   • هيدر ذهبي/بيج لكل قسم، وهوية كل فئة في القسم أسفل التبويبات.
+   • هيدر قابل للطي: معلومات التوصيل تنطوي والبانر يتلاشى تدريجياً
+     عند النزول، وشريط البحث + التبويبات يثبتان ويتغيّر لونهما.
+   الصور إيموجي مؤقتة لاستبدالها لاحقاً.
+   ============================================================ */
 
-const DELIVERY = 10;
-const BG_TILE = '#F8F1C3';
-const pct = (price, old) => (old ? Math.round((1 - price / old) * 100) : 0);
+const YELLOW = "#F8CB46";
+const YELLOW_DK = "#F0B500";
+const GREEN = "#0C831F";
+const GREEN_SOFT = "#E8F4EA";
+const CREAM = "#FCF7E8";
+const BLUE = "#2A6ED9";
+const INK = "#1C1C1C";
 
-const normProduct = (p) => ({
-  ...p,
-  old: p.old ?? p.oldPrice ?? null,
-  cat: p.cat ?? p.tag ?? null,
-  mins: p.mins ?? 13,
-  rating: p.rating || 4.5,
-  ratingCount: p.ratingCount || 0,
-  image: p.image || null,
-});
+/* أدوات ألوان لإعادة تلوين الهيدر أثناء التمرير */
+const CREAM_RGB = [252, 247, 232];
+const INK_RGB = [28, 28, 28];
+const hexToRgb = (h) => {
+  h = h.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgb = (a) => `rgb(${a[0]},${a[1]},${a[2]})`;
+const rgba = (a, al) => `rgba(${a[0]},${a[1]},${a[2]},${al})`;
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
 
-/* ───────────────────────── زر الإضافة ↔ العدّاد ───────────────────────── */
-function AddBtn({ qty, onAdd, onInc, onDec }) {
-  if (qty <= 0) {
+/* ------------------------- التبويبات ------------------------- */
+const TABS = [
+  { id: "all", label: "الكل", Icon: ShoppingBasket },
+  { id: "electronics", label: "إلكترونيات", Icon: Headphones },
+  { id: "beauty", label: "الجمال", Icon: Sparkles },
+  { id: "decor", label: "ديكور", Icon: Lamp },
+  { id: "kids", label: "الأطفال", Icon: Baby },
+  { id: "gifting", label: "الهدايا", Icon: Gift },
+  { id: "imported", label: "مستورد", Icon: Globe },
+];
+
+/* ------------------------- بيانات الرئيسية (الكل) ------------------------- */
+const BESTSELLERS = [
+  { title: "خضار وفواكه", more: 164, items: ["🍌", "🌶️", "🧅", "🍋"] },
+  { title: "رقائق ومقرمشات", more: 313, items: ["🥔", "🍟", "🌽", "🥨"] },
+  { title: "مشروبات وعصائر", more: 196, items: ["🥤", "🧃", "🥫", "🧉"] },
+  { title: "ألبان وخبز وبيض", more: 14, items: ["🥛", "🍶", "🧈", "🥚"] },
+  { title: "زيت وسمن وبهارات", more: 158, items: ["🫒", "🛢️", "🌾", "🧂"] },
+  { title: "آيس كريم والمزيد", more: 33, items: ["🍦", "🍨", "🧁", "🍧"] },
+];
+const GROCERY = [
+  { t: "خضار وفواكه", e: "🥬", bg: "#E9F2EC" },
+  { t: "طحين وأرز وعدس", e: "🌾", bg: "#F2EEE5" },
+  { t: "زيت وسمن وبهارات", e: "🫒", bg: "#FBF3E2" },
+  { t: "ألبان وخبز وبيض", e: "🥛", bg: "#EAF1F8" },
+  { t: "مخبوزات وبسكويت", e: "🍪", bg: "#F3ECDD" },
+  { t: "مكسرات وحبوب", e: "🥣", bg: "#FBEFE6" },
+  { t: "دجاج ولحوم وأسماك", e: "🍗", bg: "#FBEAEA" },
+  { t: "أدوات وأجهزة مطبخ", e: "🍳", bg: "#EDEFF2" },
+];
+const SNACKS = [
+  { t: "رقائق ومقرمشات", e: "🍟", bg: "#FBF1E0" },
+  { t: "حلويات وشوكولاتة", e: "🍫", bg: "#F3E7DD" },
+  { t: "مشروبات وعصائر", e: "🥤", bg: "#E7F0F6" },
+  { t: "شاي وقهوة والمزيد", e: "☕", bg: "#EFE7DD" },
+  { t: "طعام سريع التحضير", e: "🍜", bg: "#FBEFE0" },
+  { t: "صلصات ومربى", e: "🥫", bg: "#FBEAE4" },
+  { t: "ركن الپان", e: "🍃", bg: "#E9F2E6" },
+  { t: "آيس كريم والمزيد", e: "🍦", bg: "#F1EAF6" },
+];
+const HOUSEHOLD = [
+  { t: "المنزل ونمط الحياة", e: "🏠", bg: "#EEF1F4" },
+  { t: "منظفات وطاردات", e: "🧽", bg: "#E7F1F2" },
+  { t: "إلكترونيات", e: "🔌", bg: "#EFEFEF" },
+  { t: "قرطاسية وألعاب", e: "🎲", bg: "#F1ECE0" },
+];
+
+/* ------------------------- فئات الأقسام المُثيّمة ------------------------- */
+const ELECTRONICS_TILES = [
+  { t: "جوالات وإكسسوارات", e: "📱", bg: "#ECEFF2" },
+  { t: "صوتيات", e: "🎧", bg: "#EAF0F4" },
+  { t: "أجهزة منزلية", e: "🔌", bg: "#EFEFEF" },
+  { t: "أجهزة ذكية", e: "⌚", bg: "#ECEEF1" },
+  { t: "حواسيب", e: "💻", bg: "#EDEFF2" },
+  { t: "إضاءة", e: "💡", bg: "#F1EEDF" },
+  { t: "كاميرات", e: "📷", bg: "#EEEFF1" },
+  { t: "ألعاب فيديو", e: "🎮", bg: "#ECEDF2" },
+];
+const BEAUTY = [
+  { t: "الاستحمام والجسم", e: "🧴", bg: "#F6E9EE" },
+  { t: "الشعر", e: "💇", bg: "#EFE9F6" },
+  { t: "البشرة والوجه", e: "🧖", bg: "#FBEAF0" },
+  { t: "تجميل ومكياج", e: "💄", bg: "#F6E7EC" },
+  { t: "العناية النسائية", e: "🌸", bg: "#FBEAF2" },
+  { t: "عناية بالطفل", e: "🍼", bg: "#F1E7F0" },
+  { t: "صحة وأدوية", e: "💊", bg: "#F3E7EE" },
+  { t: "عطور", e: "🌷", bg: "#F6E7EC" },
+];
+const DECOR_TILES = [
+  { t: "ديكور المنزل", e: "🪴", bg: "#EFE6D5" },
+  { t: "مصابيح وإضاءة", e: "💡", bg: "#F2ECD9" },
+  { t: "مزهريات وأصص", e: "🏺", bg: "#EDE3D0" },
+  { t: "ديكور الجدران", e: "🖼️", bg: "#F0E8D8" },
+  { t: "شموع ومعطرات", e: "🕯️", bg: "#F2E9D6" },
+  { t: "وسائد وأغطية", e: "🛋️", bg: "#EEE4D2" },
+  { t: "نباتات صناعية", e: "🌿", bg: "#E9F0E2" },
+  { t: "ساعات وإطارات", e: "🕰️", bg: "#EFEADB" },
+];
+const KIDS_TILES = [
+  { t: "حفاضات ومناديل", e: "🧷", bg: "#DDEFF6" },
+  { t: "طعام الأطفال", e: "🍼", bg: "#E6F2F8" },
+  { t: "ألعاب", e: "🧸", bg: "#E0EEF6" },
+  { t: "استحمام وبشرة", e: "🧴", bg: "#E8F3F8" },
+  { t: "الرضاعة", e: "🥣", bg: "#DEEFF6" },
+  { t: "أزياء الأطفال", e: "👕", bg: "#E6F1F8" },
+  { t: "التعلم", e: "📚", bg: "#E0EDF6" },
+  { t: "قرطاسية", e: "✏️", bg: "#E8F2F8" },
+];
+const IMPORTED_TILES = [
+  { t: "وجبات عالمية", e: "🍫", bg: "#F1E6CE" },
+  { t: "نودلز ومعكرونة", e: "🍝", bg: "#F2E9D2" },
+  { t: "صلصات وغموس", e: "🥫", bg: "#EFE3CB" },
+  { t: "مشروبات", e: "🥤", bg: "#F0E7D0" },
+  { t: "شوكولاتة", e: "🍬", bg: "#F2E8D0" },
+  { t: "الفطور", e: "🥣", bg: "#EEE2CA" },
+];
+const OCCASIONS = [
+  { t: "عيد ميلاد", e: "🎂" }, { t: "ذكرى سنوية", e: "💐" },
+  { t: "استقبال مولود", e: "🍼" }, { t: "منزل جديد", e: "🏡" },
+  { t: "وداع", e: "🎁" }, { t: "تهنئة", e: "🎉" },
+];
+
+/* ------------------------- المنتجات ------------------------- */
+const PRODUCTS = [
+  { id: 1, name: "نودلز ماجيك ماسالا سريعة التحضير", e: "🍜", bg: "#FCEFD9", weight: "70 غ", price: 14, mrp: 15, off: 6, rating: 4.5, reviews: "28 ألف", eta: "8 دقائق" },
+  { id: 2, name: "رقائق بطاطس مملّحة كلاسيكية", e: "🍟", bg: "#FBF1DE", weight: "52 غ", price: 20, mrp: 20, off: 0, rating: 4.4, reviews: "50 ألف", eta: "8 دقائق" },
+  { id: 3, name: "علبة مشروب كولا غازي", e: "🥤", bg: "#FBE3E3", weight: "300 مل", price: 38, mrp: 40, off: 5, rating: 4.6, reviews: "12 ألف", eta: "8 دقائق" },
+  { id: 4, name: "كيس حليب طازج كامل الدسم", e: "🥛", bg: "#EAF1F8", weight: "500 مل", price: 34, mrp: 35, off: 3, rating: 4.7, reviews: "9 آلاف", eta: "8 دقائق" },
+  { id: 5, name: "بيض بنّي طازج من المزرعة", e: "🥚", bg: "#F6EFE2", weight: "6 حبات", price: 62, mrp: 72, off: 14, rating: 4.5, reviews: "7 آلاف", eta: "8 دقائق" },
+  { id: 6, name: "سيروم فيتامين C مفتّح للوجه", e: "🧪", bg: "#FBF6D9", weight: "30 مل", price: 285, mrp: 599, off: 52, rating: 4.4, reviews: "2.1 ألف", eta: "21 دقيقة" },
+  { id: 7, name: "بلسم شفاه ملوّن كولر+كير", e: "💄", bg: "#F6E9EE", weight: "3 غ", price: 240, mrp: 299, off: 19, rating: 4.5, reviews: "1.2 ألف", eta: "21 دقيقة" },
+  { id: 8, name: "كريم إزالة اسمرار البشرة الاحترافي", e: "🧴", bg: "#EFEFEF", weight: "12 غ", price: 432, mrp: 480, off: 10, rating: 4.3, reviews: "1.4 ألف", eta: "21 دقيقة" },
+  { id: 9, name: "سماعات رأس بلوتوث لاسلكية", e: "🎧", bg: "#EAF0F4", weight: "قطعة", price: 2899, mrp: 6990, off: 58, rating: 4.2, reviews: "988", eta: "13 دقيقة" },
+  { id: 10, name: "مكبّر صوت بلوتوث مدمج", e: "🔊", bg: "#EDEFF2", weight: "16 واط", price: 899, mrp: 2199, off: 59, rating: 4.1, reviews: "215", eta: "13 دقيقة" },
+  { id: 11, name: "سماعات أذن لاسلكية برو", e: "🎵", bg: "#F1ECF6", weight: "قطعة", price: 499, mrp: 5999, off: 91, rating: 4.0, reviews: "1.1 ألف", eta: "13 دقيقة" },
+  { id: 12, name: "لوح شوكولاتة داكنة غنية", e: "🍫", bg: "#F0E6DC", weight: "90 غ", price: 99, mrp: 120, off: 17, rating: 4.6, reviews: "4 آلاف", eta: "8 دقائق" },
+  { id: 13, name: "زبدة فول سوداني مقرمشة", e: "🥜", bg: "#FBEFE0", weight: "340 غ", price: 189, mrp: 225, off: 16, rating: 4.5, reviews: "3.2 ألف", eta: "10 دقائق" },
+  { id: 14, name: "أرز بسمتي طويل الحبة عطري", e: "🌾", bg: "#F2EEE3", weight: "1 كغ", price: 101, mrp: 108, off: 6, rating: 4.6, reviews: "72 ألف", eta: "10 دقائق" },
+  { id: 15, name: "دمية دب قطيفة ناعمة", e: "🧸", bg: "#F3ECD9", weight: "30 سم", price: 349, mrp: 599, off: 42, rating: 4.6, reviews: "2.4 ألف", eta: "13 دقيقة" },
+  { id: 16, name: "حفاضات أطفال بنطلون (وسط)", e: "🧷", bg: "#E6F2F8", weight: "56 حبة", price: 699, mrp: 999, off: 30, rating: 4.5, reviews: "8 آلاف", eta: "13 دقيقة" },
+  { id: 17, name: "مجموعة مكعبات بناء خشبية", e: "🧱", bg: "#EAF1F8", weight: "50 قطعة", price: 449, mrp: 899, off: 50, rating: 4.4, reviews: "1.1 ألف", eta: "13 دقيقة" },
+  { id: 18, name: "مزهرية سيراميك", e: "🏺", bg: "#EFE6D5", weight: "قطعة", price: 299, mrp: 849, off: 64, rating: 4.3, reviews: "640", eta: "19 دقيقة" },
+  { id: 19, name: "أضواء خيطية LED", e: "✨", bg: "#F2ECD9", weight: "10 م", price: 189, mrp: 399, off: 52, rating: 4.5, reviews: "3.1 ألف", eta: "19 دقيقة" },
+  { id: 20, name: "مجموعة شموع صويا معطّرة", e: "🕯️", bg: "#F2E9D6", weight: "3 قطع", price: 349, mrp: 699, off: 50, rating: 4.6, reviews: "900", eta: "19 دقيقة" },
+  { id: 21, name: "نبتة بوثوس داخلية مع أصيص", e: "🪴", bg: "#E9F0E2", weight: "قطعة", price: 185, mrp: 399, off: 53, rating: 4.4, reviews: "21 ألف", eta: "13 دقيقة" },
+  { id: 22, name: "علبة هدايا شوكولاتة متنوعة", e: "🍫", bg: "#F0E6DC", weight: "250 غ", price: 499, mrp: 799, off: 37, rating: 4.7, reviews: "5 آلاف", eta: "13 دقيقة" },
+  { id: 23, name: "مشروب آيس توك ليموناضة زرقاء", e: "🧊", bg: "#E7F0FB", weight: "230 مل", price: 110, mrp: 130, off: 15, rating: 4.4, reviews: "2.3 ألف", eta: "21 دقيقة" },
+];
+const byId = (id) => PRODUCTS.find((p) => p.id === id);
+
+/* ------------------------- نظام الثيمات ------------------------- */
+const THEMES = {
+  all: {
+    eta: "12", headTop: "#C99A24", headBot: "#8E6112", onHead: "#ffffff", sub: "#fbeccd",
+    badge: "#ffffff", badgeBorder: "rgba(255,255,255,.5)", searchBg: "#fff",
+    searchText: "#8a8a8a", searchIcon: "#5a5a5a", promo: true, welcome: true,
+    hints: ["نباتات", "حقيبة هدايا", "تمارين", "بانير", "كولا"],
+  },
+  electronics: {
+    eta: "13", headTop: "#4a4b50", headBot: "#6e6d6e", onHead: "#ffffff", sub: "#eaeaea",
+    badge: "#fff", badgeBorder: "rgba(255,255,255,.55)", searchBg: "#fff",
+    searchText: "#8a8a8a", searchIcon: "#5a5a5a",
+    hints: ["أجهزة مطبخ", "سماعات", "سماعات أذن", "ساعة ذكية"],
+    hero: { kind: "featured", title: "أفضل الصوتيات والإكسسوارات",
+      chips: [{ t: "باور بانك وشواحن", e: "🔋" }, { t: "سماعات", e: "🔊" }, { t: "أضواء ومصابيح LED", e: "💡" }] },
+    row1Title: "أفضل الصوتيات والإكسسوارات", row1: [9, 10, 11],
+    row2Title: "أجهزة تناسب كل احتياجاتك", row2: [11, 9, 10], tiles: ELECTRONICS_TILES,
+  },
+  beauty: {
+    eta: "21", surge: true, headTop: "#F3D24E", headBot: "#EBC63A", onHead: "#2a2320", sub: "#5a4e2a",
+    badge: "#3a2f4a", badgeBorder: "#c9b34a", searchBg: "#fff",
+    searchText: "#9a8a5a", searchIcon: "#7a6a3a",
+    hints: ["سيروم للوجه", "أحمر شفاه", "شامبو", "واقي شمس"],
+    hero: { kind: "glow", title: "أبرزي إشراقتك اليومية", sub: "أفضل منتجات الجمال المختارة لكِ",
+      bg: "linear-gradient(135deg,#F7CBDC,#F1B0CA)", text: "#7E2E5C", subText: "#6a5a62" },
+    zone: "linear-gradient(180deg,#F8D2E0 0%,#FBE6EE 55%,#ffffff 100%)",
+    cardBg: "#FDF0F5", cardBorder: "#f2cede",
+    row1Title: null, row1: [8, 7, 6],
+    row2Title: "غذّي وأصلحي شعركِ", row2Sub: "ماسكات وسيرومات للشعر", row2: [6, 8, 7], tiles: BEAUTY,
+  },
+  decor: {
+    eta: "19", headTop: "#E9D6B2", headBot: "#DCC08E", onHead: "#4a3b22", sub: "#6a5636",
+    badge: "#7a6636", badgeBorder: "#cbb583", searchBg: "#fff",
+    searchText: "#8a7a5a", searchIcon: "#6a5636",
+    hints: ["مصباح ديكور", "نبتة", "مزهرية", "وسادة"],
+    hero: { kind: "glow", title: "أعد تصميم مساحتك", sub: "قطع منزلية رائعة",
+      bg: "linear-gradient(135deg,#EAD8B4,#D8B87E)", text: "#5a3a1a", subText: "#6a5636", script: true },
+    zone: "linear-gradient(180deg,#EBDBBB 0%,#F4EAD6 55%,#ffffff 100%)",
+    cardBg: "#FBF6EC", cardBorder: "#ece0c8",
+    row1Title: null, row1: [18, 19, 20],
+    row2Title: "أضف الخضرة لكل غرفة", row2: [21, 18, 19], tiles: DECOR_TILES,
+  },
+  kids: {
+    eta: "13", headTop: "#CFE9F2", headBot: "#AEDCEC", onHead: "#1e3a4a", sub: "#3a5a6a",
+    badge: "#3a6a7a", badgeBorder: "#9ccbe0", searchBg: "#fff",
+    searchText: "#6a8a9a", searchIcon: "#3a5a6a",
+    hints: ["معقّم زجاجات", "حفاضات", "ألعاب", "طعام أطفال"],
+    hero: { kind: "glow", title: "ركن الصغار", sub: "لوقت لعب سعيد",
+      bg: "linear-gradient(135deg,#CFEAF4,#A6D8EC)", text: "#164a5a", subText: "#3a5a6a" },
+    zone: "linear-gradient(180deg,#D3ECF5 0%,#E8F5FA 55%,#ffffff 100%)",
+    cardBg: "#F0F9FC", cardBorder: "#d6e9f2",
+    row1Title: null, row1: [15, 16, 17],
+    row2Title: "هدايا للصغار", row2: [17, 15, 16], tiles: KIDS_TILES,
+  },
+  gifting: {
+    eta: "13", headTop: "#4a4b50", headBot: "#6e6d6e", onHead: "#ffffff", sub: "#eaeaea",
+    badge: "#fff", badgeBorder: "rgba(255,255,255,.55)", searchBg: "#fff",
+    searchText: "#8a8a8a", searchIcon: "#5a5a5a",
+    hints: ["مجوهرات", "علبة هدايا", "ورود", "شوكولاتة"],
+    hero: { kind: "occasions", title: "تسوّق حسب المناسبة", cardBg: "#2a2333" },
+    row1Title: "هدايا مختارة سيحبونها", row1: [21, 22, 15],
+    row2Title: "هدية الطبيعة المثالية", row2: [18, 21, 20], tiles: null,
+  },
+  imported: {
+    eta: "21", surge: true, headTop: "#E7D6B4", headBot: "#DCC79E", onHead: "#4a3b22", sub: "#6a5636",
+    badge: "#3a2f4a", badgeBorder: "#cbb583", searchBg: "#fff",
+    searchText: "#8a7a5a", searchIcon: "#6a5636",
+    hints: ["فيتامينات متعددة", "رقائق فاخرة", "معكرونة", "زيت زيتون"],
+    hero: { kind: "store", title: "المتجر المستورد", sub: "اكتشف ماركات من حول العالم",
+      bg: "radial-gradient(140% 120% at 50% -25%,#EFE4CC 0%,#E4D4AE 70%,#DCC99E 100%)", text: "#6B4A2A" },
+    row1Title: "وصل حديثاً: المفضّلة عالمياً", row1: [23, 1, 2, 12],
+    row2Title: "استمتع بعالم من النكهات", row2: [12, 22, 13], tiles: IMPORTED_TILES,
+  },
+};
+
+/* ------------------------- الأنماط ------------------------- */
+const CSS = `
+.bk-wrap{position:fixed;inset:0;background:#2b2b2b;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Tahoma,Roboto,'Helvetica Neue',Arial,sans-serif;}
+.bk-phone{position:relative;width:100%;max-width:430px;height:100%;max-height:932px;background:#fff;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.5);}
+@media(min-width:480px){.bk-phone{border-radius:36px;}}
+.bk-phone *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+.hide-sb::-webkit-scrollbar{display:none;}.hide-sb{scrollbar-width:none;}
+
+.bk-header{flex:0 0 auto;z-index:20;position:relative;padding-top:12px;}
+.bk-deliv-wrap{overflow:hidden;}
+.bk-deliv{display:flex;align-items:flex-start;justify-content:space-between;padding:2px 16px 6px;}
+.bk-deliv .lbl{font-size:12px;font-weight:600;letter-spacing:.2px;}
+.bk-deliv .min{font-size:22px;font-weight:800;display:flex;align-items:center;gap:9px;line-height:1.05;}
+.bk-247{font-size:10px;font-weight:800;border:1.4px solid;border-radius:20px;padding:2px 7px;letter-spacing:.3px;}
+.bk-surge{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;background:#cbe7e2;color:#256b60;border-radius:20px;padding:3px 9px 3px 7px;}
+.bk-loc{display:flex;align-items:center;gap:4px;font-size:13px;margin-top:3px;}
+.bk-loc b{font-weight:800;}
+.bk-headicons{display:flex;align-items:center;gap:9px;flex:0 0 auto;}
+.bk-mapw{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#2f7d32,#1f5c22);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.15);font-size:18px;}
+.bk-profile{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+
+.bk-search{margin:6px 14px 8px;border-radius:14px;height:48px;display:flex;align-items:center;padding:0 14px;gap:10px;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+.bk-search .ph{flex:1;font-size:15px;overflow:hidden;white-space:nowrap;}
+.bk-search .ph b{font-weight:600;}
+.bk-mic{width:1.5px;height:22px;background:#e2e2e2;margin-left:2px;}
+
+.bk-tabs{display:flex;gap:2px;overflow-x:auto;padding:6px 12px 0;}
+.bk-tab{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 8px 10px;position:relative;cursor:pointer;}
+.bk-tab .tl{font-size:13px;font-weight:600;white-space:nowrap;}
+.bk-tab.on .tl{font-weight:800;}
+.bk-uline{position:absolute;bottom:0;left:16%;right:16%;height:3px;border-radius:3px;}
+.bk-tab .iconwrap{position:relative;z-index:1;display:flex;}
+.bk-tab.on .iconwrap:before{content:"";position:absolute;inset:-5px -9px;border-radius:50%;background:rgba(248,203,70,.4);z-index:0;}
+
+.bk-promo{background:linear-gradient(90deg,${YELLOW},${YELLOW_DK});color:#5a3d00;font-size:12.5px;font-weight:800;text-align:center;letter-spacing:.3px;overflow:hidden;}
+
+.bk-content{flex:1;overflow-y:auto;background:#fff;padding-bottom:150px;}
+
+/* بانر الترحيب (الكل) */
+.bk-whero{position:relative;padding:18px 16px 26px;text-align:center;overflow:hidden;background:radial-gradient(130% 100% at 50% -10%,#D3A62B 0%,#A9780F 55%,#875B10 100%);}
+.bk-whero:after{content:"";position:absolute;left:-4%;right:-4%;bottom:-3px;height:26px;background:#fff;border-radius:50%/100% 100% 0 0;}
+.bk-whero .rays{position:absolute;inset:0;background:conic-gradient(from -20deg at 50% -5%,rgba(255,255,255,.16),transparent 10deg,rgba(255,255,255,.12) 20deg,transparent 30deg,rgba(255,255,255,.14) 40deg,transparent 50deg);opacity:.6;}
+.wh-title{font-size:38px;font-weight:900;letter-spacing:1px;color:#F7E9CB;text-shadow:0 3px 0 #6f4b08,0 6px 12px rgba(0,0,0,.28);position:relative;z-index:2;}
+.wh-sub{margin-top:8px;font-size:14.5px;font-weight:800;color:#fff;position:relative;z-index:2;text-shadow:0 1px 3px rgba(0,0,0,.2);}
+.wh-hand{position:absolute;bottom:8px;font-size:52px;z-index:1;filter:drop-shadow(0 4px 6px rgba(0,0,0,.25));}
+.wh-hand.l{left:2px;transform:scaleX(-1);}
+.wh-hand.r{right:2px;}
+
+/* بانر المتجر المستورد */
+.bk-store{position:relative;padding:22px 16px 28px;text-align:center;overflow:hidden;}
+.bk-store:after{content:"";position:absolute;left:-4%;right:-4%;bottom:-3px;height:22px;background:#fff;border-radius:50%/100% 100% 0 0;}
+.bk-store .rays{position:absolute;inset:0;background:radial-gradient(60% 90% at 50% 0%,rgba(255,255,255,.35),transparent 70%);opacity:.7;}
+.bk-store h3{margin:0;font-size:28px;font-weight:900;letter-spacing:.5px;position:relative;z-index:2;text-shadow:0 1px 0 rgba(255,255,255,.4),0 2px 3px rgba(0,0,0,.12);}
+.bk-store p{margin:7px 0 0;font-size:13px;font-weight:700;position:relative;z-index:2;opacity:.9;}
+.bk-store .spk{position:absolute;top:50%;transform:translateY(-50%);font-size:18px;z-index:2;opacity:.75;}
+.bk-store .spk.l{left:22px;}.bk-store .spk.r{right:22px;}
+
+/* بانر الإشراق (جمال / ديكور / أطفال) */
+.bk-glow{position:relative;padding:18px 16px 12px;overflow:hidden;}
+.bk-glow h3{margin:0;font-size:26px;font-weight:800;line-height:1.15;max-width:72%;}
+.bk-glow.script h3{font-size:28px;}
+.bk-glow p{margin:8px 0 0;font-size:13.5px;font-weight:600;max-width:72%;}
+.bk-glow .spk{position:absolute;left:14px;top:22px;font-size:20px;opacity:.5;letter-spacing:3px;}
+
+.bk-sec{padding:16px 14px 4px;}
+.bk-sec-h{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+.bk-sec-t{font-size:20px;font-weight:800;color:${INK};}
+.bk-sec-sub{font-size:13px;color:#7a7a7a;font-weight:500;margin-top:2px;}
+.bk-sec-link{display:flex;align-items:center;gap:2px;color:${GREEN};font-size:13px;font-weight:700;cursor:pointer;flex:0 0 auto;padding-top:3px;}
+.bk-hs{display:flex;gap:12px;overflow-x:auto;padding:2px 14px 10px;}
+
+.bk-bs{flex:0 0 auto;width:150px;background:#f4f6f5;border-radius:16px;padding:10px;cursor:pointer;}
+.bk-bs-g{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:relative;}
+.bk-bs-th{aspect-ratio:1;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+.bk-bs-more{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);background:rgba(255,255,255,.94);font-size:11px;font-weight:700;color:#3a3a3a;padding:2px 8px;border-radius:20px;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap;}
+.bk-bs-t{font-size:14px;font-weight:700;color:${INK};margin-top:9px;text-align:center;line-height:1.2;}
+
+.bk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px;padding:2px 14px 6px;}
+.bk-tile{cursor:pointer;}
+.bk-tile-img{aspect-ratio:1;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:38px;}
+.bk-tile-t{font-size:12px;color:#2a2a2a;text-align:center;margin-top:7px;line-height:1.2;font-weight:500;}
+
+.bk-pc{flex:0 0 auto;width:158px;background:#fff;border:1px solid #f0f0f0;border-radius:14px;padding:8px;display:flex;flex-direction:column;}
+.bk-pc.grid{width:auto;}
+.bk-pc-imgwrap{position:relative;border-radius:10px;height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.bk-pc-img{font-size:54px;}
+.bk-off{position:absolute;top:0;right:7px;background:${BLUE};color:#fff;font-size:9.5px;font-weight:800;padding:8px 5px 4px;line-height:1;text-align:center;width:34px;clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);}
+.bk-veg{position:absolute;top:6px;left:6px;width:15px;height:15px;border:1.5px solid #0a8a3a;border-radius:3px;display:flex;align-items:center;justify-content:center;background:#fff;}
+.bk-veg i{width:7px;height:7px;border-radius:50%;background:#0a8a3a;display:block;}
+.bk-eta{position:absolute;right:6px;bottom:6px;background:rgba(255,255,255,.95);border-radius:6px;font-size:10px;font-weight:600;color:#5a5a5a;display:flex;align-items:center;gap:3px;padding:2px 6px;box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.bk-pc-body{padding-top:8px;display:flex;flex-direction:column;flex:1;}
+.bk-w{font-size:12px;color:#7a7a7a;font-weight:500;}
+.bk-pn{font-size:13px;color:${INK};font-weight:600;line-height:1.3;margin:3px 0 5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:35px;}
+.bk-rt{display:flex;align-items:center;gap:4px;margin-bottom:6px;}
+.bk-rt .b{display:flex;align-items:center;gap:2px;background:#f3f3f3;border-radius:5px;padding:1px 5px;font-size:11px;font-weight:700;color:#2a2a2a;direction:ltr;}
+.bk-rt .c{font-size:11px;color:#9a9a9a;}
+.bk-foot{display:flex;align-items:flex-end;justify-content:space-between;margin-top:auto;gap:6px;}
+.bk-price{font-size:14px;font-weight:800;color:${INK};line-height:1.1;direction:ltr;text-align:right;}
+.bk-mrp{font-size:11.5px;color:#9a9a9a;text-decoration:line-through;margin-right:4px;font-weight:500;}
+.bk-offt{font-size:10.5px;font-weight:700;color:${BLUE};margin-top:1px;}
+.bk-add{flex:0 0 auto;min-width:64px;height:34px;border:1.4px solid #c6e8cd;background:${GREEN_SOFT};color:${GREEN};font-weight:800;font-size:14px;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;letter-spacing:.4px;transition:transform .08s;}
+.bk-add:active{transform:scale(.94);}
+.bk-step{flex:0 0 auto;min-width:64px;height:34px;background:${GREEN};border-radius:9px;display:flex;align-items:center;justify-content:space-between;color:#fff;overflow:hidden;animation:bkPop .18s ease;}
+.bk-step button{width:26px;height:34px;background:transparent;border:0;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.bk-step .q{font-size:14px;font-weight:800;min-width:18px;text-align:center;}
+
+.bk-hero-feat{padding:12px 14px 2px;}
+.bk-hero-chips{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;}
+.bk-fcard{flex:0 0 auto;width:118px;border-radius:14px;padding:10px;position:relative;color:#fff;background:linear-gradient(135deg,#2b2b2b,#454545);}
+.bk-fcard .ft{position:absolute;top:0;right:10px;background:${GREEN};font-size:8.5px;font-weight:800;color:#fff;padding:2px 6px;border-radius:0 0 5px 5px;}
+.bk-fcard .fe{font-size:40px;text-align:center;margin:14px 0 8px;}
+.bk-fcard .fl{font-size:12px;font-weight:700;line-height:1.2;}
+
+.bk-occ{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:12px 14px 2px;}
+.bk-occ-c{border-radius:14px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;}
+.bk-occ-c .oe{font-size:30px;}
+.bk-occ-c .ol{font-size:11px;font-weight:700;text-align:center;padding:0 4px;}
+
+.bk-ad{margin:14px;border-radius:18px;overflow:hidden;background:linear-gradient(120deg,#f3e9c9 0%,#efe2b6 45%,#1f2d6b 46%,#16204f 100%);height:170px;position:relative;padding:22px;display:flex;flex-direction:column;justify-content:center;}
+.bk-ad h4{font-size:24px;font-weight:800;color:#2a2a2a;line-height:1.15;margin:0;max-width:62%;}
+.bk-ad p{font-size:14px;color:#4a4a4a;margin:8px 0 0;max-width:60%;}
+.bk-ad .shop{margin-top:16px;align-self:flex-start;background:#111;color:#fff;font-size:13px;font-weight:700;border-radius:8px;padding:9px 16px;}
+.bk-ad .em{position:absolute;left:18px;top:50%;transform:translateY(-50%);font-size:64px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.25));}
+.bk-ad .tag{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.3);color:#fff;font-size:9px;padding:1px 6px;border-radius:5px;}
+
+.bk-nav{position:absolute;left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid #eee;display:flex;z-index:30;}
+.bk-nav-i{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;position:relative;}
+.bk-nav-i .ic{color:#8a8a8a;}.bk-nav-i .l{font-size:11px;color:#8a8a8a;font-weight:600;}
+.bk-nav-i.on .ic{color:${INK};}.bk-nav-i.on .l{color:${INK};font-weight:700;}
+.bk-nav-i.on:before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;background:${INK};border-radius:3px;}
+
+.bk-cart{position:absolute;left:8px;right:8px;bottom:70px;height:54px;background:${GREEN};border-radius:14px;display:flex;align-items:center;justify-content:space-between;padding:0 14px 0 8px;z-index:29;box-shadow:0 8px 20px rgba(12,131,31,.35);animation:bkUp .28s cubic-bezier(.2,.8,.2,1);}
+.bk-cart .l{display:flex;align-items:center;gap:10px;color:#fff;}
+.bk-cart .icn{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;position:relative;}
+.bk-cart .icn .badge{position:absolute;top:-5px;left:-5px;background:#fff;color:${GREEN};font-size:10px;font-weight:800;border-radius:20px;min-width:17px;height:17px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+.bk-cart .txt b{font-size:14px;font-weight:800;display:block;line-height:1.2;direction:ltr;text-align:right;}
+.bk-cart .txt span{font-size:11px;opacity:.85;}
+.bk-cart .view{display:flex;align-items:center;gap:6px;color:#fff;font-size:15px;font-weight:800;height:54px;padding:0 8px;cursor:pointer;}
+
+.bk-listhead{background:${YELLOW};flex:0 0 auto;padding-bottom:10px;}
+.bk-listhead .top{display:flex;align-items:center;gap:12px;padding:16px 14px 6px;}
+.bk-back{width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.bk-listhead .ti{font-size:18px;font-weight:800;color:${INK};}
+.bk-listhead .sub{font-size:11px;color:#5a4a00;font-weight:600;}
+.bk-listsearch{margin:4px 14px 0;background:#fff;border-radius:12px;height:44px;display:flex;align-items:center;padding:0 14px;gap:10px;color:#8a8a8a;font-size:14px;}
+.bk-listgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;}
+
+.bk-splash{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 38%,#FBD64B 0%,#F4BE1E 45%,#E5A700 100%);}
+.bk-splash.out{animation:bkSplashOut .55s ease forwards;}
+.bk-logo{font-size:44px;font-weight:900;color:#1c1c1c;display:flex;align-items:center;animation:bkRise .6s cubic-bezier(.2,.8,.2,1) both;}
+.bk-logo .b{background:#1c1c1c;color:${YELLOW};width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:34px;margin-left:10px;box-shadow:0 8px 22px rgba(0,0,0,.2);}
+.bk-tagline{margin-top:18px;color:#4a3600;font-size:14px;font-weight:800;letter-spacing:.4px;animation:bkRise .6s .12s cubic-bezier(.2,.8,.2,1) both;}
+.bk-welcome{margin-top:6px;color:#6a5200;font-size:12px;font-weight:600;animation:bkRise .6s .2s cubic-bezier(.2,.8,.2,1) both;}
+.bk-load{margin-top:34px;width:140px;height:4px;border-radius:4px;background:rgba(0,0,0,.12);overflow:hidden;}
+.bk-load i{display:block;height:100%;width:40%;background:#1c1c1c;border-radius:4px;animation:bkLoad 1.6s ease-in-out infinite;}
+
+@keyframes bkUp{from{transform:translateY(80px);opacity:0;}to{transform:none;opacity:1;}}
+@keyframes bkPop{from{transform:scale(.85);}to{transform:scale(1);}}
+@keyframes bkSplashOut{to{opacity:0;transform:scale(1.06);visibility:hidden;}}
+@keyframes bkRise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@keyframes bkLoad{0%{transform:translateX(120%);}100%{transform:translateX(-320%);}}
+@media(prefers-reduced-motion:reduce){.bk-splash *{animation-duration:.01ms!important;}}
+`;
+
+/* ------------------------- مكوّنات صغيرة ------------------------- */
+function ProductCard({ p, qty, onAdd, onInc, onDec, grid, cardBg, cardBorder }) {
+  const style = {};
+  if (cardBg) style.background = cardBg;
+  if (cardBorder) style.borderColor = cardBorder;
+  return (
+    <div className={"bk-pc" + (grid ? " grid" : "")} style={style}>
+      <div className="bk-pc-imgwrap" style={{ background: p.bg }}>
+        {p.off > 0 && <div className="bk-off">{p.off}%<br />خصم</div>}
+        <div className="bk-veg"><i /></div>
+        <div className="bk-pc-img">{p.e}</div>
+        <div className="bk-eta"><Clock size={10} strokeWidth={2.5} />{p.eta}</div>
+      </div>
+      <div className="bk-pc-body">
+        <div className="bk-w">{p.weight}</div>
+        <div className="bk-pn">{p.name}</div>
+        <div className="bk-rt">
+          <span className="b"><Star size={10} fill="#f0a500" stroke="#f0a500" />{p.rating}</span>
+          <span className="c">({p.reviews})</span>
+        </div>
+        <div className="bk-foot">
+          <div>
+            <div className="bk-price">₹{p.price}{p.mrp > p.price && <span className="bk-mrp">₹{p.mrp}</span>}</div>
+            {p.off > 0 && <div className="bk-offt">خصم {p.off}%</div>}
+          </div>
+          {qty > 0 ? (
+            <div className="bk-step">
+              <button onClick={() => onDec(p.id)} aria-label="إنقاص"><Minus size={15} strokeWidth={3} /></button>
+              <span className="q">{qty}</span>
+              <button onClick={() => onInc(p.id)} aria-label="زيادة"><Plus size={15} strokeWidth={3} /></button>
+            </div>
+          ) : (
+            <button className="bk-add" onClick={() => onAdd(p.id)}>أضف</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductRow({ title, sub, ids, cart, add, inc, dec, onSeeAll, cardBg, cardBorder }) {
+  return (
+    <>
+      {title && (
+        <div className="bk-sec">
+          <div className="bk-sec-h">
+            <div>
+              <div className="bk-sec-t">{title}</div>
+              {sub && <div className="bk-sec-sub">{sub}</div>}
+            </div>
+            <div className="bk-sec-link" onClick={onSeeAll}>عرض الكل <ChevronLeft size={15} strokeWidth={2.6} /></div>
+          </div>
+        </div>
+      )}
+      <div className="bk-hs hide-sb">
+        {ids.map((id) => (
+          <ProductCard key={id} p={byId(id)} qty={cart[id] || 0} onAdd={add} onInc={inc} onDec={dec} cardBg={cardBg} cardBorder={cardBorder} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function TileGrid({ items, onOpen }) {
+  return (
+    <div className="bk-grid">
+      {items.map((c, i) => (
+        <div className="bk-tile" key={i} onClick={() => onOpen && onOpen(c.t)}>
+          <div className="bk-tile-img" style={{ background: c.bg }}>{c.e}</div>
+          <div className="bk-tile-t">{c.t}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* بانر القسم (يختلف حسب النوع) */
+function Hero({ hero }) {
+  if (!hero) return null;
+  if (hero.kind === "store") {
     return (
-      <button onClick={(e) => { e.stopPropagation(); onAdd(); }}
-        className="rounded-lg border border-blink-green bg-blink-mint px-4 py-1.5 font-display text-[13px] font-black uppercase text-blink-green shadow-sm transition active:scale-95">
-        إضافة
-      </button>
+      <div className="bk-store" style={{ background: hero.bg, color: hero.text }}>
+        <div className="rays" />
+        <span className="spk l">✦</span>
+        <h3>{hero.title}</h3>
+        <p>{hero.sub}</p>
+        <span className="spk r">✦</span>
+      </div>
     );
   }
-  return (
-    <div className="flex h-8 w-[72px] items-center justify-between overflow-hidden rounded-lg bg-blink-green font-display font-black text-white">
-      <button onClick={(e) => { e.stopPropagation(); onDec(); }} className="grid h-full w-7 place-items-center active:bg-blink-greenDk" aria-label="إنقاص"><Minus className="h-4 w-4" /></button>
-      <motion.span key={qty} initial={{ scale: 0.6 }} animate={{ scale: 1 }} className="text-[14px]">{qty}</motion.span>
-      <button onClick={(e) => { e.stopPropagation(); onInc(); }} className="grid h-full w-7 place-items-center active:bg-blink-greenDk" aria-label="زيادة"><Plus className="h-4 w-4" /></button>
-    </div>
-  );
-}
-
-/* ───────────────────────── بطاقة منتج (للكاروسيل) ───────────────────────── */
-function ProductCard({ p, qty, onAdd, onInc, onDec }) {
-  const [liked, setLiked] = useState(false);
-  const d = pct(p.price, p.old);
-  return (
-    <div className="relative flex w-[150px] shrink-0 flex-col rounded-2xl border border-blink-line bg-white p-2 sm:w-[160px]">
-      <div className="relative rounded-xl" style={{ background: (p.tint || '#EFEFEF') + '55' }}>
-        {d > 0 && <span className="absolute right-1.5 top-0 z-10 rounded-b-md bg-[#3661E0] px-1.5 pb-0.5 pt-1 text-center font-display text-[10px] font-black leading-none text-white">{d}٪<br /><span className="text-[8px] font-bold">خصم</span></span>}
-        <button onClick={() => setLiked((v) => !v)} className="absolute left-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-white/80 shadow-sm" aria-label="مفضّلة"><Heart className={`h-3.5 w-3.5 ${liked ? 'fill-rose-500 text-rose-500' : 'text-gray-400'}`} /></button>
-        {p.image ? <img src={p.image} alt={p.name} loading="lazy" className="h-[104px] w-full object-contain p-1.5 mix-blend-multiply" /> : <div className="grid h-[104px] place-items-center text-[52px]">{p.emoji}</div>}
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2"><AddBtn qty={qty} onAdd={onAdd} onInc={onInc} onDec={onDec} /></div>
+  if (hero.kind === "glow") {
+    return (
+      <div className={"bk-glow" + (hero.script ? " script" : "")} style={{ background: hero.bg }}>
+        <div className="spk" style={{ color: hero.text }}>✦ ✧ ✦</div>
+        <h3 style={{ color: hero.text }}>{hero.title}</h3>
+        <p style={{ color: hero.subText }}>{hero.sub}</p>
       </div>
-      <div className="mt-4 flex flex-1 flex-col">
-        <span className="inline-flex w-fit items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 font-body text-[10px] font-bold text-blink-sub"><Clock className="h-3 w-3" /> {p.mins} دقيقة</span>
-        <h3 className="mt-1 line-clamp-2 min-h-[34px] font-body text-[13px] font-bold leading-tight text-blink-ink">{p.name}</h3>
-        <span className="mt-0.5 font-body text-[12px] text-blink-sub">{p.unit}</span>
-        <div className="mt-1 flex items-center gap-1.5">
-          <span className="font-display text-[15px] font-black text-blink-ink">{iqd(p.price)} د.ع</span>
-          {p.old && <span className="font-body text-[11px] text-blink-sub line-through">{iqd(p.old)}</span>}
-        </div>
-        <div className="mt-1 flex items-center gap-2 font-body text-[10.5px] text-blink-sub">
-          <span className="inline-flex items-center gap-0.5 rounded bg-green-50 px-1 py-0.5 font-bold text-blink-green"><Star className="h-2.5 w-2.5 fill-blink-green" /> {p.rating}</span>
-          {p.ratingCount > 0 && <span>({iqd(p.ratingCount)})</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-function ProductRail({ title, products, h }) {
-  if (!products.length) return null;
-  return (
-    <section className="px-4 pt-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display text-[18px] font-black text-blink-ink">{title}</h2>
-        <button className="flex items-center font-display text-[13px] font-black text-blink-green">عرض الكل <ChevronLeft className="h-4 w-4" /></button>
-      </div>
-      <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {products.map((p) => <ProductCard key={p.id} p={p} qty={h.qtyOf(p.id)} onAdd={() => h.add(p)} onInc={() => h.inc(p.id)} onDec={() => h.dec(p.id)} />)}
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────── عروض كبرى (Mega Sale) ───────────────────────── */
-function DealCard({ p, qty, onAdd, onInc, onDec }) {
-  const d = pct(p.price, p.old);
-  return (
-    <div className="flex w-[116px] shrink-0 flex-col rounded-xl bg-white p-2">
-      <div className="relative grid h-[72px] place-items-center rounded-lg" style={{ background: (p.tint || '#EFEFEF') + '55' }}>
-        {d > 0 && <span className="absolute right-1 top-1 rounded bg-[#C81E1E] px-1 py-0.5 font-display text-[9px] font-black text-white">{d}٪-</span>}
-        {p.image ? <img src={p.image} alt={p.name} loading="lazy" className="h-full w-full object-contain p-1 mix-blend-multiply" /> : <span className="text-[34px]">{p.emoji}</span>}
-      </div>
-      <h3 className="mt-1.5 line-clamp-1 font-body text-[11.5px] font-bold text-blink-ink">{p.name}</h3>
-      <div className="mt-0.5 flex items-center gap-1">
-        <span className="font-display text-[12.5px] font-black text-blink-ink">{iqd(p.price)}</span>
-        {p.old && <span className="font-body text-[10px] text-blink-sub line-through">{iqd(p.old)}</span>}
-      </div>
-      <div className="mt-1"><AddBtn qty={qty} onAdd={onAdd} onInc={onInc} onDec={onDec} /></div>
-    </div>
-  );
-}
-function MegaSale({ products, h }) {
-  if (!products.length) return null;
-  return (
-    <section className="px-4 pt-4">
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-l from-[#B91C1C] via-[#DC2626] to-[#EA580C] p-3.5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-display text-[20px] font-black leading-none text-white">عروض كبرى 🎉</p>
-            <p className="mt-1 font-body text-[12px] font-bold text-white/85">خصومات حتى ٥٠٪ — لفترة محدودة</p>
-          </div>
-          <span className="flex items-center rounded-full bg-white/20 px-3 py-1 font-display text-[12px] font-black text-white">شوف الكل <ChevronLeft className="h-4 w-4" /></span>
-        </div>
-        <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {products.map((p) => <DealCard key={p.id} p={p} qty={h.qtyOf(p.id)} onAdd={() => h.add(p)} onInc={() => h.inc(p.id)} onDec={() => h.dec(p.id)} />)}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────── الهيدر (تبويبات + خلفية + تقلّص) ───────────────────────── */
-const HINTS = ['طماطم', 'حليب', 'رز عنبر', 'شوكولا', 'دجاج', 'عصير'];
-function Header({ tabs, tab, setTab, theme, collapsed, count, deliveryMinutes, media, fade }) {
-  const [hint, setHint] = useState(0);
-  useEffect(() => { const t = setInterval(() => setHint((x) => (x + 1) % HINTS.length), 2200); return () => clearInterval(t); }, []);
-  const hasMedia = media && (media.image || media.video);
-  return (
-    <header className="sticky top-0 z-40 transition-[background-color,box-shadow] duration-300" style={{ background: collapsed ? '#ffffff' : theme, boxShadow: collapsed ? '0 8px 20px -14px rgba(0,0,0,0.35)' : 'none' }}>
-      {hasMedia && !collapsed && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity: 1 - fade }}>
-          {media.video ? <video src={media.video} className="h-full w-full object-cover" autoPlay loop muted playsInline /> : <img src={media.image} alt="" className="h-full w-full object-cover" />}
-          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,${media.overlay ?? 0.18}), rgba(255,255,255,0) 55%)` }} />
-        </div>
-      )}
-      <motion.div initial={false} animate={{ height: collapsed ? 0 : 'auto', opacity: collapsed ? 0 : 1 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="relative overflow-hidden">
-        <div className="flex items-start justify-between gap-2 px-4 pt-3">
-          <div className="min-w-0">
-            <span className="font-body text-[12px] font-bold text-blink-ink/70">🛒 اطلبها · توصيل</span>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-[26px] font-black leading-none text-blink-ink">خلال {deliveryMinutes} دقيقة</h1>
-              <span className="rounded-full bg-blink-ink px-1.5 py-0.5 font-display text-[10px] font-black text-blink-yellow">24/7</span>
+    );
+  }
+  if (hero.kind === "featured") {
+    return (
+      <div className="bk-hero-feat">
+        <div className="bk-hero-chips hide-sb">
+          {hero.chips.map((c, i) => (
+            <div className="bk-fcard" key={i}>
+              <div className="ft">مميّز</div>
+              <div className="fe">{c.e}</div>
+              <div className="fl">{c.t}</div>
             </div>
-            <button className="mt-1 flex items-center gap-1 text-blink-ink/85">
-              <span className="font-body text-[13px] font-black">المنزل</span>
-              <span className="truncate font-body text-[13px]">· السماوة، الحي الشرقي</span>
-              <ChevronDown className="h-4 w-4 shrink-0" />
-            </button>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-white/55 text-blink-green ring-1 ring-black/5" aria-label="المحفظة"><Wallet className="h-5 w-5" /></button>
-            <button className="grid h-9 w-9 place-items-center rounded-full bg-white/55 text-blink-ink ring-1 ring-black/5" aria-label="حسابي"><User className="h-5 w-5" /></button>
-          </div>
-        </div>
-      </motion.div>
-
-      <div className="relative flex items-center gap-2 px-4 pt-2.5">
-        <AnimatePresence initial={false}>
-          {collapsed && count > 0 && (
-            <motion.button initial={{ width: 0, opacity: 0 }} animate={{ width: 40, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.22 }} className="relative grid h-10 shrink-0 place-items-center overflow-hidden rounded-full bg-blink-green text-white" aria-label="السلّة">
-              <ShoppingCart className="h-5 w-5" />
-              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-blink-ink px-1 text-[9px] font-black ring-2 ring-white">{count}</span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-        <div className="flex w-full items-center gap-2.5 rounded-xl bg-white px-3.5 py-3 shadow-sm ring-1 ring-black/10">
-          <Search className="h-5 w-5 shrink-0 text-blink-ink/60" />
-          <span className="flex-1 truncate font-body text-[14px] text-blink-sub">
-            ابحث عن «
-            <AnimatePresence mode="wait"><motion.span key={hint} initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -8, opacity: 0 }} transition={{ duration: 0.25 }} className="inline-block font-bold text-blink-ink/70">{HINTS[hint]}</motion.span></AnimatePresence>
-            » والمزيد
-          </span>
-          <Mic className="h-5 w-5 shrink-0 text-blink-ink/60" />
+          ))}
         </div>
       </div>
-
-      <div className="relative mt-1 flex gap-5 overflow-x-auto px-4 pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className="flex shrink-0 flex-col items-center gap-0.5 pb-1">
-            {t.iconImage ? <img src={t.iconImage} alt="" className="h-[22px] w-[22px] object-contain" /> : <span className="text-[20px]">{t.icon}</span>}
-            <span className={`font-body text-[12px] font-bold ${tab === t.id ? 'text-blink-ink' : 'text-blink-ink/55'}`}>{t.label}</span>
-            <span className={`h-0.5 w-6 rounded-full ${tab === t.id ? 'bg-blink-ink' : 'bg-transparent'}`} />
-          </button>
+    );
+  }
+  if (hero.kind === "occasions") {
+    return (
+      <div className="bk-occ">
+        {OCCASIONS.map((o, i) => (
+          <div className="bk-occ-c" key={i} style={{ background: hero.cardBg }}>
+            <div className="oe">{o.e}</div>
+            <div className="ol">{o.t}</div>
+          </div>
         ))}
       </div>
-    </header>
-  );
+    );
+  }
+  return null;
 }
 
-/* ───────────────────────── بانر الترحيب ───────────────────────── */
-function WelcomeBanner({ theme, banner, deliveryMinutes, welcome, media }) {
-  const title = banner?.title || welcome?.title || 'أهلاً بك في اطلبها 👋';
-  const subtitle = banner?.subtitle || welcome?.subtitle || 'اطلب الآن واستمتع بتوصيل مجاني داخل السماوة';
-  const img = banner?.image || media?.image || null;
-  const vid = !banner?.image && media?.video ? media.video : null;
-  const hasMedia = !!(img || vid);
+/* بانر الترحيب (الكل) — يتلاشى عند التمرير */
+function WelcomeHero() {
   return (
-    <div className="px-4 pt-3">
-      <div className="relative overflow-hidden rounded-2xl px-5 py-4" style={{ background: hasMedia ? undefined : `linear-gradient(110deg, ${banner?.theme || theme}, #ffffff)`, minHeight: hasMedia ? 120 : undefined }}>
-        {vid ? <video src={vid} className="absolute inset-0 h-full w-full object-cover" autoPlay loop muted playsInline /> : img ? <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
-        {hasMedia && <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(255,255,255,${(media?.overlay ?? 0.18) + 0.05}), rgba(255,255,255,0))` }} />}
-        <div className="relative">
-          <p className="font-display text-[19px] font-black leading-tight text-blink-ink">{title}</p>
-          <p className="mt-1 font-body text-[13px] font-bold text-blink-ink/75">{subtitle}</p>
-          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-blink-ink px-3 py-1.5 font-display text-[12px] font-black text-blink-yellow"><Clock className="h-3.5 w-3.5" /> {banner?.cta_label || `خلال ${deliveryMinutes} دقيقة`}</span>
-        </div>
-      </div>
+    <div className="bk-whero">
+      <div className="rays" />
+      <div className="wh-hand l">🛍️</div>
+      <div className="wh-title">أهلاً بك</div>
+      <div className="wh-sub">اطلب الآن واحصل على توصيل مجاني</div>
+      <div className="wh-hand r">🛍️</div>
     </div>
   );
 }
 
-/* ───────────────────────── الأكثر مبيعاً (كولاج) ───────────────────────── */
-function CollageTile({ cat, prods }) {
-  const slots = [prods[0], prods[1], prods[2]];
+/* ------------------------- الرئيسية (الكل) ------------------------- */
+function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
   return (
-    <button className="flex w-[130px] shrink-0 flex-col text-right">
-      <div className="grid grid-cols-2 gap-1.5 rounded-2xl p-1.5" style={{ background: BG_TILE }}>
-        {slots.map((p, i) => (
-          <span key={i} className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-white text-2xl">
-            {p ? (p.image ? <img src={p.image} alt="" loading="lazy" className="h-full w-full object-contain p-1 mix-blend-multiply" /> : p.emoji) : null}
-          </span>
-        ))}
-        <span className="grid aspect-square place-items-center rounded-xl bg-white font-display text-[14px] font-black text-blink-ink/70">+{cat.count}</span>
-      </div>
-      <span className="mt-1.5 line-clamp-2 font-body text-[12.5px] font-black leading-tight text-blink-ink">{cat.name}</span>
-      <span className="font-body text-[11px] text-blink-sub">{cat.count} منتج</span>
-    </button>
-  );
-}
-function BestSellers({ cats, prods }) {
-  if (!cats.length) return null;
-  return (
-    <section className="px-4 pt-5">
-      <h2 className="mb-3 font-display text-[18px] font-black text-blink-ink">الأكثر مبيعاً</h2>
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {cats.map((c) => <CollageTile key={c.id} cat={c} prods={prods.filter((p) => p.cat === c.id)} />)}
-      </div>
-    </section>
-  );
-}
+    <>
+      <div style={{ opacity: heroFade, transform: `translateY(${-(1 - heroFade) * 10}px)` }}><WelcomeHero /></div>
 
-/* ───────────────────────── تسوّق حسب القسم ───────────────────────── */
-function ShopByCategory({ cats }) {
-  if (!cats.length) return null;
-  return (
-    <section className="px-4 pb-4 pt-7">
-      <h2 className="mb-3 font-display text-[18px] font-black text-blink-ink">تسوّق حسب القسم</h2>
-      <div className="grid grid-cols-4 gap-x-2.5 gap-y-4">
-        {cats.map((c) => (
-          <button key={c.id} className="flex flex-col items-center gap-1.5">
-            <span className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl p-1.5 ring-1 ring-black/5" style={{ background: BG_TILE }}>
-              {c.image ? <img src={c.image} alt={c.name} loading="lazy" className="h-full w-full object-contain" /> : <span className="text-[34px]">{c.emoji}</span>}
-            </span>
-            <span className="line-clamp-2 text-center font-body text-[11px] font-bold leading-tight text-blink-ink/85">{c.name}</span>
-          </button>
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">الأكثر مبيعاً</div></div></div>
+      <div className="bk-hs hide-sb">
+        {BESTSELLERS.map((b, i) => (
+          <div className="bk-bs" key={i} onClick={() => openList(b.title)}>
+            <div className="bk-bs-g">
+              {b.items.map((e, j) => <div className="bk-bs-th" key={j}>{e}</div>)}
+              <div className="bk-bs-more">+{b.more} المزيد</div>
+            </div>
+            <div className="bk-bs-t">{b.title}</div>
+          </div>
         ))}
       </div>
-    </section>
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">البقالة والمطبخ</div></div></div>
+      <TileGrid items={GROCERY} onOpen={openList} />
+
+      <ProductRow title="استمتع بعالم من النكهات" ids={[1, 2, 12, 13]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("وجبات خفيفة")} />
+
+      <div className="bk-ad">
+        <h4>احتفال البرياني هنا</h4>
+        <p>أحضر أجود أنواع الأرز</p>
+        <div className="shop">تسوّق الآن</div>
+        <div className="em">🍚</div>
+        <div className="tag">إعلان</div>
+      </div>
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">وجبات خفيفة ومشروبات</div></div></div>
+      <TileGrid items={SNACKS} onOpen={openList} />
+
+      <ProductRow title="سيروم لكل أنواع البشرة" ids={[6, 7, 8]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("الجمال")} />
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">مستلزمات المنزل</div></div></div>
+      <TileGrid items={HOUSEHOLD} onOpen={openList} />
+
+      <ProductRow title="الأساسيات اليومية، توصيل سريع" ids={[3, 4, 5, 14]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("البقالة")} />
+    </>
   );
 }
 
-/* ───────────────────────── شريط التنقّل + شريط السلّة ───────────────────────── */
-function BottomNav() {
-  const items = [
-    { icon: HomeIcon, label: 'الرئيسية', active: true },
-    { icon: RotateCcw, label: 'اطلب مجدداً' },
-    { icon: LayoutGrid, label: 'الأقسام' },
-    { icon: User, label: 'حسابي' },
-  ];
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-blink-line bg-white px-2 pb-1.5 pt-2">
-      {items.map((it) => (
-        <button key={it.label} className={`flex flex-col items-center gap-0.5 ${it.active ? 'text-blink-ink' : 'text-blink-sub'}`}>
-          <it.icon className={`h-5 w-5 ${it.active ? 'text-amber-500' : ''}`} />
-          <span className="font-body text-[10.5px] font-bold">{it.label}</span>
-          {it.active && <span className="h-0.5 w-5 rounded-full bg-blink-ink" />}
-        </button>
-      ))}
-    </nav>
+/* ------------------------- الصفحة المُثيّمة (بقية الأقسام) ------------------------- */
+function ThemedContent({ theme, cart, add, inc, dec, openList, heroFade }) {
+  const featured = theme.hero && theme.hero.kind === "featured";
+  const bannerStyle = { opacity: heroFade, transform: `translateY(${-(1 - heroFade) * 12}px)` };
+
+  const topBlock = (
+    <>
+      <div style={bannerStyle}><Hero hero={theme.hero} /></div>
+      {featured && <div style={{ padding: "12px 14px 0" }}><div className="bk-sec-t">{theme.hero.title}</div></div>}
+      <ProductRow
+        title={theme.row1Title} ids={theme.row1}
+        cart={cart} add={add} inc={inc} dec={dec}
+        onSeeAll={() => openList("منتجات")}
+        cardBg={theme.cardBg} cardBorder={theme.cardBorder}
+      />
+    </>
   );
-}
-function CartBar({ count, total }) {
+
   return (
-    <AnimatePresence>
-      {count > 0 && (
-        <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 32 }} className="fixed bottom-[60px] left-1/2 z-40 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2">
-          <button className="flex w-full items-center justify-between rounded-xl bg-blink-green px-4 py-2.5 text-white shadow-lg active:scale-[0.99]">
-            <span className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-lg bg-white/15"><ShoppingCart className="h-5 w-5" /></span><span className="text-right leading-tight"><span className="block font-display text-[14px] font-black">{count} منتج</span><span className="block font-body text-[11px] text-white/85">{iqd(total)} د.ع</span></span></span>
-            <span className="flex items-center gap-0.5 font-display text-[14px] font-black">عرض السلّة <ChevronLeft className="h-5 w-5" /></span>
-          </button>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <>
+      {theme.zone ? <div style={{ background: theme.zone }}>{topBlock}</div> : topBlock}
+      {theme.tiles && (<><div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">تسوّق حسب الفئة</div></div></div><TileGrid items={theme.tiles} onOpen={openList} /></>)}
+      <ProductRow title={theme.row2Title} sub={theme.row2Sub} ids={theme.row2} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("منتجات")} />
+    </>
   );
 }
 
-/* ════════════════════════════════ الصفحة ════════════════════════════════ */
+/* ------------------------- شاشة القائمة ------------------------- */
+function Listing({ title, cart, add, inc, dec, onBack }) {
+  return (
+    <>
+      <div className="bk-listhead">
+        <div className="top">
+          <div className="bk-back" onClick={onBack}><ChevronRight size={24} strokeWidth={2.5} /></div>
+          <div style={{ flex: 1 }}>
+            <div className="ti">{title}</div>
+            <div className="sub">التوصيل خلال 8 دقائق · 142 منتج</div>
+          </div>
+          <div className="bk-profile" style={{ background: "rgba(0,0,0,.06)", borderColor: "rgba(0,0,0,.08)" }}><User size={20} strokeWidth={2} color="#3a3a3a" /></div>
+        </div>
+        <div className="bk-listsearch"><Search size={18} strokeWidth={2.4} color="#7a7a7a" /> ابحث في {title}</div>
+      </div>
+      <div className="bk-content">
+        <div className="bk-listgrid">
+          {PRODUCTS.map((p) => <ProductCard key={p.id} p={p} grid qty={cart[p.id] || 0} onAdd={add} onInc={inc} onDec={dec} />)}
+        </div>
+        <div style={{ height: 40 }} />
+      </div>
+    </>
+  );
+}
+
+/* ------------------------- التطبيق ------------------------- */
 export default function BlinkitHome() {
-  const [tab, setTab] = useState('all');
-  const [items, setItems] = useState([]);
-  const [collapsed, setCollapsed] = useState(false);
-  const [fade, setFade] = useState(0);
-  const [real, setReal] = useState(null);
-  const [layout, setLayout] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [nav, setNav] = useState("home");
+  const [catTab, setCatTab] = useState("all");
+  const [cart, setCart] = useState({});
+  const [hint, setHint] = useState(0);
+  const [listing, setListing] = useState(null);
+  const [scrollY, setScrollY] = useState(0);
+  const tabRefs = useRef({});
+  const scrollRef = useRef(null);
+
+  const theme = THEMES[catTab];
+  const COLLAPSE = 120;
+  const FADE = 210;
 
   useEffect(() => {
-    let on = true;
-    try {
-      const want = new URLSearchParams(window.location.search).get('real');
-      if (want === '1' || want === 'true') {
-        fetchStoreCatalog().then((res) => { if (on && res && Array.isArray(res.products) && res.products.length) setReal(res); });
-        getHomeLayout().then((res) => { if (on && res && !res.error) setLayout(res); });
-      }
-    } catch { /* ignore */ }
-    return () => { on = false; };
+    const t1 = setTimeout(() => setExiting(true), 1700);
+    const t2 = setTimeout(() => setReady(true), 2250);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  useEffect(() => { setHint(0); }, [catTab]);
   useEffect(() => {
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => { const y = window.scrollY; setCollapsed(y > 56); setFade(Math.min(1, y / 120)); ticking = false; });
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    const iv = setInterval(() => setHint((h) => (h + 1) % theme.hints.length), 2200);
+    return () => clearInterval(iv);
+  }, [theme]);
 
-  // ── السلّة ──
-  const qtyOf = useCallback((id) => items.find((i) => i.key === id)?.qty || 0, [items]);
-  const add = useCallback((p) => setItems((prev) => {
-    const f = prev.find((i) => i.key === p.id);
-    if (f) return prev.map((i) => (i.key === p.id ? { ...i, qty: i.qty + 1 } : i));
-    return [...prev, { key: p.id, name: p.name, price: p.price, qty: 1 }];
-  }), []);
-  const inc = useCallback((id) => setItems((prev) => prev.map((i) => (i.key === id ? { ...i, qty: i.qty + 1 } : i))), []);
-  const dec = useCallback((id) => setItems((prev) => prev.flatMap((i) => (i.key !== id ? [i] : i.qty <= 1 ? [] : [{ ...i, qty: i.qty - 1 }]))), []);
-  const h = { qtyOf, add, inc, dec };
-  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const count = items.reduce((s, i) => s + i.qty, 0);
+  const add = (id) => setCart((c) => ({ ...c, [id]: 1 }));
+  const inc = (id) => setCart((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  const dec = (id) => setCart((c) => {
+    const n = (c[id] || 0) - 1; const nc = { ...c };
+    if (n <= 0) delete nc[id]; else nc[id] = n; return nc;
+  });
 
-  // تبويبات / لون / إعدادات / بانر / خلفية
-  const tabsList = (real && layout?.tabs?.length)
-    ? layout.tabs.map((t) => ({ id: t.key, label: t.label, icon: t.icon || '🛒', iconImage: t.icon_image || null, theme: t.theme || '#FBCB25' }))
-    : TABS;
-  const theme = tabsList.find((t) => t.id === tab)?.theme || '#FBCB25';
-  const cfg = (real && layout?.config) || null;
-  const deliveryMinutes = cfg?.delivery_minutes || DELIVERY;
-  const welcome = cfg ? { title: cfg.welcome_title, subtitle: cfg.welcome_subtitle } : null;
-  const banner = (real && layout?.banners?.length) ? (layout.banners.find((b) => b.tab === tab) || layout.banners.find((b) => b.tab === 'all') || null) : null;
-  const override = useMemo(() => {
-    try { const p = new URLSearchParams(window.location.search); const img = p.get('hero'); const vid = p.get('herovid'); if (img || vid) return { image: img || null, video: vid || null, overlay: 0.18 }; } catch { /* ignore */ }
-    return null;
-  }, []);
-  const media = override || (cfg && (cfg.header_image || cfg.header_video) ? { image: cfg.header_image || null, video: cfg.header_video || null, overlay: cfg.header_overlay ?? 0.18 } : null);
+  const count = Object.values(cart).reduce((a, b) => a + b, 0);
+  const total = Object.entries(cart).reduce((a, [id, q]) => a + (byId(+id)?.price || 0) * q, 0);
+  const savings = Object.entries(cart).reduce((a, [id, q]) => {
+    const p = byId(+id); return a + (p ? (p.mrp - p.price) * q : 0);
+  }, 0);
 
-  // البيانات
-  const { cats, bestCats, prods, deals, popular } = useMemo(() => {
-    const base = real ? real.products.map(normProduct) : PRODUCTS.map(normProduct);
-    let rcats, best;
-    if (real) {
-      const counts = {};
-      base.forEach((p) => { if (p.cat) counts[p.cat] = (counts[p.cat] || 0) + 1; });
-      rcats = (real.categories || []).filter((c) => c.name && c.name !== 'الكل').map((c) => ({ id: c.name, name: c.name, image: c.image, emoji: c.emoji || '🛒' }));
-      best = rcats.map((c) => ({ ...c, count: counts[c.id] || 0 })).filter((c) => c.count > 0).sort((a, b) => b.count - a.count).slice(0, 8);
-    } else {
-      rcats = CATEGORIES; best = bestsellerCats();
-    }
-    const dl = base.filter((p) => p.old).slice(0, 12);
-    const pop = [...base].sort((a, b) => (b.ratingCount || 0) - (a.ratingCount || 0)).slice(0, 12);
-    return { cats: rcats, bestCats: best, prods: base, deals: dl, popular: pop };
-  }, [real]);
+  const skip = () => { setExiting(true); setTimeout(() => setReady(true), 400); };
+  const pickTab = (id, el) => {
+    setCatTab(id); setListing(null); setScrollY(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  };
+  const onScroll = (e) => setScrollY(e.currentTarget.scrollTop);
+
+  const t = clamp01(scrollY / COLLAPSE);
+  const heroFade = clamp01(1 - scrollY / FADE);
+  const hTop = rgb(mix(hexToRgb(theme.headTop), CREAM_RGB, t));
+  const hBot = rgb(mix(hexToRgb(theme.headBot), CREAM_RGB, t));
+  const headBg = `linear-gradient(180deg, ${hTop}, ${hBot})`;
+  const onHeadRgb = hexToRgb(theme.onHead);
+  const tabRgb = mix(onHeadRgb, INK_RGB, t);
+  const tabCol = rgb(tabRgb);
+  const tabColDim = rgba(tabRgb, 0.72);
+  const delivOp = clamp01(1 - t * 1.7);
+  const delivH = (1 - t) * 90;
+  const promoH = t * 24;
 
   return (
-    <div className="min-h-screen bg-white pb-28 font-body" dir="rtl">
-      <Header tabs={tabsList} tab={tab} setTab={setTab} theme={theme} collapsed={collapsed} count={count} deliveryMinutes={deliveryMinutes} media={media} fade={fade} />
-      <AnimatePresence mode="wait">
-        <motion.main key={tab} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
-          <WelcomeBanner theme={theme} banner={banner} welcome={welcome} deliveryMinutes={deliveryMinutes} media={media} />
-          <MegaSale products={deals} h={h} />
-          <BestSellers cats={bestCats} prods={prods} />
-          <ProductRail title="الأكثر طلباً" products={popular} h={h} />
-          <ShopByCategory cats={cats} />
-        </motion.main>
-      </AnimatePresence>
-      <CartBar count={count} total={total} />
-      <BottomNav />
+    <div className="bk-wrap">
+      <style>{CSS}</style>
+      <div className="bk-phone" dir="rtl" lang="ar">
+
+        {!ready && (
+          <div className={"bk-splash" + (exiting ? " out" : "")} onClick={skip}>
+            <div className="bk-logo"><span className="b">ب</span>بلينكيت</div>
+            <div className="bk-tagline">تطبيق الدقائق الأخيرة</div>
+            <div className="bk-welcome">اطلب الآن واستمتع بتوصيل مجاني</div>
+            <div className="bk-load"><i /></div>
+          </div>
+        )}
+
+        {listing ? (
+          <Listing title={listing} cart={cart} add={add} inc={inc} dec={dec} onBack={() => setListing(null)} />
+        ) : (
+          <>
+            {/* الهيدر القابل للطي */}
+            <div className="bk-header" style={{ background: headBg }}>
+              {/* معلومات التوصيل — تنطوي عند التمرير */}
+              <div className="bk-deliv-wrap" style={{ maxHeight: delivH, opacity: delivOp }}>
+                <div className="bk-deliv">
+                  <div>
+                    <div className="lbl" style={{ color: rgba(onHeadRgb, 0.9) }}>التوصيل خلال</div>
+                    <div className="min" style={{ color: rgb(onHeadRgb) }}>
+                      {theme.eta} دقيقة
+                      {theme.surge
+                        ? <span className="bk-surge"><TrendingUp size={12} strokeWidth={2.6} />أسعار الذروة</span>
+                        : <span className="bk-247" style={{ color: theme.badge, borderColor: theme.badgeBorder }}>على مدار الساعة</span>}
+                    </div>
+                    <div className="bk-loc" style={{ color: theme.sub }}>
+                      <b style={{ color: rgb(onHeadRgb) }}>المنزل</b> - علي، 22، منطقة راجباث <ChevronDown size={16} strokeWidth={2.6} />
+                    </div>
+                  </div>
+                  <div className="bk-headicons">
+                    <div className="bk-mapw">💳</div>
+                    <div className="bk-profile"><User size={22} strokeWidth={2} color={rgb(onHeadRgb)} /></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* البحث — ثابت */}
+              <div className="bk-search" style={{ background: theme.searchBg }}>
+                <Search size={20} strokeWidth={2.4} color={theme.searchIcon} />
+                <div className="ph" style={{ color: theme.searchText }}>
+                  {catTab === "all"
+                    ? <>ابحث عن طحين، عدس، كولا و<b style={{ color: theme.searchText }}>{theme.hints[hint]}</b></>
+                    : <>ابحث عن {theme.hints[hint]}</>}
+                </div>
+                <div className="bk-mic" />
+                <Mic size={20} strokeWidth={2} color={theme.searchIcon} />
+              </div>
+
+              {/* التبويبات — ثابتة وتتغيّر ألوانها عند التمرير */}
+              <div className="bk-tabs hide-sb">
+                {TABS.map((tb) => {
+                  const on = catTab === tb.id;
+                  return (
+                    <div key={tb.id} ref={(el) => (tabRefs.current[tb.id] = el)}
+                      className={"bk-tab" + (on ? " on" : "")}
+                      onClick={(e) => pickTab(tb.id, e.currentTarget)}>
+                      <span className="iconwrap"><tb.Icon size={24} strokeWidth={1.9} color={on ? tabCol : tabColDim} /></span>
+                      <span className="tl" style={{ color: on ? tabCol : tabColDim }}>{tb.label}</span>
+                      {on && <span className="bk-uline" style={{ background: tabCol }} />}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* شريط العرض الرفيع — يظهر عند طي الهيدر */}
+              {theme.promo && (
+                <div className="bk-promo" style={{ height: promoH, lineHeight: "24px", opacity: t }}>
+                  ⚡ اطلب الآن واحصل على توصيل مجاني
+                </div>
+              )}
+            </div>
+
+            {/* المحتوى */}
+            <div className="bk-content" ref={scrollRef} onScroll={onScroll} key={catTab}>
+              {catTab === "all"
+                ? <HomeContent cart={cart} add={add} inc={inc} dec={dec} openList={setListing} heroFade={heroFade} />
+                : <ThemedContent theme={theme} cart={cart} add={add} inc={inc} dec={dec} openList={setListing} heroFade={heroFade} />}
+              <div style={{ textAlign: "center", color: "#c8c8c8", fontSize: 13, padding: "20px 0 8px", fontWeight: 800, letterSpacing: 1 }}>بلينكيت</div>
+            </div>
+          </>
+        )}
+
+        {/* شريط السلة */}
+        {count > 0 && (
+          <div className="bk-cart">
+            <div className="l">
+              <div className="icn"><ShoppingBag size={18} color="#fff" /><span className="badge">{count}</span></div>
+              <div className="txt">
+                <b>₹{total}</b>
+                <span>{savings > 0 ? `وفّرت ₹${savings}` : `${count} منتج`}</span>
+              </div>
+            </div>
+            <div className="view">عرض السلة <ChevronLeft size={20} strokeWidth={2.6} /></div>
+          </div>
+        )}
+
+        {/* الشريط السفلي */}
+        <div className="bk-nav">
+          {[
+            { id: "home", l: "الرئيسية", Icon: Home },
+            { id: "again", l: "اطلب مجدداً", Icon: RotateCcw },
+            { id: "cats", l: "الفئات", Icon: LayoutGrid },
+            { id: "print", l: "طباعة", Icon: Printer },
+          ].map((n) => (
+            <div key={n.id} className={"bk-nav-i" + (nav === n.id ? " on" : "")} onClick={() => { setNav(n.id); setListing(null); }}>
+              <n.Icon className="ic" size={22} strokeWidth={2} />
+              <span className="l">{n.l}</span>
+            </div>
+          ))}
+        </div>
+
+      </div>
     </div>
   );
 }
