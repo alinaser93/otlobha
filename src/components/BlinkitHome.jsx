@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Search, Mic, ChevronDown, ChevronRight, ChevronLeft, User, Clock, Star,
   Plus, Minus, Home, RotateCcw, LayoutGrid, Printer, ShoppingBasket,
@@ -271,7 +271,9 @@ const CSS = `
 .bk-phone *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 .hide-sb::-webkit-scrollbar{display:none;}.hide-sb{scrollbar-width:none;}
 
-.bk-header{flex:0 0 auto;z-index:20;position:relative;padding-top:12px;}
+.bk-header{display:none;}
+.bk-deliv-gold{padding-top:12px;}
+.bk-sticky{position:sticky;top:0;z-index:15;padding-bottom:2px;will-change:background;}
 .bk-deliv-wrap{overflow:hidden;}
 .bk-deliv{display:flex;align-items:flex-start;justify-content:space-between;padding:2px 16px 6px;}
 .bk-deliv .lbl{font-size:12px;font-weight:600;letter-spacing:.2px;}
@@ -290,17 +292,17 @@ const CSS = `
 .bk-mic{width:1.5px;height:22px;background:#e2e2e2;margin-left:2px;}
 
 .bk-tabs{display:flex;gap:2px;overflow-x:auto;padding:6px 12px 0;}
-.bk-tab{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 8px 10px;position:relative;cursor:pointer;color:var(--tc-off);}
-.bk-tab.on{color:var(--tc-on);}
-.bk-tab .tl{font-size:13px;font-weight:600;white-space:nowrap;color:inherit;}
+.bk-tab{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:2px 8px 10px;position:relative;cursor:pointer;}
+.bk-tab .tl{font-size:13px;font-weight:600;white-space:nowrap;}
 .bk-tab.on .tl{font-weight:800;}
-.bk-uline{position:absolute;bottom:0;left:16%;right:16%;height:3px;border-radius:3px;background:var(--tc-on);}
+.bk-uline{position:absolute;bottom:0;left:16%;right:16%;height:3px;border-radius:3px;}
 .bk-tab .iconwrap{position:relative;z-index:1;display:flex;}
 .bk-tab.on .iconwrap:before{content:"";position:absolute;inset:-5px -9px;border-radius:50%;background:rgba(248,203,70,.4);z-index:0;}
 
 .bk-promo{background:linear-gradient(90deg,${YELLOW},${YELLOW_DK});color:#5a3d00;font-size:12.5px;font-weight:800;text-align:center;letter-spacing:.3px;overflow:hidden;}
 
-.bk-content{flex:1;overflow-y:auto;background:#fff;padding-bottom:150px;}
+.bk-content{flex:1;overflow-y:auto;background:#fff;padding-bottom:150px;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
+.bk-herowrap{will-change:opacity,transform;}
 
 /* بانر الترحيب (الكل) */
 .bk-whero{position:relative;padding:18px 16px 26px;text-align:center;overflow:hidden;background:radial-gradient(130% 100% at 50% -10%,#D3A62B 0%,#A9780F 55%,#875B10 100%);}
@@ -685,14 +687,11 @@ export default function BlinkitHome() {
   const [cart, setCart] = useState({});
   const [hint, setHint] = useState(0);
   const [listing, setListing] = useState(null);
+  const [scrollY, setScrollY] = useState(0);
   const tabRefs = useRef({});
   const scrollRef = useRef(null);
   const rafPending = useRef(false);
   const lastY = useRef(0);
-  const headerRef = useRef(null);
-  const delivRef = useRef(null);
-  const promoRef = useRef(null);
-  const heroRef = useRef(null);
 
   const theme = THEMES[catTab];
   const COLLAPSE = 120;
@@ -726,61 +725,27 @@ export default function BlinkitHome() {
 
   const skip = () => { setExiting(true); setTimeout(() => setReady(true), 400); };
   const pickTab = (id, el) => {
-    setCatTab(id); setListing(null);
+    setCatTab(id); setListing(null); setScrollY(0);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     if (el) el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   };
-  const onHeadRgb = hexToRgb(theme.onHead);
-
-  // Apply every scroll-linked style straight to the DOM (no React re-render):
-  // header gradient, tab colours (via CSS vars), delivery collapse, promo bar
-  // and the fading hero banner. Scrolling therefore triggers ZERO renders.
-  const applyScroll = (y) => {
-    const t = clamp01(y / COLLAPSE);
-    const heroFade = clamp01(1 - y / FADE);
-    const header = headerRef.current;
-    if (header) {
-      const hTop = rgb(mix(hexToRgb(theme.headTop), CREAM_RGB, t));
-      const hBot = rgb(mix(hexToRgb(theme.headBot), CREAM_RGB, t));
-      const tabRgb = mix(onHeadRgb, INK_RGB, t);
-      header.style.background = `linear-gradient(180deg, ${hTop}, ${hBot})`;
-      header.style.setProperty("--tc-on", rgb(tabRgb));
-      header.style.setProperty("--tc-off", rgba(tabRgb, 0.72));
-    }
-    if (delivRef.current) {
-      delivRef.current.style.maxHeight = `${(1 - t) * 90}px`;
-      delivRef.current.style.opacity = `${clamp01(1 - t * 1.7)}`;
-    }
-    if (promoRef.current) {
-      promoRef.current.style.height = `${t * 24}px`;
-      promoRef.current.style.opacity = `${t}`;
-    }
-    if (heroRef.current) {
-      heroRef.current.style.opacity = `${heroFade}`;
-      heroRef.current.style.transform = `translateY(${-(1 - heroFade) * (catTab === "all" ? 10 : 12)}px)`;
-    }
-  };
-
-  // Re-sync the header to the real scroll position after any (non-scroll)
-  // re-render, so cart/hint updates never snap the header back open.
-  useLayoutEffect(() => {
-    applyScroll(scrollRef.current ? scrollRef.current.scrollTop : 0);
-  });
-
-  // Scroll handler: read once, coalesce to one rAF, mutate the DOM — no setState.
+  // throttle scroll updates to one per animation frame (keeps scrolling smooth)
   const onScroll = (e) => {
     lastY.current = e.currentTarget.scrollTop;
     if (!rafPending.current) {
       rafPending.current = true;
-      requestAnimationFrame(() => { rafPending.current = false; applyScroll(lastY.current); });
+      requestAnimationFrame(() => { rafPending.current = false; setScrollY(lastY.current); });
     }
   };
 
-  // t=0 (expanded) baselines for the first synchronous paint; the layout
-  // effect above immediately reconciles them to the live scroll position.
-  const headBg = `linear-gradient(180deg, ${theme.headTop}, ${theme.headBot})`;
-  const baseTabCol = rgb(onHeadRgb);
-  const baseTabColDim = rgba(onHeadRgb, 0.72);
+  const t = clamp01((scrollY - 60) / 90);
+  const heroFade = clamp01(1 - scrollY / FADE);
+  const delivBg = `linear-gradient(180deg, ${theme.headTop}, ${theme.headBot})`;
+  const stickyBg = rgb(mix(hexToRgb(theme.headBot), CREAM_RGB, t)); // ذهبي في الأعلى ← كريمي عند النزول
+  const onHeadRgb = hexToRgb(theme.onHead);
+  const tabRgb = mix(onHeadRgb, INK_RGB, t);
+  const tabCol = rgb(tabRgb);
+  const tabColDim = rgba(tabRgb, 0.72);
 
   // Heavy content is memoized so scrolling never re-renders the product/tile lists.
   const sections = useMemo(
@@ -807,32 +772,32 @@ export default function BlinkitHome() {
         {listing ? (
           <Listing title={listing} cart={cart} add={add} inc={inc} dec={dec} onBack={() => setListing(null)} />
         ) : (
-          <>
-            {/* الهيدر القابل للطي */}
-            <div className="bk-header" ref={headerRef} style={{ background: headBg, "--tc-on": baseTabCol, "--tc-off": baseTabColDim }}>
-              {/* معلومات التوصيل — تنطوي عند التمرير */}
-              <div className="bk-deliv-wrap" ref={delivRef} style={{ maxHeight: 90, opacity: 1 }}>
-                <div className="bk-deliv">
-                  <div>
-                    <div className="lbl" style={{ color: rgba(onHeadRgb, 0.9) }}>التوصيل خلال</div>
-                    <div className="min" style={{ color: rgb(onHeadRgb) }}>
-                      {theme.eta} دقيقة
-                      {theme.surge
-                        ? <span className="bk-surge"><TrendingUp size={12} strokeWidth={2.6} />أسعار الذروة</span>
-                        : <span className="bk-247" style={{ color: theme.badge, borderColor: theme.badgeBorder }}>على مدار الساعة</span>}
-                    </div>
-                    <div className="bk-loc" style={{ color: theme.sub }}>
-                      <b style={{ color: rgb(onHeadRgb) }}>المنزل</b> - علي، 22، منطقة راجباث <ChevronDown size={16} strokeWidth={2.6} />
-                    </div>
+          <div className="bk-content" ref={scrollRef} onScroll={onScroll} key={catTab}>
+
+            {/* معلومات التوصيل — تنزل طبيعيًا مع التمرير (بلا تغيير تخطيط) */}
+            <div className="bk-deliv-gold" style={{ background: delivBg }}>
+              <div className="bk-deliv">
+                <div>
+                  <div className="lbl" style={{ color: rgba(onHeadRgb, 0.9) }}>التوصيل خلال</div>
+                  <div className="min" style={{ color: rgb(onHeadRgb) }}>
+                    {theme.eta} دقيقة
+                    {theme.surge
+                      ? <span className="bk-surge"><TrendingUp size={12} strokeWidth={2.6} />أسعار الذروة</span>
+                      : <span className="bk-247" style={{ color: theme.badge, borderColor: theme.badgeBorder }}>على مدار الساعة</span>}
                   </div>
-                  <div className="bk-headicons">
-                    <div className="bk-mapw">💳</div>
-                    <div className="bk-profile"><User size={22} strokeWidth={2} color={rgb(onHeadRgb)} /></div>
+                  <div className="bk-loc" style={{ color: theme.sub }}>
+                    <b style={{ color: rgb(onHeadRgb) }}>المنزل</b> - علي، 22، منطقة راجباث <ChevronDown size={16} strokeWidth={2.6} />
                   </div>
                 </div>
+                <div className="bk-headicons">
+                  <div className="bk-mapw">💳</div>
+                  <div className="bk-profile"><User size={22} strokeWidth={2} color={rgb(onHeadRgb)} /></div>
+                </div>
               </div>
+            </div>
 
-              {/* البحث — ثابت */}
+            {/* البحث + التبويبات — لاصق في الأعلى، تتغيّر ألوانه فقط (بلا إعادة تخطيط) */}
+            <div className="bk-sticky" style={{ background: stickyBg, boxShadow: `0 4px 12px rgba(0,0,0,${0.05 * t})` }}>
               <div className="bk-search" style={{ background: theme.searchBg }}>
                 <Search size={20} strokeWidth={2.4} color={theme.searchIcon} />
                 <div className="ph" style={{ color: theme.searchText }}>
@@ -844,7 +809,6 @@ export default function BlinkitHome() {
                 <Mic size={20} strokeWidth={2} color={theme.searchIcon} />
               </div>
 
-              {/* التبويبات — ثابتة وتتغيّر ألوانها عند التمرير */}
               <div className="bk-tabs hide-sb">
                 {TABS.map((tb) => {
                   const on = catTab === tb.id;
@@ -852,32 +816,22 @@ export default function BlinkitHome() {
                     <div key={tb.id} ref={(el) => (tabRefs.current[tb.id] = el)}
                       className={"bk-tab" + (on ? " on" : "")}
                       onClick={(e) => pickTab(tb.id, e.currentTarget)}>
-                      <span className="iconwrap"><tb.Icon size={24} strokeWidth={1.9} /></span>
-                      <span className="tl">{tb.label}</span>
-                      {on && <span className="bk-uline" />}
+                      <span className="iconwrap"><tb.Icon size={24} strokeWidth={1.9} color={on ? tabCol : tabColDim} /></span>
+                      <span className="tl" style={{ color: on ? tabCol : tabColDim }}>{tb.label}</span>
+                      {on && <span className="bk-uline" style={{ background: tabCol }} />}
                     </div>
                   );
                 })}
               </div>
-
-              {/* شريط العرض الرفيع — يظهر عند طي الهيدر */}
-              {theme.promo && (
-                <div className="bk-promo" ref={promoRef} style={{ height: 0, lineHeight: "24px", opacity: 0 }}>
-                  ⚡ اطلب الآن واحصل على توصيل مجاني
-                </div>
-              )}
             </div>
 
-            {/* المحتوى */}
-            <div className="bk-content" ref={scrollRef} onScroll={onScroll} key={catTab}>
-              {/* البانر يتلاشى عند التمرير — يُحرَّك عبر ref بلا إعادة رسم */}
-              <div ref={heroRef} style={{ opacity: 1 }}>
-                {catTab === "all" ? <WelcomeHero /> : <Hero hero={theme.hero} />}
-              </div>
-              {sections}
-              <div style={{ textAlign: "center", color: "#c8c8c8", fontSize: 13, padding: "20px 0 8px", fontWeight: 800, letterSpacing: 1 }}>بلينكيت</div>
+            {/* البانر يتلاشى عند التمرير */}
+            <div className="bk-herowrap" style={{ opacity: heroFade, transform: `translateY(${-(1 - heroFade) * (catTab === "all" ? 10 : 12)}px)` }}>
+              {catTab === "all" ? <WelcomeHero /> : <Hero hero={theme.hero} />}
             </div>
-          </>
+            {sections}
+            <div style={{ textAlign: "center", color: "#c8c8c8", fontSize: 13, padding: "20px 0 8px", fontWeight: 800, letterSpacing: 1 }}>بلينكيت</div>
+          </div>
         )}
 
         {/* شريط السلة */}
