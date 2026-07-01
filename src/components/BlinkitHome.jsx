@@ -33,6 +33,9 @@ const finalPrice = (p) => (p && p.iqd ? Math.round(p.price || 0) : toIQD((p && p
 const finalMrp = (p) => (p && p.iqd ? Math.round(p.mrp || 0) : toIQD((p && p.mrp) || 0));
 // أيقونة كل تبويب (lucide) حسب المفتاح — للتبويبات القادمة من الأدمن
 const ICON_BY_KEY = { all: ShoppingBasket, electronics: Headphones, beauty: Sparkles, decor: Lamp, kids: Baby, gifting: Gift, imported: Globe };
+// مفتاح واحد للتبديل: false = عرض التصميم المدمج (المنتجات الافتراضية بترتيبها السابق).
+// اجعلها true لاحقاً لتُدار الواجهة من لوحة الأدمن/التاجر (المنتجات الحقيقية بالدينار).
+const USE_LIVE_DATA = false;
 
 /* أدوات ألوان لإعادة تلوين الهيدر أثناء التمرير */
 const CREAM_RGB = [252, 247, 232];
@@ -820,7 +823,7 @@ export default function BlinkitHome() {
   // تحميل بيانات لوحة الأدمن/التاجر الحيّة (التبويبات + الأقسام + المنتجات بالدينار).
   // عند غيابها أو عند إيقاف Supabase تبقى الواجهة على تصميمها المدمج (fallback).
   useEffect(() => {
-    if (!supabaseEnabled) return;
+    if (!supabaseEnabled || !USE_LIVE_DATA) return;
     let cancelled = false;
     Promise.all([getHomeLayout(), fetchStoreCatalog()])
       .then(([layout, catalog]) => {
