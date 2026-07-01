@@ -20,6 +20,9 @@ const GREEN_SOFT = "#E8F4EA";
 const CREAM = "#FCF7E8";
 const BLUE = "#2A6ED9";
 const INK = "#1C1C1C";
+const CUR = "د.ع";
+const toIQD = (n) => Math.round((n * 36) / 50) * 50; // تحويل تقريبي إلى الدينار العراقي (أرقام واقعية)
+const fmt = (n) => n.toLocaleString("en-US");
 
 /* أدوات ألوان لإعادة تلوين الهيدر أثناء التمرير */
 const CREAM_RGB = [252, 247, 232];
@@ -48,12 +51,12 @@ const TABS = [
 
 /* ------------------------- بيانات الرئيسية (الكل) ------------------------- */
 const BESTSELLERS = [
-  { title: "خضار وفواكه", more: 164, items: ["🍌", "🌶️", "🧅", "🍋"] },
-  { title: "رقائق ومقرمشات", more: 313, items: ["🥔", "🍟", "🌽", "🥨"] },
-  { title: "مشروبات وعصائر", more: 196, items: ["🥤", "🧃", "🥫", "🧉"] },
-  { title: "ألبان وخبز وبيض", more: 14, items: ["🥛", "🍶", "🧈", "🥚"] },
-  { title: "زيت وسمن وبهارات", more: 158, items: ["🫒", "🛢️", "🌾", "🧂"] },
-  { title: "آيس كريم والمزيد", more: 33, items: ["🍦", "🍨", "🧁", "🍧"] },
+  { title: "خضار وفواكه", more: 133, items: ["🥦", "🍌", "🧅", "🫛"] },
+  { title: "رقائق ومقرمشات", more: 325, items: ["🥔", "🍟", "🌽", "🥨"] },
+  { title: "مشروبات وعصائر", more: 200, items: ["🥤", "🧃", "🥫", "🧉"] },
+  { title: "ألبان وخبز وبيض", more: 22, items: ["🥛", "🍶", "🧈", "🥚"] },
+  { title: "آيس كريم والمزيد", more: 38, items: ["🍦", "🍫", "🍨", "🧁"] },
+  { title: "زيت وسمن وبهارات", more: 152, items: ["🫒", "🛢️", "🌾", "🧂"] },
 ];
 const GROCERY = [
   { t: "خضار وفواكه", e: "🥬", bg: "#E9F2EC" },
@@ -80,6 +83,22 @@ const HOUSEHOLD = [
   { t: "منظفات وطاردات", e: "🧽", bg: "#E7F1F2" },
   { t: "إلكترونيات", e: "🔌", bg: "#EFEFEF" },
   { t: "قرطاسية وألعاب", e: "🎲", bg: "#F1ECE0" },
+];
+const STORES_SPOTLIGHT = [
+  { t: "متجر الآيس كريم", e: "🍦", bg: "#FBF0E4" },
+  { t: "متجر السفر", e: "🧳", bg: "#EAF1F8" },
+  { t: "متجر الهوايات", e: "🎨", bg: "#F3EAF6" },
+  { t: "متجر الرياضة", e: "🏀", bg: "#E9F2EC" },
+];
+const PICKS_LIFESTYLE = [
+  { t: "احتياجات روحية", e: "🪔", bg: "#F6EEDD" },
+  { t: "متجر الحيوانات", e: "🐾", bg: "#EEF1F4" },
+  { t: "أساسيات الموضة", e: "👕", bg: "#EAF0F6" },
+  { t: "متجر الألعاب", e: "🧸", bg: "#F3ECDD" },
+  { t: "متجر الكتب", e: "📚", bg: "#EAF1F4" },
+  { t: "متجر الصيدلية", e: "💊", bg: "#EAF4EE" },
+  { t: "هدايا إلكترونية", e: "🎁", bg: "#FBEFE0" },
+  { t: "متجر المجوهرات", e: "💍", bg: "#F6EEDD" },
 ];
 
 /* ------------------------- فئات الأقسام المُثيّمة ------------------------- */
@@ -162,6 +181,10 @@ const PRODUCTS = [
   { id: 21, name: "نبتة بوثوس داخلية مع أصيص", e: "🪴", bg: "#E9F0E2", weight: "قطعة", price: 185, mrp: 399, off: 53, rating: 4.4, reviews: "21 ألف", eta: "13 دقيقة" },
   { id: 22, name: "علبة هدايا شوكولاتة متنوعة", e: "🍫", bg: "#F0E6DC", weight: "250 غ", price: 499, mrp: 799, off: 37, rating: 4.7, reviews: "5 آلاف", eta: "13 دقيقة" },
   { id: 23, name: "مشروب آيس توك ليموناضة زرقاء", e: "🧊", bg: "#E7F0FB", weight: "230 مل", price: 110, mrp: 130, off: 15, rating: 4.4, reviews: "2.3 ألف", eta: "21 دقيقة" },
+  { id: 24, name: "آيس كريم كورنيتو بالشوكولاتة", e: "🍦", bg: "#F3E7DD", weight: "120 مل", price: 40, mrp: 45, off: 11, rating: 4.5, reviews: "2.3 ألف", eta: "13 دقيقة" },
+  { id: 25, name: "لوح شوكولاتة بالحليب", e: "🍫", bg: "#F0E6DC", weight: "26 غ", price: 26, mrp: 30, off: 13, rating: 4.6, reviews: "1.1 ألف", eta: "8 دقائق" },
+  { id: 26, name: "عصير مانجو طبيعي", e: "🧃", bg: "#FBEFE0", weight: "1 لتر", price: 85, mrp: 99, off: 14, rating: 4.4, reviews: "3.4 ألف", eta: "10 دقائق" },
+  { id: 27, name: "مشروب ليمون غازي", e: "🍋", bg: "#EFF6E2", weight: "750 مل", price: 40, mrp: 45, off: 11, rating: 4.3, reviews: "1.1 ألف", eta: "8 دقائق" },
 ];
 const byId = (id) => PRODUCTS.find((p) => p.id === id);
 
@@ -311,11 +334,12 @@ const CSS = `
 .bk-sec-link{display:flex;align-items:center;gap:2px;color:${GREEN};font-size:13px;font-weight:700;cursor:pointer;flex:0 0 auto;padding-top:3px;}
 .bk-hs{display:flex;gap:12px;overflow-x:auto;padding:2px 14px 10px;}
 
-.bk-bs{flex:0 0 auto;width:150px;background:#f4f6f5;border-radius:16px;padding:10px;cursor:pointer;}
-.bk-bs-g{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:relative;}
-.bk-bs-th{aspect-ratio:1;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
-.bk-bs-more{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);background:rgba(255,255,255,.94);font-size:11px;font-weight:700;color:#3a3a3a;padding:2px 8px;border-radius:20px;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap;}
-.bk-bs-t{font-size:14px;font-weight:700;color:${INK};margin-top:9px;text-align:center;line-height:1.2;}
+.bk-bs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:4px 14px 10px;}
+.bk-bs{background:#f6f7f8;border-radius:16px;padding:8px 8px 10px;cursor:pointer;}
+.bk-bs-g{display:grid;grid-template-columns:1fr 1fr;gap:5px;position:relative;}
+.bk-bs-th{aspect-ratio:1;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+.bk-bs-more{position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);background:#fff;font-size:10px;font-weight:700;color:#3a3a3a;padding:2px 8px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.16);white-space:nowrap;}
+.bk-bs-t{font-size:12.5px;font-weight:700;color:${INK};margin-top:14px;text-align:center;line-height:1.25;}
 
 .bk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px;padding:2px 14px 6px;}
 .bk-tile{cursor:pointer;}
@@ -409,10 +433,13 @@ function ProductCard({ p, qty, onAdd, onInc, onDec, grid, cardBg, cardBorder }) 
   const style = {};
   if (cardBg) style.background = cardBg;
   if (cardBorder) style.borderColor = cardBorder;
+  const price = toIQD(p.price);
+  const mrp = toIQD(p.mrp);
+  const off = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
   return (
     <div className={"bk-pc" + (grid ? " grid" : "")} style={style}>
       <div className="bk-pc-imgwrap" style={{ background: p.bg }}>
-        {p.off > 0 && <div className="bk-off">{p.off}%<br />خصم</div>}
+        {off > 0 && <div className="bk-off">{off}%<br />خصم</div>}
         <div className="bk-veg"><i /></div>
         <div className="bk-pc-img">{p.e}</div>
         <div className="bk-eta"><Clock size={10} strokeWidth={2.5} />{p.eta}</div>
@@ -426,8 +453,8 @@ function ProductCard({ p, qty, onAdd, onInc, onDec, grid, cardBg, cardBorder }) 
         </div>
         <div className="bk-foot">
           <div>
-            <div className="bk-price">₹{p.price}{p.mrp > p.price && <span className="bk-mrp">₹{p.mrp}</span>}</div>
-            {p.off > 0 && <div className="bk-offt">خصم {p.off}%</div>}
+            <div className="bk-price">{fmt(price)} {CUR}{mrp > price && <span className="bk-mrp">{fmt(mrp)}</span>}</div>
+            {off > 0 && <div className="bk-offt">خصم {off}%</div>}
           </div>
           {qty > 0 ? (
             <div className="bk-step">
@@ -553,7 +580,7 @@ function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
       <div style={{ opacity: heroFade, transform: `translateY(${-(1 - heroFade) * 10}px)` }}><WelcomeHero /></div>
 
       <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">الأكثر مبيعاً</div></div></div>
-      <div className="bk-hs hide-sb">
+      <div className="bk-bs-grid">
         {BESTSELLERS.map((b, i) => (
           <div className="bk-bs" key={i} onClick={() => openList(b.title)}>
             <div className="bk-bs-g">
@@ -568,7 +595,20 @@ function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
       <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">البقالة والمطبخ</div></div></div>
       <TileGrid items={GROCERY} onOpen={openList} />
 
-      <ProductRow title="استمتع بعالم من النكهات" ids={[1, 2, 12, 13]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("وجبات خفيفة")} />
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">وجبات خفيفة ومشروبات</div></div></div>
+      <TileGrid items={SNACKS} onOpen={openList} />
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">الجمال والعناية الشخصية</div></div></div>
+      <TileGrid items={BEAUTY} onOpen={openList} />
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">مستلزمات المنزل</div></div></div>
+      <TileGrid items={HOUSEHOLD} onOpen={openList} />
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">متاجر مميّزة</div></div></div>
+      <TileGrid items={STORES_SPOTLIGHT} onOpen={openList} />
+
+      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">مختارات لأسلوب حياتك</div></div></div>
+      <TileGrid items={PICKS_LIFESTYLE} onOpen={openList} />
 
       <div className="bk-ad">
         <h4>احتفال البرياني هنا</h4>
@@ -578,15 +618,11 @@ function HomeContent({ cart, add, inc, dec, openList, heroFade }) {
         <div className="tag">إعلان</div>
       </div>
 
-      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">وجبات خفيفة ومشروبات</div></div></div>
-      <TileGrid items={SNACKS} onOpen={openList} />
+      <ProductRow title="لِعشّاق الحلويات" ids={[12, 25, 24, 22]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("حلويات وشوكولاتة")} />
 
-      <ProductRow title="سيروم لكل أنواع البشرة" ids={[6, 7, 8]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("الجمال")} />
+      <ProductRow title="مشروبات باردة وعصائر" ids={[3, 26, 23, 27]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("مشروبات وعصائر")} />
 
-      <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">مستلزمات المنزل</div></div></div>
-      <TileGrid items={HOUSEHOLD} onOpen={openList} />
-
-      <ProductRow title="الأساسيات اليومية، توصيل سريع" ids={[3, 4, 5, 14]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("البقالة")} />
+      <ProductRow title="الأساسيات اليومية، توصيل سريع" ids={[4, 5, 14, 2]} cart={cart} add={add} inc={inc} dec={dec} onSeeAll={() => openList("البقالة")} />
     </>
   );
 }
@@ -680,9 +716,9 @@ export default function BlinkitHome() {
   });
 
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
-  const total = Object.entries(cart).reduce((a, [id, q]) => a + (byId(+id)?.price || 0) * q, 0);
+  const total = Object.entries(cart).reduce((a, [id, q]) => a + toIQD(byId(+id)?.price || 0) * q, 0);
   const savings = Object.entries(cart).reduce((a, [id, q]) => {
-    const p = byId(+id); return a + (p ? (p.mrp - p.price) * q : 0);
+    const p = byId(+id); return a + (p ? (toIQD(p.mrp) - toIQD(p.price)) * q : 0);
   }, 0);
 
   const skip = () => { setExiting(true); setTimeout(() => setReady(true), 400); };
@@ -800,8 +836,8 @@ export default function BlinkitHome() {
             <div className="l">
               <div className="icn"><ShoppingBag size={18} color="#fff" /><span className="badge">{count}</span></div>
               <div className="txt">
-                <b>₹{total}</b>
-                <span>{savings > 0 ? `وفّرت ₹${savings}` : `${count} منتج`}</span>
+                <b>{fmt(total)} {CUR}</b>
+                <span>{savings > 0 ? `وفّرت ${fmt(savings)} ${CUR}` : `${count} منتج`}</span>
               </div>
             </div>
             <div className="view">عرض السلة <ChevronLeft size={20} strokeWidth={2.6} /></div>
