@@ -4,6 +4,10 @@ import {
   Plus, Minus, Home, RotateCcw, LayoutGrid, Printer, ShoppingBasket,
   Headphones, Sparkles, Lamp, Baby, Gift, Globe, ShoppingBag, TrendingUp,
 } from "lucide-react";
+import { getHomeLayout } from "../lib/storefront.js";
+import { fetchStoreCatalog } from "../lib/products.js";
+import { supabaseEnabled } from "../lib/supabase.js";
+import { buildBlinkitModel } from "../lib/blinkitLayout.js";
 
 /* ============================================================
    تطبيق تجارة سريعة بأسلوب بلينكيت — نسخة عربية (RTL).
@@ -23,6 +27,12 @@ const INK = "#1C1C1C";
 const CUR = "د.ع";
 const toIQD = (n) => Math.round((n * 36) / 50) * 50; // تحويل تقريبي إلى الدينار العراقي (أرقام واقعية)
 const fmt = (n) => n.toLocaleString("en-US");
+// السعر النهائي بالدينار: منتجات الكتالوج الحيّة (iqd:true) تُعرض كما هي،
+// أمّا البيانات التجريبية (بالروبية) فتُحوّل عبر toIQD.
+const finalPrice = (p) => (p && p.iqd ? Math.round(p.price || 0) : toIQD((p && p.price) || 0));
+const finalMrp = (p) => (p && p.iqd ? Math.round(p.mrp || 0) : toIQD((p && p.mrp) || 0));
+// أيقونة كل تبويب (lucide) حسب المفتاح — للتبويبات القادمة من الأدمن
+const ICON_BY_KEY = { all: ShoppingBasket, electronics: Headphones, beauty: Sparkles, decor: Lamp, kids: Baby, gifting: Gift, imported: Globe };
 
 /* أدوات ألوان لإعادة تلوين الهيدر أثناء التمرير */
 const CREAM_RGB = [252, 247, 232];
@@ -263,6 +273,25 @@ const THEMES = {
   },
 };
 
+/* ثيم مُشتقّ لتبويب أدمن جديد لا يملك ثيماً مدمجاً — يُبنى من لون التبويب */
+const relLum = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+const darkenHex = (hex, f = 0.8) => rgb(hexToRgb(hex).map((v) => Math.round(v * f)));
+function makeLiveTheme(key, model) {
+  const tab = model && model.tabs.find((t) => t.key === key);
+  const accent = (tab && tab.theme) || YELLOW;
+  const light = relLum(accent) > 0.6;
+  const onHead = light ? INK : "#ffffff";
+  return {
+    eta: String((model && model.config && model.config.deliveryMinutes) ?? 12),
+    headTop: accent, headBot: darkenHex(accent, 0.8),
+    onHead, sub: light ? "rgba(28,28,28,.7)" : "rgba(255,255,255,.85)",
+    badge: onHead, badgeBorder: light ? "rgba(28,28,28,.35)" : "rgba(255,255,255,.5)",
+    searchBg: "#fff", searchText: "#8a8a8a", searchIcon: "#5a5a5a",
+    promo: !!(model && key === model.defaultTab),
+    hints: ["ابحث عن المنتجات"],
+  };
+}
+
 /* ------------------------- الأنماط ------------------------- */
 const CSS = `
 .bk-wrap{position:fixed;inset:0;background:#2b2b2b;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Tahoma,Roboto,'Helvetica Neue',Arial,sans-serif;}
@@ -436,15 +465,15 @@ function ProductCard({ p, qty, onAdd, onInc, onDec, grid, cardBg, cardBorder }) 
   const style = {};
   if (cardBg) style.background = cardBg;
   if (cardBorder) style.borderColor = cardBorder;
-  const price = toIQD(p.price);
-  const mrp = toIQD(p.mrp);
+  const price = finalPrice(p);
+  const mrp = finalMrp(p);
   const off = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
   return (
     <div className={"bk-pc" + (grid ? " grid" : "")} style={style}>
       <div className="bk-pc-imgwrap" style={{ background: p.bg }}>
         {off > 0 && <div className="bk-off">{off}%<br />خصم</div>}
         <div className="bk-veg"><i /></div>
-        <div className="bk-pc-img">{p.e}</div>
+        <div className="bk-pc-img">{p.image ? <img src={p.image} alt="" loading="lazy" style={{ maxWidth: "100%", maxHeight: 108, objectFit: "contain" }} /> : p.e}</div>
         <div className="bk-eta"><Clock size={10} strokeWidth={2.5} />{p.eta}</div>
       </div>
       <div className="bk-pc-body">
@@ -474,7 +503,8 @@ function ProductCard({ p, qty, onAdd, onInc, onDec, grid, cardBg, cardBorder }) 
   );
 }
 
-function ProductRow({ title, sub, ids, cart, add, inc, dec, onSeeAll, cardBg, cardBorder }) {
+function ProductRow({ title, sub, ids, cart, add, inc, dec, onSeeAll, cardBg, cardBorder, resolve }) {
+  const get = resolve || byId;
   return (
     <>
       {title && (
@@ -489,9 +519,10 @@ function ProductRow({ title, sub, ids, cart, add, inc, dec, onSeeAll, cardBg, ca
         </div>
       )}
       <div className="bk-hs hide-sb">
-        {ids.map((id) => (
-          <ProductCard key={id} p={byId(id)} qty={cart[id] || 0} onAdd={add} onInc={inc} onDec={dec} cardBg={cardBg} cardBorder={cardBorder} />
-        ))}
+        {ids.map((id) => {
+          const p = get(id);
+          return p ? <ProductCard key={id} p={p} qty={cart[id] || 0} onAdd={add} onInc={inc} onDec={dec} cardBg={cardBg} cardBorder={cardBorder} /> : null;
+        })}
       </div>
     </>
   );
@@ -502,7 +533,7 @@ function TileGrid({ items, onOpen }) {
     <div className="bk-grid">
       {items.map((c, i) => (
         <div className="bk-tile" key={i} onClick={() => onOpen && onOpen(c.t)}>
-          <div className="bk-tile-img" style={{ background: c.bg }}>{c.e}</div>
+          <div className="bk-tile-img" style={{ background: c.bg }}>{c.image ? <img src={c.image} alt="" style={{ maxWidth: "76%", maxHeight: "76%", objectFit: "contain" }} /> : c.e}</div>
           <div className="bk-tile-t">{c.t}</div>
         </div>
       ))}
@@ -564,13 +595,13 @@ function Hero({ hero }) {
 }
 
 /* بانر الترحيب (الكل) — يتلاشى عند التمرير */
-function WelcomeHero() {
+function WelcomeHero({ title = "أهلاً بك", sub = "اطلب الآن واحصل على توصيل مجاني" }) {
   return (
     <div className="bk-whero">
       <div className="rays" />
       <div className="wh-hand l">🛍️</div>
-      <div className="wh-title">أهلاً بك</div>
-      <div className="wh-sub">اطلب الآن واحصل على توصيل مجاني</div>
+      <div className="wh-title">{title}</div>
+      <div className="wh-sub">{sub}</div>
       <div className="wh-hand r">🛍️</div>
     </div>
   );
@@ -654,7 +685,8 @@ function ThemedContent({ theme, cart, add, inc, dec, openList }) {
 }
 
 /* ------------------------- شاشة القائمة ------------------------- */
-function Listing({ title, cart, add, inc, dec, onBack }) {
+function Listing({ title, products, cart, add, inc, dec, onBack }) {
+  const list = products && products.length ? products : PRODUCTS;
   return (
     <>
       <div className="bk-listhead">
@@ -670,10 +702,65 @@ function Listing({ title, cart, add, inc, dec, onBack }) {
       </div>
       <div className="bk-content">
         <div className="bk-listgrid">
-          {PRODUCTS.map((p) => <ProductCard key={p.id} p={p} grid qty={cart[p.id] || 0} onAdd={add} onInc={inc} onDec={dec} />)}
+          {list.map((p) => <ProductCard key={p.id} p={p} grid qty={cart[p.id] || 0} onAdd={add} onInc={inc} onDec={dec} />)}
         </div>
         <div style={{ height: 40 }} />
       </div>
+    </>
+  );
+}
+
+/* ------------------------- المحتوى الحيّ (من لوحة الأدمن/التاجر) ------------------------- */
+function LiveContent({ tabKey, model, cart, add, inc, dec, openList }) {
+  const secs = model.sectionsByTab[tabKey] || [];
+  const resolve = (id) => model.productsById[String(id)];
+  const openCat = (name) =>
+    openList({ title: name, products: model.productsByCat[name] || Object.values(model.productsById) });
+  return (
+    <>
+      {secs.map((s, i) => {
+        if (s.kind === "banner") return <Hero key={i} hero={s.hero} />;
+        if (s.kind === "collage")
+          return (
+            <div key={i}>
+              <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">الأكثر مبيعاً</div></div></div>
+              <div className="bk-bs-grid">
+                {s.cards.map((b, j) => (
+                  <div className="bk-bs" key={j} onClick={() => openCat(b.catName)}>
+                    <div className="bk-bs-g">
+                      {b.items.map((e, k) => <div className="bk-bs-th" key={k}>{e}</div>)}
+                      {b.more > 0 && <div className="bk-bs-more">+{b.more} المزيد</div>}
+                    </div>
+                    <div className="bk-bs-t">{b.title}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        if (s.kind === "tiles")
+          return (
+            <div key={i}>
+              <div className="bk-sec"><div className="bk-sec-h"><div className="bk-sec-t">{s.title}</div></div></div>
+              <TileGrid items={s.tiles} onOpen={openCat} />
+            </div>
+          );
+        if (s.kind === "rail")
+          return (
+            <ProductRow key={i} title={s.title} ids={s.ids} cart={cart} add={add} inc={inc} dec={dec}
+              resolve={resolve} onSeeAll={() => openCat(s.title)} />
+          );
+        if (s.kind === "ad")
+          return (
+            <div className="bk-ad" key={i}>
+              <h4>احتفال البرياني هنا</h4>
+              <p>أحضر أجود أنواع الأرز</p>
+              <div className="shop">تسوّق الآن</div>
+              <div className="em">🍚</div>
+              <div className="tag">إعلان</div>
+            </div>
+          );
+        return null;
+      })}
     </>
   );
 }
@@ -687,13 +774,27 @@ export default function BlinkitHome() {
   const [cart, setCart] = useState({});
   const [hint, setHint] = useState(0);
   const [listing, setListing] = useState(null);
+  const [model, setModel] = useState(null); // موديل العرض الحيّ من لوحة الأدمن/التاجر (أو null → التصميم المدمج)
   const tabRefs = useRef({});
   const scrollRef = useRef(null);
   const phoneRef = useRef(null);
   const rafPending = useRef(false);
   const onHeadRgbRef = useRef([255, 255, 255]);
 
-  const theme = THEMES[catTab];
+  const live = !!model;
+  // الثيم: يبقى ثيم التصميم المدمج للمفاتيح المعروفة، ويُشتقّ لتبويبات الأدمن الجديدة،
+  // وفي الوضع الحيّ يُحدَّث زمن التوصيل من إعدادات المتجر.
+  const theme = useMemo(() => {
+    const base = THEMES[catTab] || makeLiveTheme(catTab, model);
+    return live ? { ...base, eta: String(model.config.deliveryMinutes) } : base;
+  }, [catTab, live, model]);
+  const tabsList = useMemo(
+    () => (live
+      ? model.tabs.map((t) => ({ id: t.key, label: t.label, Icon: ICON_BY_KEY[t.key] || ShoppingBasket, iconImage: t.iconImage }))
+      : TABS),
+    [live, model]
+  );
+  const activeById = useCallback((id) => (live ? model.productsById[String(id)] : byId(+id)), [live, model]);
   const COLLAPSE = 120;
   const FADE = 210;
 
@@ -701,6 +802,24 @@ export default function BlinkitHome() {
     const t1 = setTimeout(() => setExiting(true), 1700);
     const t2 = setTimeout(() => setReady(true), 2250);
     return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  // تحميل بيانات لوحة الأدمن/التاجر الحيّة (التبويبات + الأقسام + المنتجات بالدينار).
+  // عند غيابها أو عند إيقاف Supabase تبقى الواجهة على تصميمها المدمج (fallback).
+  useEffect(() => {
+    if (!supabaseEnabled) return;
+    let cancelled = false;
+    Promise.all([getHomeLayout(), fetchStoreCatalog()])
+      .then(([layout, catalog]) => {
+        if (cancelled) return;
+        const m = buildBlinkitModel(layout, catalog, { fallbackTabs: TABS, fallbackThemes: THEMES });
+        if (m) {
+          setModel(m);
+          setCatTab((prev) => (m.tabs.some((t) => t.key === prev) ? prev : m.defaultTab));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => { setHint(0); }, [catTab]);
@@ -718,9 +837,9 @@ export default function BlinkitHome() {
   const openList = useCallback((t) => setListing(t), []);
 
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
-  const total = Object.entries(cart).reduce((a, [id, q]) => a + toIQD(byId(+id)?.price || 0) * q, 0);
+  const total = Object.entries(cart).reduce((a, [id, q]) => { const p = activeById(id); return a + (p ? finalPrice(p) : 0) * q; }, 0);
   const savings = Object.entries(cart).reduce((a, [id, q]) => {
-    const p = byId(+id); return a + (p ? (toIQD(p.mrp) - toIQD(p.price)) * q : 0);
+    const p = activeById(id); return a + (p ? (finalMrp(p) - finalPrice(p)) * q : 0);
   }, 0);
 
   const skip = () => { setExiting(true); setTimeout(() => setReady(true), 400); };
@@ -760,10 +879,12 @@ export default function BlinkitHome() {
 
   // Heavy content is memoized so scrolling never re-renders the product/tile lists.
   const sections = useMemo(
-    () => (catTab === "all"
+    () => (live
+      ? <LiveContent tabKey={catTab} model={model} cart={cart} add={add} inc={inc} dec={dec} openList={openList} />
+      : catTab === "all"
       ? <HomeContent cart={cart} add={add} inc={inc} dec={dec} openList={openList} />
       : <ThemedContent theme={theme} cart={cart} add={add} inc={inc} dec={dec} openList={openList} />),
-    [catTab, cart, theme, add, inc, dec, openList]
+    [catTab, cart, theme, add, inc, dec, openList, live, model]
   );
 
   // Header pieces memoized too — their icons must NOT re-render on every scroll frame.
@@ -807,25 +928,34 @@ export default function BlinkitHome() {
 
   const tabStrip = useMemo(() => (
     <div className="bk-tabs hide-sb">
-      {TABS.map((tb) => {
+      {tabsList.map((tb) => {
         const on = catTab === tb.id;
         return (
           <div key={tb.id} ref={(el) => (tabRefs.current[tb.id] = el)}
             className={"bk-tab" + (on ? " on" : "")}
             onClick={(e) => pickTab(tb.id, e.currentTarget)}>
-            <span className="iconwrap" style={{ color: "var(--tc,#fff)", opacity: on ? 1 : 0.72 }}><tb.Icon size={24} strokeWidth={1.9} /></span>
+            <span className="iconwrap" style={{ color: "var(--tc,#fff)", opacity: on ? 1 : 0.72 }}>
+              {tb.iconImage
+                ? <img src={tb.iconImage} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+                : <tb.Icon size={24} strokeWidth={1.9} />}
+            </span>
             <span className="tl" style={{ color: "var(--tc,#fff)", opacity: on ? 1 : 0.72 }}>{tb.label}</span>
             {on && <span className="bk-uline" style={{ background: "var(--tc,#fff)" }} />}
           </div>
         );
       })}
     </div>
-  ), [catTab, pickTab]);
+  ), [catTab, pickTab, tabsList]);
 
-  const bannerContent = useMemo(
-    () => (catTab === "all" ? <WelcomeHero /> : <Hero hero={theme.hero} />),
-    [catTab, theme]
-  );
+  const bannerContent = useMemo(() => {
+    if (live) {
+      const h = model.heroByTab[catTab];
+      if (!h) return null;
+      if (h.kind === "welcome") return <WelcomeHero title={h.title} sub={h.sub} />;
+      return <Hero hero={h.hero} />;
+    }
+    return catTab === "all" ? <WelcomeHero /> : <Hero hero={theme.hero} />;
+  }, [catTab, theme, live, model]);
 
   return (
     <div className="bk-wrap">
@@ -842,7 +972,10 @@ export default function BlinkitHome() {
         )}
 
         {listing ? (
-          <Listing title={listing} cart={cart} add={add} inc={inc} dec={dec} onBack={() => setListing(null)} />
+          <Listing
+            title={typeof listing === "string" ? listing : listing.title}
+            products={listing && typeof listing === "object" ? listing.products : undefined}
+            cart={cart} add={add} inc={inc} dec={dec} onBack={() => setListing(null)} />
         ) : (
           <>
             {/* الهيدر القابل للطي — نفس الشكل، لكن الطيّ واللون عبر متغيّرات CSS (بلا إعادة رسم) */}
