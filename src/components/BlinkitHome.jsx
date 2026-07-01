@@ -749,16 +749,19 @@ function LiveContent({ tabKey, model, cart, add, inc, dec, openList }) {
             <ProductRow key={i} title={s.title} ids={s.ids} cart={cart} add={add} inc={inc} dec={dec}
               resolve={resolve} onSeeAll={() => openCat(s.title)} />
           );
-        if (s.kind === "ad")
+        if (s.kind === "ad") {
+          const a = s.ad || {};
           return (
-            <div className="bk-ad" key={i}>
-              <h4>احتفال البرياني هنا</h4>
-              <p>أحضر أجود أنواع الأرز</p>
-              <div className="shop">تسوّق الآن</div>
-              <div className="em">🍚</div>
+            <div className="bk-ad" key={i} style={a.bg ? { background: a.bg } : undefined}
+              onClick={() => a.catName && openCat(a.catName)}>
+              <h4 style={a.fg ? { color: a.fg } : undefined}>{a.title || "احتفال البرياني هنا"}</h4>
+              <p style={a.fg ? { color: a.fg } : undefined}>{a.subtitle || "أحضر أجود أنواع الأرز"}</p>
+              <div className="shop">{a.cta || "تسوّق الآن"}</div>
+              <div className="em">{a.image ? <img src={a.image} alt="" style={{ width: 72, height: 72, objectFit: "contain" }} /> : (a.emoji || "🍚")}</div>
               <div className="tag">إعلان</div>
             </div>
           );
+        }
         return null;
       })}
     </>
@@ -786,7 +789,17 @@ export default function BlinkitHome() {
   // وفي الوضع الحيّ يُحدَّث زمن التوصيل من إعدادات المتجر.
   const theme = useMemo(() => {
     const base = THEMES[catTab] || makeLiveTheme(catTab, model);
-    return live ? { ...base, eta: String(model.config.deliveryMinutes) } : base;
+    if (!live) return base;
+    const merged = { ...base, eta: String(model.config.deliveryMinutes) };
+    const tj = (model.tabs.find((t) => t.key === catTab) || {}).themeJson;
+    if (tj && typeof tj === "object") {
+      // ادمج مفاتيح ثيم الأدمن المخصّصة فوق الأساس (الهيرو يُدار عبر heroByTab)
+      for (const k of ["headTop", "headBot", "onHead", "sub", "badge", "badgeBorder", "searchBg", "searchText", "searchIcon", "promo", "surge"]) {
+        if (tj[k] !== undefined && tj[k] !== null && tj[k] !== "") merged[k] = tj[k];
+      }
+      if (Array.isArray(tj.hints) && tj.hints.length) merged.hints = tj.hints;
+    }
+    return merged;
   }, [catTab, live, model]);
   const tabsList = useMemo(
     () => (live
@@ -991,10 +1004,10 @@ export default function BlinkitHome() {
               {/* التبويبات — مثبّتة، لونها يتغيّر عبر --tc */}
               {tabStrip}
 
-              {/* شريط العرض الرفيع — يظهر عند طي الهيدر */}
-              {theme.promo && (
+              {/* شريط العرض الرفيع — يظهر عند طي الهيدر (نصّه وتفعيله من الأدمن) */}
+              {theme.promo && (!live || model.config.promoEnabled) && (
                 <div className="bk-promo">
-                  ⚡ اطلب الآن واحصل على توصيل مجاني
+                  {live && model.config.promoText ? model.config.promoText : "⚡ اطلب الآن واحصل على توصيل مجاني"}
                 </div>
               )}
             </div>

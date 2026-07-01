@@ -59,8 +59,12 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
   const tabsRaw = Array.isArray(L.tabs) ? L.tabs.filter((t) => t && t.active !== false) : [];
   const groupsRaw = Array.isArray(L.groups) ? L.groups.filter((g) => g && g.active !== false) : [];
   const bannersRaw = Array.isArray(L.banners) ? L.banners.filter((b) => b && b.active !== false) : [];
+  const adsRaw = Array.isArray(L.ads) ? L.ads.filter((a) => a && a.active !== false) : [];
+  const collagesRaw = Array.isArray(L.collages) ? L.collages.filter((c) => c && c.active !== false) : [];
+  const railsRaw = Array.isArray(L.rails) ? L.rails.filter((r) => r && r.active !== false) : [];
   const catsRaw = Array.isArray(L.categories) ? L.categories : [];
   const products = catalog && Array.isArray(catalog.products) ? catalog.products : [];
+  const bySort = (a, b) => (a.sort || 0) - (b.sort || 0);
 
   // لا شيء حيّ إطلاقاً → دع الواجهة تستعمل تصميمها المدمج
   const hasLive = products.length > 0 || tabsRaw.length > 0 || catsRaw.length > 0;
@@ -76,6 +80,8 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
     headerOverlay: cfg.header_overlay ?? 0.18,
     showStores: cfg.show_stores !== false,
     showBundles: cfg.show_bundles !== false,
+    promoEnabled: cfg.promo_enabled !== false,
+    promoText: cfg.promo_text || "",
   };
 
   // ── التبويبات: من الأدمن إن وُجدت، وإلا التبويبات المدمجة ──
@@ -84,8 +90,8 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
     ? tabsRaw
         .slice()
         .sort((a, b) => (a.sort || 0) - (b.sort || 0))
-        .map((t) => ({ key: t.key, label: t.label, iconImage: t.icon_image || null, theme: t.theme || "#F8CB46" }))
-    : fallbackTabs.map((t) => ({ key: t.id, label: t.label, iconImage: null, theme: null }));
+        .map((t) => ({ key: t.key, label: t.label, iconImage: t.icon_image || null, theme: t.theme || "#F8CB46", themeJson: t.theme_json || null }))
+    : fallbackTabs.map((t) => ({ key: t.id, label: t.label, iconImage: null, theme: null, themeJson: null }));
 
   const tabKeys = new Set(tabs.map((t) => t.key));
   const DEFAULT_TAB = tabs.length ? tabs[0].key : "all";
@@ -130,6 +136,27 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
     subText: "#6a5a62",
   });
 
+  // ── بطاقة إعلان الأدمن (بقيم افتراضية = إعلان البرياني المدمج) ──
+  const uiAd = (a) => ({
+    title: a.title || "احتفال البرياني هنا",
+    subtitle: a.subtitle || "أحضر أجود أنواع الأرز",
+    cta: a.cta_label || "تسوّق الآن",
+    emoji: a.emoji || "🍚",
+    image: a.image || null,
+    bg: a.bg || null,
+    fg: a.fg || null,
+    catName: a.cat_name || null,
+  });
+
+  // ── معرّفات منتجات صفّ الأدمن حسب مصدره ──
+  const railIds = (r) => {
+    const src = r.source || "bestsellers";
+    if (src === "deals") return dealIds.slice(0, 12);
+    if (src === "category" && r.cat_name) return (byCat[r.cat_name] || []).map((p) => String(p.id)).slice(0, 12);
+    if (src === "manual") return (Array.isArray(r.product_ids) ? r.product_ids : []).map(String).filter((id) => productsById[id]).slice(0, 20);
+    return topSoldIds.slice(0, 12); // bestsellers
+  };
+
   // ── بناء أقسام كل تبويب ──
   const sectionsByTab = {};
   const heroByTab = {}; // الهيرو العلوي (يتلاشى مع التمرير داخل .bk-herowrap)
@@ -144,18 +171,31 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
       .filter((b) => (b.tab || "all") === key)
       .sort((a, b) => (a.sort || 0) - (b.sort || 0));
     const ffTheme = (opts.fallbackThemes || {})[key];
+    const tjHero = tab.themeJson && tab.themeJson.hero; // هيرو مخصّص من ثيم الأدمن
     heroByTab[key] = isAll
       ? { kind: "welcome", title: config.welcomeTitle, sub: config.welcomeSubtitle }
       : tabBanners[0]
-      ? { kind: "banner", hero: bannerHero(tabBanners[0]) }
+      ? { kind: "banner", hero: bannerHero(tabBanners[0]) } // أولوية: بانر الأدمن
+      : tjHero
+      ? { kind: "themehero", hero: tjHero } // ثم هيرو ثيم الأدمن
       : ffTheme && ffTheme.hero
-      ? { kind: "themehero", hero: ffTheme.hero } // احتفظ بهيرو التصميم المدمج حتى يضيف الأدمن بانراً
+      ? { kind: "themehero", hero: ffTheme.hero } // ثم هيرو التصميم المدمج
       : null;
     // بانرات إضافية (الثاني فما بعد) تُعرض كأقسام
     tabBanners.slice(1).forEach((b) => secs.push({ kind: "banner", hero: bannerHero(b) }));
 
-    // 2) تبويب «الكل»: كولاج الأكثر مبيعاً (مشتق من الفئات الحقيقية)
-    if (isAll) {
+    // 2) الكولاج: كولاج الأدمن لهذا التبويب إن وُجد، وإلا كولاج مشتقّ من الفئات (تبويب الكل)
+    const tabCollages = collagesRaw.filter((c) => (c.tab || "all") === key).sort(bySort);
+    if (tabCollages.length) {
+      secs.push({
+        kind: "collage",
+        cards: tabCollages.map((c) => {
+          const items = (Array.isArray(c.emojis) ? c.emojis : []).slice(0, 4);
+          while (items.length < 4) items.push("🛒");
+          return { title: c.title, more: c.more_count || 0, items, catName: c.cat_name || c.title };
+        }),
+      });
+    } else if (isAll) {
       const collageCats = (tabCats.length ? tabCats : cats)
         .filter((c) => (byCat[c.name] || []).length)
         .slice(0, 6);
@@ -192,16 +232,31 @@ export function buildBlinkitModel(layout, catalog, opts = {}) {
       .map((c) => ({ t: c.name, e: c.emoji || "🛒", image: c.image || null, bg: tileBg(c.name), catName: c.name }));
     if (looseTiles.length) secs.push({ kind: "tiles", title: "تسوّق حسب الفئة", tiles: looseTiles });
 
-    // 5) صفوف المنتجات الحقيقية
-    if (isAll) {
+    // 5) الصفوف والإعلانات (feed): صفوف الأدمن إن وُجدت، وإلا صفوف تلقائية.
+    //    الإعلانات: بطاقات الأدمن لهذا التبويب، أو إعلان افتراضي واحد في تبويب الكل.
+    const tabAds = adsRaw
+      .filter((a) => (a.tab || "all") === key)
+      .sort(bySort)
+      .map((a) => ({ kind: "ad", sort: a.sort || 0, ad: uiAd(a) }));
+    const tabRails = railsRaw.filter((r) => (r.tab || "all") === key).sort(bySort);
+
+    if (tabRails.length) {
+      // تحكّم كامل: الصفوف والإعلانات مرتّبة معاً حسب sort
+      [
+        ...tabRails.map((r) => ({ kind: "rail", sort: r.sort || 0, title: r.title, sub: r.subtitle || null, ids: railIds(r) })),
+        ...tabAds,
+      ].sort(bySort).forEach((it) => secs.push(it));
+    } else if (isAll) {
       if (topSoldIds.length) secs.push({ kind: "rail", title: "الأكثر مبيعاً", ids: topSoldIds.slice(0, 12) });
-      secs.push({ kind: "ad" }); // بطاقة إعلان مدمجة (تصبح قابلة للتحكم في المرحلة ٢)
+      if (tabAds.length) tabAds.forEach((a) => secs.push(a));
+      else secs.push({ kind: "ad", ad: uiAd({}) }); // إعلان افتراضي (البرياني) حتى يضيف الأدمن إعلاناً
       if (dealIds.length) secs.push({ kind: "rail", title: "عروض وخصومات", ids: dealIds.slice(0, 12) });
     } else {
       // منتجات التبويب = منتجات الفئات المنسوبة إليه
       const tabCatNames = new Set(tabCats.map((c) => c.name));
       const ids = bySold.filter((p) => tabCatNames.has(p.tag)).map((p) => String(p.id));
       if (ids.length) secs.push({ kind: "rail", title: `منتجات ${tab.label}`, ids: ids.slice(0, 12) });
+      tabAds.forEach((a) => secs.push(a));
     }
 
     sectionsByTab[key] = secs;
